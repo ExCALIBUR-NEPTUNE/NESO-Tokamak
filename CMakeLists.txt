@@ -9,10 +9,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-# Hardcode some vars for now
-
-set(NESO_DIR "/home/oparry/code/NESO_alt/builds/hwit/NESO_cmake/")
-
 # ##############################################################################
 # Find dependencies
 # ##############################################################################
