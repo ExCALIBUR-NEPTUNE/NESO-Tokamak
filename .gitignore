@@ -34,3 +34,6 @@
 # Build dirs
 build
 builds
+
+# Example run dir
+example-runs
