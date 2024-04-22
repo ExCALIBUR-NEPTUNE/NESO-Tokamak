@@ -152,6 +152,7 @@ public:
     }
 
     this->simulation_time = time_end;
+    this->transfer_particles();
   }
 
   /**
