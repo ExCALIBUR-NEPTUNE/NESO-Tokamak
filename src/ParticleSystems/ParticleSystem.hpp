@@ -94,7 +94,7 @@ public:
                                               rng_phasespace);
 
       for (int px = 0; px < N; px++) {
-        for (int dimx = 0; dimx < 3; dimx++) {
+        for (int dimx = 0; dimx < this->graph->GetMeshDimension(); dimx++) {
           const REAL pos_shift = this->pbc->global_origin[dimx];
           const REAL pos_tmp = pos_shift + positions[dimx][px];
           initial_distribution[Sym<REAL>("POSITION")][px][dimx] = pos_tmp;
@@ -104,7 +104,7 @@ public:
         initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
         initial_distribution[Sym<REAL>("B")][px][0] = Bx;
         initial_distribution[Sym<REAL>("B")][px][1] = By;
-        initial_distribution[Sym<REAL>("B")][px][2] = Bz;
+        initial_distribution[Sym<REAL>("B")][px][2] = Bz; ////
         initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] = px + rstart;
       }
 

@@ -131,10 +131,13 @@ void HWITSystem::explicit_time_int(
   Vmath::Svtsvtp(npts, -m_B[0] / m_Bmag / m_Bmag,
                  m_fields[gradphi2_idx]->GetPhys(), 1, m_B[2] / m_Bmag / m_Bmag,
                  m_fields[gradphi0_idx]->GetPhys(), 1, m_ExB_vel[1], 1);
-  Vmath::Svtsvtp(npts, -m_B[1] / m_Bmag / m_Bmag,
-                 m_fields[gradphi0_idx]->GetPhys(), 1, m_B[0] / m_Bmag / m_Bmag,
-                 m_fields[gradphi1_idx]->GetPhys(), 1, m_ExB_vel[2], 1);
+  if (this->m_graph->GetMeshDimension() == 3) {
 
+    Vmath::Svtsvtp(npts, -m_B[1] / m_Bmag / m_Bmag,
+                   m_fields[gradphi0_idx]->GetPhys(), 1,
+                   m_B[0] / m_Bmag / m_Bmag, m_fields[gradphi1_idx]->GetPhys(),
+                   1, m_ExB_vel[2], 1);
+  }
   // Advect ne and w
   this->adv_obj->Advect(2, m_fields, m_ExB_vel, in_arr, out_arr, time);
   for (auto i = 0; i < 2; ++i) {
