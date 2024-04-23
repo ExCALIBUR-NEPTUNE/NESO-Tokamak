@@ -48,6 +48,8 @@
             <P> particle_charge = 0.2 </P>
             <!-- Scaling coefficient when adding particle drift velocities. -->
             <P> particle_v_drift_scaling = 1.0 </P>
+            <!-- Scaling coefficient applied to B for particles, i.e. if 0 particles ignore B. -->
+            <P> particle_B_scaling = 1.0 </P>
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-6  </P>
             <P> NekNonlinSysMaxIterations = 30       </P>

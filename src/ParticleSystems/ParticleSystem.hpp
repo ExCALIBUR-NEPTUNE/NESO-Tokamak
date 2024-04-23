@@ -76,7 +76,11 @@ public:
     this->session->LoadParameter("By", By, 0.0);
     this->session->LoadParameter("Bz", Bz, 0.0);
     double particle_B_scaling;
-    this->get_from_session(this->session, "particle_B_scaling", particle_B_scaling, 1.0);
+    this->get_from_session(this->session, "particle_B_scaling",
+                           particle_B_scaling, 1.0);
+    Bx *= particle_B_scaling;
+    By *= particle_B_scaling;
+    Bz *= particle_B_scaling;
 
     if (rank == 0) {
       nprint("================================================================="
