@@ -64,31 +64,23 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <B ID="0"> C[1] </B> <!-- Low x -->
+            <B ID="0"> C[1] </B> <!-- Low y -->
             <B ID="1"> C[2] </B> <!-- High x -->
-            <B ID="2"> C[3] </B> <!-- Low y -->
-            <B ID="3"> C[4] </B> <!-- High y -->
+            <B ID="2"> C[3] </B> <!-- High y -->
+            <B ID="3"> C[4] </B> <!-- Low x -->
         </BOUNDARYREGIONS>
 
         <!-- Periodic conditions for all fields on all boundaries -->
         <BOUNDARYCONDITIONS>
             <REGION REF="0">
-                <P VAR="ne"  VALUE="[1]" />
-                <P VAR="w"   VALUE="[1]" />
-                <P VAR="phi" VALUE="[1]" />
-                <P VAR="gradphi0" VALUE="[1]" />
-                <P VAR="gradphi1" VALUE="[1]" />
-                <P VAR="gradphi2" VALUE="[1]" />
+                <P VAR="ne"  VALUE="[2]" />
+                <P VAR="w"   VALUE="[2]" />
+                <P VAR="phi" VALUE="[2]" />
+                <P VAR="gradphi0" VALUE="[2]" />
+                <P VAR="gradphi1" VALUE="[2]" />
+                <P VAR="gradphi2" VALUE="[2]" />
             </REGION>
             <REGION REF="1">
-                <P VAR="ne"  VALUE="[0]" />
-                <P VAR="w"   VALUE="[0]" />
-                <P VAR="phi" VALUE="[0]" />
-                <P VAR="gradphi0" VALUE="[0]" />
-                <P VAR="gradphi1" VALUE="[0]" />
-                <P VAR="gradphi2" VALUE="[0]" />
-            </REGION>
-	        <REGION REF="2">
                 <P VAR="ne"  VALUE="[3]" />
                 <P VAR="w"   VALUE="[3]" />
                 <P VAR="phi" VALUE="[3]" />
@@ -96,13 +88,21 @@
                 <P VAR="gradphi1" VALUE="[3]" />
                 <P VAR="gradphi2" VALUE="[3]" />
             </REGION>
+	        <REGION REF="2">
+                <P VAR="ne"  VALUE="[0]" />
+                <P VAR="w"   VALUE="[0]" />
+                <P VAR="phi" VALUE="[0]" />
+                <P VAR="gradphi0" VALUE="[0]" />
+                <P VAR="gradphi1" VALUE="[0]" />
+                <P VAR="gradphi2" VALUE="[0]" />
+            </REGION>
             <REGION REF="3">
-                <P VAR="ne"  VALUE="[2]" />
-                <P VAR="w"   VALUE="[2]" />
-                <P VAR="phi" VALUE="[2]" />
-                <P VAR="gradphi0" VALUE="[2]" />
-                <P VAR="gradphi1" VALUE="[2]" />
-                <P VAR="gradphi2" VALUE="[2]" />
+                <P VAR="ne"  VALUE="[1]" />
+                <P VAR="w"   VALUE="[1]" />
+                <P VAR="phi" VALUE="[1]" />
+                <P VAR="gradphi0" VALUE="[1]" />
+                <P VAR="gradphi1" VALUE="[1]" />
+                <P VAR="gradphi2" VALUE="[1]" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
