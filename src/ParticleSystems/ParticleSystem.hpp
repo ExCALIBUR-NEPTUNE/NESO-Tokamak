@@ -75,6 +75,8 @@ public:
     this->session->LoadParameter("Bx", Bx, 0.0);
     this->session->LoadParameter("By", By, 0.0);
     this->session->LoadParameter("Bz", Bz, 0.0);
+    double particle_B_scaling;
+    this->get_from_session(this->session, "particle_B_scaling", particle_B_scaling, 1.0);
 
     if (rank == 0) {
       nprint("================================================================="
@@ -83,6 +85,7 @@ public:
       nprint("Particle mass:", particle_mass);
       nprint("Particle charge:", particle_charge);
       nprint("Particle seed:", seed);
+      nprint("Particle B scaling:", particle_B_scaling);
       nprint("================================================================="
              "=====");
     }
@@ -191,6 +194,7 @@ public:
 
     /*
      * Uncomment and implement for a non-uniform magnetic field.
+     * Remeber to apply the particle_B_scaling coefficient.
      */
     /*
     particle_loop(
@@ -233,6 +237,46 @@ public:
    * Apply boundary conditions.
    */
   inline void boundary_conditions() { this->pbc->execute(); }
+
+  /**
+   * Adds a velocity drift of \alpha * V_drift where V_drift = -grad(phi) X B
+   * evaluation to the velocity of each particle. The coefficient \alpha is the
+   * read from the session file key `particle_v_drift_scaling`.
+   */
+  inline void add_v_drift(){
+    double h_alpha;
+    this->get_from_session(this->session, "particle_v_drift_scaling", h_alpha, 1.0);
+    const double k_alpha = h_alpha;
+    
+    this->evaluate_fields();
+    particle_loop(
+      "ParticleSystem:add_v_drift",
+      this->particle_group,
+      [=](
+        auto VELOCITY,
+        auto B,
+        auto E0,
+        auto E1,
+        auto E2
+      ){
+        // Ei contains d(phi)/dx_i. 
+        const auto mE0 = -1.0 * E0.at(0);
+        const auto mE1 = -1.0 * E1.at(0);
+        const auto mE2 = -1.0 * E2.at(0);
+        REAL exb0, exb1, exb2;
+        MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B.at(0), B.at(1), B.at(2),
+                                 exb0, exb1, exb2);
+        VELOCITY.at(0) += k_alpha * exb0;
+        VELOCITY.at(1) += k_alpha * exb1;
+        VELOCITY.at(2) += k_alpha * exb2;
+      },
+      Access::write(Sym<REAL>("VELOCITY")),
+      Access::read(Sym<REAL>("B")),
+      Access::read(Sym<REAL>("E0")),
+      Access::read(Sym<REAL>("E1")),
+      Access::read(Sym<REAL>("E2"))
+    )->execute();
+  }
 
 protected:
   inline void integrate_inner(const double dt_inner) {
