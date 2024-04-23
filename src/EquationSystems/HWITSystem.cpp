@@ -10,8 +10,8 @@ static std::string class_name;
 std::string HWITSystem::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
         "HWIT", HWITSystem::create,
-        "(2D) Hasegawa-Wakatani equation system, adapted to run in 3D "
-        "domains.");
+        "(2D) Hasegawa-Wakatani equation system. Runs in either a 2D or 3D "
+        "domain.");
 /**
  * @brief Creates an instance of this class.
  */
