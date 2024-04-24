@@ -36,7 +36,7 @@
             <!-- d22 Coeff for Helmholtz solve -->
             <P> d22      = 0.0 </P> 
             <!-- HW params -->
-            <P> HW_alpha = 3.5 </P>
+            <P> HW_alpha = 2.0 </P>
             <P> HW_kappa = 1.0 </P> 
             <!-- Scaling factor for ICs -->
             <P> s        = 2.0 </P>
