@@ -51,7 +51,7 @@
             <!-- Scaling coefficient applied to B for particles, i.e. if 0 particles ignore B. -->
             <P> particle_B_scaling = 1.0 </P>
             <!-- Implicit solve params -->
-            <P> IterativeSolverTolerance  = 1.0E-6  </P>
+            <P> IterativeSolverTolerance  = 1.0E-14  </P>
             <P> NekNonlinSysMaxIterations = 30       </P>
             <P> NewtonRelativeIteTol      = 1.0E-10  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
