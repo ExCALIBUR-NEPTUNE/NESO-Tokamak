@@ -23,12 +23,12 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.05            </P>
-            <P> NumSteps      = 3000              </P>
-            <P> TFinal        = NumSteps*TimeStep </P>
-            <P> IO_InfoSteps  = NumSteps/1000     </P>
-            <P> IO_CheckSteps = NumSteps/100      </P>
-            <P> particle_num_write_particle_steps = 1 </P>
+            <P> TimeStep      = 0.05                              </P>
+            <P> NumSteps      = 3000                              </P>
+            <P> TFinal        = NumSteps*TimeStep                 </P>
+            <P> IO_InfoSteps  = NumSteps/100                      </P>
+            <P> IO_CheckSteps = NumSteps/100                      </P>
+            <P> particle_num_write_particle_steps = IO_CheckSteps </P>
             <!-- Magnetic field strength -->
             <P> Bx       = 0.0 </P>
             <P> By       = 0.0 </P>
