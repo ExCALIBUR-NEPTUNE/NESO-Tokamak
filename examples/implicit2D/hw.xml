@@ -43,9 +43,9 @@
             <!-- No particles when num_particles_total = 0-->
             <P> num_particles_total = 2000 </P>
             <!-- Mass of each particle -->
-            <P> particle_mass = 0.5 </P>
+            <P> particle_mass = 1.0 </P>
             <!-- Charge of each particle -->
-            <P> particle_charge = 0.2 </P>
+            <P> particle_charge = 1.0 </P>
             <!-- Scaling coefficient when adding particle drift velocities. -->
             <P> particle_v_drift_scaling = 1.0 </P>
             <!-- Scaling coefficient applied to B for particles, i.e. if 0 particles ignore B. -->
