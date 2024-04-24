@@ -192,6 +192,12 @@ public:
    * Evaluate grad(phi) and B at the particle locations.
    */
   inline void evaluate_fields() {
+    NESOASSERT(this->field_evaluate_gradphi0 != nullptr,
+               "FieldEvaluate not setup.");
+    NESOASSERT(this->field_evaluate_gradphi1 != nullptr, 
+               "FieldEvaluate not setup.");
+    NESOASSERT(this->field_evaluate_gradphi2 != nullptr, 
+               "FieldEvaluate not setup.");
     this->field_evaluate_gradphi0->evaluate(Sym<REAL>("E0"));
     this->field_evaluate_gradphi1->evaluate(Sym<REAL>("E1"));
     this->field_evaluate_gradphi2->evaluate(Sym<REAL>("E2"));
@@ -247,14 +253,15 @@ public:
    * evaluation to the velocity of each particle. The coefficient \alpha is the
    * read from the session file key `particle_v_drift_scaling`.
    */
-  inline void add_v_drift(){
+  inline void initialise_particles_from_fields(){
     double h_alpha;
-    this->get_from_session(this->session, "particle_v_drift_scaling", h_alpha, 1.0);
+    this->get_from_session(this->session, "particle_v_drift_scaling",
+                           h_alpha, 1.0);
     const double k_alpha = h_alpha;
     
     this->evaluate_fields();
     particle_loop(
-      "ParticleSystem:add_v_drift",
+      "ParticleSystem:initialise_particles_from_fields",
       this->particle_group,
       [=](
         auto VELOCITY,
@@ -390,6 +397,7 @@ protected:
     this->sycl_target->profile_map.inc(
         "ParticleSystem", "transfer_particles", 1,
         profile_elapsed(t0, profile_timestamp()));
+
   }
 };
 } // namespace NESO::Solvers::hw_impurity_transport

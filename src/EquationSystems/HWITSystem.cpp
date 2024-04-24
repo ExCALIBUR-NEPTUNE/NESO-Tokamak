@@ -669,6 +669,9 @@ void HWITSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
   TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_SetInitialConditions(
       init_time, dump_ICs, domain);
   calc_init_phi_and_gradphi();
+  if(this->particle_sys){
+    this->particle_sys->initialise_particles_from_fields();
+  }
 }
 
 /**
