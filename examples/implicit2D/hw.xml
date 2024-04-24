@@ -48,8 +48,16 @@
             <P> particle_charge = 1.0 </P>
             <!-- Scaling coefficient when adding particle drift velocities. -->
             <P> particle_v_drift_scaling = 1.0 </P>
-            <!-- Scaling coefficient applied to B for particles, i.e. if 0 particles ignore B. -->
+            <!-- Scaling coefficient applied to B for particles, -->
+            <!-- i.e. if 0 particles ignore B. -->
             <P> particle_B_scaling = 1.0 </P>
+            <!-- Add to initial particle velocity a contribution: -->
+            <!-- particle_velocity_B_scaling * unit(B) -->
+            <P> particle_velocity_B_scaling = 0.0 </P>
+            <!-- Add to initial particle velocity a contribution: -->
+            <!-- using particle_thermal_velocity. -->
+            <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
+            <P> particle_thermal_velocity = 0.0 </P>
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-14  </P>
             <P> NekNonlinSysMaxIterations = 30       </P>

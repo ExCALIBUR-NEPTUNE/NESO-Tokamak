@@ -1,6 +1,8 @@
 #ifndef HW_IMPURITY_TRANSPORT_PARTICLE_SYSTEM_H
 #define HW_IMPURITY_TRANSPORT_PARTICLE_SYSTEM_H
 
+#include <array>
+
 #include <nektar_interface/function_evaluation.hpp>
 #include <nektar_interface/function_projection.hpp>
 #include <nektar_interface/particle_boundary_conditions.hpp>
@@ -81,7 +83,12 @@ public:
     Bx *= particle_B_scaling;
     By *= particle_B_scaling;
     Bz *= particle_B_scaling;
-
+    double particle_thermal_velocity;
+    this->get_from_session(this->session, "particle_thermal_velocity",
+                           particle_thermal_velocity, 0.0);
+    double particle_velocity_B_scaling;
+    this->get_from_session(this->session, "particle_velocity_B_scaling",
+                           particle_velocity_B_scaling, 0.0);
     if (rank == 0) {
       nprint("================================================================="
              "=====");
@@ -90,9 +97,18 @@ public:
       nprint("Particle charge:", particle_charge);
       nprint("Particle seed:", seed);
       nprint("Particle B scaling:", particle_B_scaling);
+      nprint("Particle velocity B scaling:", particle_velocity_B_scaling);
+      nprint("Particle thermal velocity:", particle_thermal_velocity);
       nprint("================================================================="
              "=====");
     }
+
+    std::array<double, 3> unitB;
+    const double inverse_len_B = 1.0 / std::sqrt(Bx*Bx + By*By + Bz*Bz);
+    unitB.at(0) = Bx * inverse_len_B;
+    unitB.at(1) = By * inverse_len_B;
+    unitB.at(2) = Bz * inverse_len_B;
+    std::normal_distribution d{0.0, particle_thermal_velocity};
 
     if (N > 0) {
       ParticleSet initial_distribution(
@@ -102,10 +118,17 @@ public:
 
       for (int px = 0; px < N; px++) {
         for (int dimx = 0; dimx < this->graph->GetMeshDimension(); dimx++) {
+          // Create the position in dimx
           const REAL pos_shift = this->pbc->global_origin[dimx];
           const REAL pos_tmp = pos_shift + positions[dimx][px];
           initial_distribution[Sym<REAL>("POSITION")][px][dimx] = pos_tmp;
-          initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] = 0.0;
+          // Create the velocity in dimx
+          REAL vtmp = 0.0;
+          vtmp += particle_velocity_B_scaling * unitB.at(dimx);
+          if (particle_thermal_velocity > 0.0){
+            vtmp += d(rng_phasespace);
+          }
+          initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] = vtmp;
         }
         initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
         initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
