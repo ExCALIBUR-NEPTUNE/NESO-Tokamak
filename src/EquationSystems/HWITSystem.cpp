@@ -40,6 +40,17 @@ HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
       session->DefinesParameter("mass_recording_step");
 }
 
+void HWITSystem::calc_init_phi_and_gradphi() {
+  Array<OneD, Array<OneD, NekDouble>> in_arr(m_fields.size());
+  for (auto ii = 0; ii < m_fields.size(); ii++) {
+    in_arr[ii] = m_fields[ii]->GetPhys();
+  }
+  solve_phi(in_arr);
+  if (this->particles_enabled) {
+    compute_grad_phi();
+  }
+}
+
 /**
  * @brief Compute the gradient of phi for evaluation at the particle positions.
  * (Stop-gap until NP's gradient-evaluate can be extended to 3D).
@@ -648,6 +659,16 @@ bool HWITSystem::v_PreIntegrate(int step) {
   }
 
   return UnsteadySystem::v_PreIntegrate(step);
+}
+
+/**
+ * @brief After reading ICs, calculate phi and grad(phi)
+ */
+void HWITSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
+                                        const int domain) {
+  TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_SetInitialConditions(
+      init_time, dump_ICs, domain);
+  calc_init_phi_and_gradphi();
 }
 
 /**

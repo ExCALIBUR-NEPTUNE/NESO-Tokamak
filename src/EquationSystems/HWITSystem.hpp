@@ -102,11 +102,11 @@ protected:
   /// Riemann solver type (used for all advection terms)
   std::string m_riemann_solver_type;
 
+  void calc_init_phi_and_gradphi();
   void calc_ref_vals(const Array<OneD, const NekDouble> &in_arr);
+  void compute_grad_phi();
   void do_null_precon(const Array<OneD, const NekDouble> &in_arr,
                       Array<OneD, NekDouble> &out_arr, const bool &flag);
-
-  void compute_grad_phi();
 
   void
   explicit_time_int(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
@@ -147,7 +147,8 @@ protected:
   virtual void v_InitObject(bool DeclareField) override;
   virtual bool v_PostIntegrate(int step) override;
   virtual bool v_PreIntegrate(int step) override;
-
+  virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
+                                      const int domain) override;
   void zero_out_array(Array<OneD, Array<OneD, NekDouble>> &out_arr);
 
   //---------------------------------------------------------------------------
