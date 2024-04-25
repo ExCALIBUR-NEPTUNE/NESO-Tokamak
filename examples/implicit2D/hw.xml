@@ -39,7 +39,7 @@
             <P> HW_alpha = 2.0 </P>
             <P> HW_kappa = 1.0 </P> 
             <!-- Scaling factor for ICs -->
-            <P> s        = 2.0 </P>
+            <P> ics_scale        = 2.0 </P>
             <!-- No particles when num_particles_total = 0-->
             <P> num_particles_total = 10000 </P>
             <!-- Mass of each particle -->
@@ -118,9 +118,9 @@
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="ne"  DOMAIN="0" VALUE="6*exp((-x*x-y*y)/(s*s))" />
-            <E VAR="w"   DOMAIN="0" VALUE="(4*exp((-x*x-y*y)/(s*s))*(-s*s+x*x+y*y)/s^4)" />
-            <E VAR="phi" DOMAIN="0" VALUE="exp(-(x*x+y*y)/(s*s))" />
+            <E VAR="ne"  DOMAIN="0" VALUE="6*exp((-x*x-y*y)/(ics_scale*ics_scale))" />
+            <E VAR="w"   DOMAIN="0" VALUE="(4*exp((-x*x-y*y)/(ics_scale*ics_scale))*(-ics_scale*ics_scale+x*x+y*y)/ics_scale^4)" />
+            <E VAR="phi" DOMAIN="0" VALUE="exp(-(x*x+y*y)/(ics_scale*ics_scale))" />
             <E VAR="gradphi0" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi1" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
