@@ -147,14 +147,6 @@ protected:
   virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                       const int domain) override;
 
-  //---------------------------------------------------------------------------
-  // Debugging
-  void print_arr_vals(const Array<OneD, NekDouble> &arr, int num,
-                      int stride = 1, std::string label = "",
-                      bool all_tasks = false);
-  void print_arr_size(const Array<OneD, NekDouble> &arr, std::string label = "",
-                      bool all_tasks = false);
-
 private:
   /// d00 coefficient for Helmsolve
   NekDouble d00;
