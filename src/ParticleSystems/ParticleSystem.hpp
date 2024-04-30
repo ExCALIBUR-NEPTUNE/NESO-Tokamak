@@ -7,7 +7,7 @@
 #include <nektar_interface/function_projection.hpp>
 #include <nektar_interface/particle_boundary_conditions.hpp>
 #include <nektar_interface/particle_cell_mapping/particle_cell_mapping_common.hpp>
-#include <nektar_interface/partsys_base.hpp>
+#include <nektar_interface/solver_base/partsys_base.hpp>
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
@@ -99,7 +99,7 @@ public:
     report_param("Velocity scaling", particle_velocity_B_scaling);
 
     std::array<double, 3> unitB;
-    const double inverse_len_B = 1.0 / std::sqrt(Bx*Bx + By*By + Bz*Bz);
+    const double inverse_len_B = 1.0 / std::sqrt(Bx * Bx + By * By + Bz * Bz);
     unitB.at(0) = Bx * inverse_len_B;
     unitB.at(1) = By * inverse_len_B;
     unitB.at(2) = Bz * inverse_len_B;
@@ -120,7 +120,7 @@ public:
           // Create the velocity in dimx
           REAL vtmp = 0.0;
           vtmp += particle_velocity_B_scaling * unitB.at(dimx);
-          if (particle_thermal_velocity > 0.0){
+          if (particle_thermal_velocity > 0.0) {
             vtmp += d(rng_phasespace);
           }
           initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] = vtmp;
@@ -212,9 +212,9 @@ public:
   inline void evaluate_fields() {
     NESOASSERT(this->field_evaluate_gradphi0 != nullptr,
                "FieldEvaluate not setup.");
-    NESOASSERT(this->field_evaluate_gradphi1 != nullptr, 
+    NESOASSERT(this->field_evaluate_gradphi1 != nullptr,
                "FieldEvaluate not setup.");
-    NESOASSERT(this->field_evaluate_gradphi2 != nullptr, 
+    NESOASSERT(this->field_evaluate_gradphi2 != nullptr,
                "FieldEvaluate not setup.");
     this->field_evaluate_gradphi0->evaluate(Sym<REAL>("E0"));
     this->field_evaluate_gradphi1->evaluate(Sym<REAL>("E1"));
@@ -271,40 +271,31 @@ public:
    * evaluation to the velocity of each particle. The coefficient \alpha is the
    * read from the session file key `particle_v_drift_scaling`.
    */
-  inline void initialise_particles_from_fields(){
+  inline void initialise_particles_from_fields() {
     double h_alpha;
-    this->get_from_session(this->session, "particle_v_drift_scaling",
-                           h_alpha, 1.0);
+    this->get_from_session(this->session, "particle_v_drift_scaling", h_alpha,
+                           1.0);
     const double k_alpha = h_alpha;
-    
+
     this->evaluate_fields();
     particle_loop(
-      "ParticleSystem:initialise_particles_from_fields",
-      this->particle_group,
-      [=](
-        auto VELOCITY,
-        auto B,
-        auto E0,
-        auto E1,
-        auto E2
-      ){
-        // Ei contains d(phi)/dx_i. 
-        const auto mE0 = -1.0 * E0.at(0);
-        const auto mE1 = -1.0 * E1.at(0);
-        const auto mE2 = -1.0 * E2.at(0);
-        REAL exb0, exb1, exb2;
-        MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B.at(0), B.at(1), B.at(2),
-                                 exb0, exb1, exb2);
-        VELOCITY.at(0) += k_alpha * exb0;
-        VELOCITY.at(1) += k_alpha * exb1;
-        VELOCITY.at(2) += k_alpha * exb2;
-      },
-      Access::write(Sym<REAL>("VELOCITY")),
-      Access::read(Sym<REAL>("B")),
-      Access::read(Sym<REAL>("E0")),
-      Access::read(Sym<REAL>("E1")),
-      Access::read(Sym<REAL>("E2"))
-    )->execute();
+        "ParticleSystem:initialise_particles_from_fields", this->particle_group,
+        [=](auto VELOCITY, auto B, auto E0, auto E1, auto E2) {
+          // Ei contains d(phi)/dx_i.
+          const auto mE0 = -1.0 * E0.at(0);
+          const auto mE1 = -1.0 * E1.at(0);
+          const auto mE2 = -1.0 * E2.at(0);
+          REAL exb0, exb1, exb2;
+          MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B.at(0), B.at(1), B.at(2),
+                                   exb0, exb1, exb2);
+          VELOCITY.at(0) += k_alpha * exb0;
+          VELOCITY.at(1) += k_alpha * exb1;
+          VELOCITY.at(2) += k_alpha * exb2;
+        },
+        Access::write(Sym<REAL>("VELOCITY")), Access::read(Sym<REAL>("B")),
+        Access::read(Sym<REAL>("E0")), Access::read(Sym<REAL>("E1")),
+        Access::read(Sym<REAL>("E2")))
+        ->execute();
   }
 
 protected:
@@ -415,7 +406,6 @@ protected:
     this->sycl_target->profile_map.inc(
         "ParticleSystem", "transfer_particles", 1,
         profile_elapsed(t0, profile_timestamp()));
-
   }
 };
 } // namespace NESO::Solvers::hw_impurity_transport

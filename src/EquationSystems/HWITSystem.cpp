@@ -32,12 +32,13 @@ HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
                               "gradphi0", "gradphi1", "gradphi2"};
   this->int_fld_names = {"ne", "w"};
 
-  // Frequency of growth rate recording. Set zero to disable.
-  m_diag_growth_rates_recording_enabled =
+  // Determine whether energy,enstrophy recording is enabled (output freq is
+  // set)
+  this->energy_enstrophy_recording_enabled =
       session->DefinesParameter("growth_rates_recording_step");
 
-  // Frequency of mass recording. Set zero to disable.
-  m_diag_mass_recording_enabled =
+  // Determine whether mass recording is enabled (output freq is set)
+  this->mass_recording_enabled =
       session->DefinesParameter("mass_recording_step");
 }
 
@@ -57,10 +58,10 @@ void HWITSystem::calc_init_phi_and_gradphi() {
  * (Stop-gap until NP's gradient-evaluate can be extended to 3D).
  */
 void HWITSystem::compute_grad_phi() {
-  int phi_idx = m_field_to_index.get_idx("phi");
-  int gradphi0_idx = m_field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = m_field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = m_field_to_index.get_idx("gradphi2");
+  int phi_idx = this->field_to_index.get_idx("phi");
+  int gradphi0_idx = this->field_to_index.get_idx("gradphi0");
+  int gradphi1_idx = this->field_to_index.get_idx("gradphi1");
+  int gradphi2_idx = this->field_to_index.get_idx("gradphi2");
   m_fields[phi_idx]->PhysDeriv(m_fields[phi_idx]->GetPhys(),
                                m_fields[gradphi0_idx]->UpdatePhys(),
                                m_fields[gradphi1_idx]->UpdatePhys(),
@@ -111,15 +112,15 @@ void HWITSystem::explicit_time_int(
 
   // Get field indices
   int npts = GetNpoints();
-  int gradphi0_idx = m_field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = m_field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = m_field_to_index.get_idx("gradphi2");
-  int ne_idx = m_field_to_index.get_idx("ne");
-  int phi_idx = m_field_to_index.get_idx("phi");
-  int w_idx = m_field_to_index.get_idx("w");
+  int gradphi0_idx = this->field_to_index.get_idx("gradphi0");
+  int gradphi1_idx = this->field_to_index.get_idx("gradphi1");
+  int gradphi2_idx = this->field_to_index.get_idx("gradphi2");
+  int ne_idx = this->field_to_index.get_idx("ne");
+  int phi_idx = this->field_to_index.get_idx("phi");
+  int w_idx = this->field_to_index.get_idx("w");
   // // Check in_arr for NaNs - SLLLLLLOOOOOW
   // for (auto &var : {"ne", "w"}) {
-  //   auto fidx = m_field_to_index.get_idx(var);
+  //   auto fidx = this->field_to_index.get_idx(var);
   //   for (auto ii = 0; ii < in_arr[fidx].size(); ii++) {
   //     std::stringstream err_msg;
   //     err_msg << "Found NaN in field " << var;
@@ -280,8 +281,6 @@ void HWITSystem::load_params() {
   // Particle-related parameters
   m_session->LoadParameter("num_particle_steps_per_fluid_step",
                            m_num_part_substeps, 1);
-  m_session->LoadParameter("particle_num_write_particle_steps",
-                           m_num_write_particle_steps, 0);
   m_part_timestep = m_timestep / m_num_part_substeps;
 
   // Compute some properties derived from params
@@ -324,8 +323,8 @@ void HWITSystem::solve_phi(
 
   // Field indices
   int npts = GetNpoints();
-  int w_idx = m_field_to_index.get_idx("w");
-  int phi_idx = m_field_to_index.get_idx("phi");
+  int w_idx = this->field_to_index.get_idx("w");
+  int phi_idx = this->field_to_index.get_idx("phi");
 
   // Set up factors for electrostatic potential solve
   StdRegions::ConstFactorMap factors;
@@ -353,9 +352,7 @@ void HWITSystem::v_GenerateSummary(SU::SummaryList &s) {
   SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
   SU::AddSummaryItem(s, "Riemann solver", m_riemann_solver_type);
-  // Particle stuff
-  // SU::AddSummaryItem(s, "Num. part. substeps", m_num_part_substeps);
-  SU::AddSummaryItem(s, "Part. output freq", m_num_write_particle_steps);
+
   tmpss = std::stringstream();
   tmpss << "[" << m_B[0] << "," << m_B[1] << "," << m_B[2] << "]";
   SU::AddSummaryItem(s, "B", tmpss.str());
@@ -380,7 +377,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Poisson solve. Note that you can still perform a Poisson solve using a
   // discontinuous field, which is done via the hybridisable discontinuous
   // Galerkin (HDG) approach.
-  int phi_idx = m_field_to_index.get_idx("phi");
+  int phi_idx = this->field_to_index.get_idx("phi");
   m_fields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
       m_session, m_graph, m_session->GetVariable(phi_idx), true, true);
 
@@ -453,8 +450,8 @@ void HWITSystem::v_InitObject(bool create_field) {
   }
 
   // Create diagnostic for recording growth rates
-  if (m_diag_growth_rates_recording_enabled) {
-    m_diag_growth_rates_recorder =
+  if (this->energy_enstrophy_recording_enabled) {
+    this->energy_enstrophy_recorder =
         std::make_shared<GrowthRatesRecorder<MultiRegions::DisContField>>(
             m_session, 2, m_discont_fields["ne"], m_discont_fields["w"],
             m_discont_fields["phi"], GetNpoints(), m_alpha, m_kappa);
@@ -629,8 +626,8 @@ void HWITSystem::do_null_precon(const Array<OneD, const NekDouble> &in_arr,
  * @param step Time step number
  */
 bool HWITSystem::v_PostIntegrate(int step) {
-  if (m_diag_growth_rates_recording_enabled) {
-    m_diag_growth_rates_recorder->compute(step);
+  if (energy_enstrophy_recording_enabled) {
+    this->energy_enstrophy_recorder->compute(step);
   }
 
   m_solver_callback_handler.call_post_integrate(this);
@@ -670,7 +667,7 @@ void HWITSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
   TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_SetInitialConditions(
       init_time, dump_ICs, domain);
   calc_init_phi_and_gradphi();
-  if(this->particle_sys){
+  if (this->particle_sys) {
     this->particle_sys->initialise_particles_from_fields();
   }
 }
