@@ -146,7 +146,6 @@ protected:
   virtual bool v_PreIntegrate(int step) override;
   virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                       const int domain) override;
-  void zero_out_array(Array<OneD, Array<OneD, NekDouble>> &out_arr);
 
   //---------------------------------------------------------------------------
   // Debugging

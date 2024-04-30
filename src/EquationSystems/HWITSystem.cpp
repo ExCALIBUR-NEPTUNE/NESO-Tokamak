@@ -125,7 +125,7 @@ void HWITSystem::explicit_time_int(
   // }
 
   if (this->m_explicitAdvection) {
-    zero_out_array(out_arr);
+    zero_array_of_arrays(out_arr);
   }
 
   // Solve for electrostatic potential
@@ -296,22 +296,6 @@ void HWITSystem::load_params() {
   m_session->LoadParameter("HW_kappa", this->kappa);
 }
 
-/**
- * @brief Utility function to print the size of a 1D Nektar array.
- * @param arr Array to print the size of
- * @param label Label to include in the output message
- * @param all_tasks If true, print message on all tasks, else print only on
- * task 0 (default=false)
- */
-void HWITSystem::print_arr_size(const Array<OneD, NekDouble> &arr,
-                                std::string label, bool all_tasks) {
-  if (m_session->GetComm()->TreatAsRankZero() || all_tasks) {
-    if (!label.empty()) {
-      std::cout << label << " ";
-    }
-    std::cout << "size = " << arr.size() << std::endl;
-  }
-}
 /**
  * @brief Calls HelmSolve to solve for the electric potential
  *
@@ -674,15 +658,4 @@ void HWITSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
   }
 }
 
-/**
- * @brief Convenience function to zero a Nektar Array of 1D Arrays.
- *
- * @param out_arr Array of 1D arrays to be zeroed
- *
- */
-void HWITSystem::zero_out_array(Array<OneD, Array<OneD, NekDouble>> &out_arr) {
-  for (auto ifld = 0; ifld < out_arr.size(); ifld++) {
-    Vmath::Zero(out_arr[ifld].size(), out_arr[ifld], 1);
-  }
-}
 } // namespace NESO::Solvers::hw_impurity_transport
