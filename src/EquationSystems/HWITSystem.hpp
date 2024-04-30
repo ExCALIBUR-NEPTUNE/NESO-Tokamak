@@ -37,7 +37,7 @@ public:
   static std::string class_name;
 
   /**
-   * @brief Creates an instance of this class.
+   * @brief Create an instance of this class and initialise it.
    */
   static SU::EquationSystemSharedPtr
   create(const LU::SessionReaderSharedPtr &session,
@@ -48,59 +48,56 @@ public:
     return p;
   }
 
-  /// Object that allows optional recording of energy and enstrophy growth
-  /// rates
+  /// Object to facilitate allows optional recording of energy and enstrophy
   std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
       energy_enstrophy_recorder;
-  /// Callback handler to call user defined callbacks.
+  /// Callback handler to call user-defined callbacks
   SolverCallbackHandler<HWITSystem> solver_callback_handler;
-
-  /// Free particle system memory on destruction
-  inline virtual ~HWITSystem() {}
 
 protected:
   HWITSystem(const LU::SessionReaderSharedPtr &session,
              const SD::MeshGraphSharedPtr &graph);
 
-  // Implicit solver counters
-  int newton_its_counter = 0;
-  int lin_its_counter = 0;
-  int imp_stages_counter = 0;
-  // Implicit solver parameters
-  NekDouble jacobi_free_eps = 5.0E-08;
-  NekDouble bnd_evaluate_time = 0.0;
-  NekDouble time_int_lambda = 0.0;
-  NekDouble in_arr_norm = -1.0;
-
-  LibUtilities::NekNonlinSysIterSharedPtr nonlin_sys;
-
-  /// Bool to enable/disable growth rate recordings
-  bool energy_enstrophy_recording_enabled;
-  /// Bool to enable/disable mass recordings
-  bool mass_recording_enabled;
-  /// Hasegawa-Wakatani α
-  NekDouble alpha;
-  /// Hasegawa-Wakatani κ
-  NekDouble m_kappa;
-
   /// Advection object used in the electron density equation
   SU::AdvectionSharedPtr adv_obj;
   /// Advection type
   std::string adv_type;
+  /// Hasegawa-Wakatani α
+  NekDouble alpha;
   /// Magnetic field vector
   std::vector<NekDouble> B;
-  /// Magnitude of the magnetic field
-  NekDouble mag_B;
+  /// Implicit solver parameter
+  NekDouble bnd_evaluate_time = 0.0;
   /// Normalised magnetic field vector
   std::vector<NekDouble> b_unit;
   /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
    * particle evaluation/projection methods
    */
   std::map<std::string, MR::DisContFieldSharedPtr> discont_fields;
+  /// Bool to enable/disable growth rate recordings
+  bool energy_enstrophy_recording_enabled;
   /// Storage for ExB drift velocity
   Array<OneD, Array<OneD, NekDouble>> ExB_vel;
+  /// Implicit solver counter
+  int imp_stages_counter = 0;
+  /// Implicit solver parameter
+  NekDouble in_arr_norm = -1.0;
+  /// Implicit solver parameter
+  NekDouble jacobi_free_eps = 5.0E-08;
+  /// Hasegawa-Wakatani κ
+  NekDouble kappa;
+  /// Magnitude of the magnetic field
+  NekDouble mag_B;
+  /// Implicit solver counter
+  int newton_its_counter = 0;
+  /// Implicit solver counter
+  int lin_its_counter = 0;
+  /// Nektar non-linear system
+  LibUtilities::NekNonlinSysIterSharedPtr nonlin_sys;
   /// Riemann solver type (used for all advection terms)
-  std::string m_riemann_solver_type;
+  std::string riemann_solver_type;
+  /// Implicit solver parameter
+  NekDouble time_int_lambda = 0.0;
 
   void calc_init_phi_and_gradphi();
   void calc_ref_vals(const Array<OneD, const NekDouble> &in_arr);
@@ -167,15 +164,15 @@ private:
   /// d22 coefficient for Helmsolve
   NekDouble d22;
   /// Storage for component of ne advection velocity normal to trace elements
-  Array<OneD, NekDouble> m_norm_vel_elec;
+  Array<OneD, NekDouble> norm_vel_elec;
   /// Number of particle timesteps per fluid timestep.
-  int m_num_part_substeps;
+  int num_part_substeps;
   /// Number of time steps between particle trajectory step writes.
   int particle_output_freq;
   /// Particle timestep size.
-  double m_part_timestep;
+  double part_timestep;
   /// Riemann solver object used in electron advection
-  SU::RiemannSolverSharedPtr m_riemann_elec;
+  SU::RiemannSolverSharedPtr riemann_solver;
 
   void
   do_ode_projection(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,

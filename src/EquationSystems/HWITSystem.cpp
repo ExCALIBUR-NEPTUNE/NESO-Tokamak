@@ -36,10 +36,6 @@ HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
   // set)
   this->energy_enstrophy_recording_enabled =
       session->DefinesParameter("growth_rates_recording_step");
-
-  // Determine whether mass recording is enabled (output freq is set)
-  this->mass_recording_enabled =
-      session->DefinesParameter("mass_recording_step");
 }
 
 void HWITSystem::calc_init_phi_and_gradphi() {
@@ -165,7 +161,7 @@ void HWITSystem::explicit_time_int(
   Vmath::Vadd(npts, out_arr[ne_idx], 1, HWterm_2D_alpha, 1, out_arr[ne_idx], 1);
 
   // Add -\kappa*\dpartial\phi/\dpartial y to RHS
-  Vmath::Svtvp(npts, -m_kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
+  Vmath::Svtvp(npts, -this->kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
                out_arr[ne_idx], 1, out_arr[ne_idx], 1);
 }
 
@@ -200,7 +196,7 @@ Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm(
  *  @brief Compute trace-normal advection velocities for the plasma density.
  */
 Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm_elec() {
-  return get_adv_vel_norm(m_norm_vel_elec, this->ExB_vel);
+  return get_adv_vel_norm(this->norm_vel_elec, this->ExB_vel);
 }
 
 /**
@@ -277,13 +273,13 @@ void HWITSystem::load_params() {
   m_session->LoadParameter("d22", this->d22, 1);
 
   // Type of Riemann solver to use. Default = "Upwind"
-  m_session->LoadSolverInfo("UpwindType", m_riemann_solver_type, "Upwind");
+  m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type, "Upwind");
 
   // Particle-related parameters
   m_session->LoadParameter("particle_output_freq", particle_output_freq, 0);
   m_session->LoadParameter("num_particle_steps_per_fluid_step",
-                           m_num_part_substeps, 1);
-  m_part_timestep = m_timestep / m_num_part_substeps;
+                           this->num_part_substeps, 1);
+  this->part_timestep = m_timestep / this->num_part_substeps;
 
   // Compute some properties derived from params
   this->mag_B = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1] +
@@ -297,7 +293,7 @@ void HWITSystem::load_params() {
   m_session->LoadParameter("HW_alpha", this->alpha);
 
   // kappa (required)
-  m_session->LoadParameter("HW_kappa", m_kappa);
+  m_session->LoadParameter("HW_kappa", this->kappa);
 }
 
 /**
@@ -354,7 +350,7 @@ void HWITSystem::v_GenerateSummary(SU::SummaryList &s) {
   tmpss << "[" << this->d00 << "," << this->d11 << "," << this->d22 << "]";
   SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
-  SU::AddSummaryItem(s, "Riemann solver", m_riemann_solver_type);
+  SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
 
   tmpss = std::stringstream();
   tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] << "]";
@@ -362,7 +358,7 @@ void HWITSystem::v_GenerateSummary(SU::SummaryList &s) {
   SU::AddSummaryItem(s, "|B|", this->mag_B);
 
   SU::AddSummaryItem(s, "HW alpha", this->alpha);
-  SU::AddSummaryItem(s, "HW kappa", m_kappa);
+  SU::AddSummaryItem(s, "HW kappa", this->kappa);
 }
 
 /**
@@ -397,14 +393,14 @@ void HWITSystem::v_InitObject(bool create_field) {
            "Unsupported projection type: only discontinuous"
            " projection supported.");
 
-  // Do not forwards transform initial condition.
-  m_homoInitialFwd = false; ////
+  // Turn off forward-transform of initial conditions.
+  m_homoInitialFwd = false;
 
   // Define the normal velocity fields.
   // These are populated at each step (by reference) in calls to GetVnAdv()
   if (m_fields[0]->GetTrace()) {
     auto nTrace = GetTraceNpoints();
-    m_norm_vel_elec = Array<OneD, NekDouble>(nTrace);
+    this->norm_vel_elec = Array<OneD, NekDouble>(nTrace);
   }
 
   // Advection objects
@@ -417,12 +413,13 @@ void HWITSystem::v_InitObject(bool create_field) {
 
   // Create Riemann solvers (one per advection object) and set normal velocity
   // callback functions
-  m_riemann_elec = SU::GetRiemannSolverFactory().CreateInstance(
-      m_riemann_solver_type, m_session);
-  m_riemann_elec->SetScalar("Vn", &HWITSystem::get_adv_vel_norm_elec, this);
+  this->riemann_solver = SU::GetRiemannSolverFactory().CreateInstance(
+      this->riemann_solver_type, m_session);
+  this->riemann_solver->SetScalar("Vn", &HWITSystem::get_adv_vel_norm_elec,
+                                  this);
 
   // Tell advection objects about the Riemann solvers and finish init
-  this->adv_obj->SetRiemannSolver(m_riemann_elec);
+  this->adv_obj->SetRiemannSolver(this->riemann_solver);
   this->adv_obj->InitObject(m_session, m_fields);
 
   // Bind projection function for time integration object
@@ -458,7 +455,8 @@ void HWITSystem::v_InitObject(bool create_field) {
     this->energy_enstrophy_recorder =
         std::make_shared<GrowthRatesRecorder<MultiRegions::DisContField>>(
             m_session, 2, this->discont_fields["ne"], this->discont_fields["w"],
-            this->discont_fields["phi"], GetNpoints(), this->alpha, m_kappa);
+            this->discont_fields["phi"], GetNpoints(), this->alpha,
+            this->kappa);
   }
 }
 
@@ -657,7 +655,7 @@ bool HWITSystem::v_PreIntegrate(int step) {
   if (this->particles_enabled) {
     // Integrate the particle system to the requested time.
     this->particle_sys->evaluate_fields();
-    this->particle_sys->integrate(m_time + m_timestep, m_part_timestep);
+    this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
   }
 
   return UnsteadySystem::v_PreIntegrate(step);
