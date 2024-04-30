@@ -58,10 +58,10 @@ void HWITSystem::calc_init_phi_and_gradphi() {
  * (Stop-gap until NP's gradient-evaluate can be extended to 3D).
  */
 void HWITSystem::compute_grad_phi() {
-  int phi_idx = this->field_to_index.get_idx("phi");
-  int gradphi0_idx = this->field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = this->field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = this->field_to_index.get_idx("gradphi2");
+  int phi_idx = this->field_to_index["phi"];
+  int gradphi0_idx = this->field_to_index["gradphi0"];
+  int gradphi1_idx = this->field_to_index["gradphi1"];
+  int gradphi2_idx = this->field_to_index["gradphi2"];
   m_fields[phi_idx]->PhysDeriv(m_fields[phi_idx]->GetPhys(),
                                m_fields[gradphi0_idx]->UpdatePhys(),
                                m_fields[gradphi1_idx]->UpdatePhys(),
@@ -112,12 +112,12 @@ void HWITSystem::explicit_time_int(
 
   // Get field indices
   int npts = GetNpoints();
-  int gradphi0_idx = this->field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = this->field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = this->field_to_index.get_idx("gradphi2");
-  int ne_idx = this->field_to_index.get_idx("ne");
-  int phi_idx = this->field_to_index.get_idx("phi");
-  int w_idx = this->field_to_index.get_idx("w");
+  int gradphi0_idx = this->field_to_index["gradphi0"];
+  int gradphi1_idx = this->field_to_index["gradphi1"];
+  int gradphi2_idx = this->field_to_index["gradphi2"];
+  int ne_idx = this->field_to_index["ne"];
+  int phi_idx = this->field_to_index["phi"];
+  int w_idx = this->field_to_index["w"];
   // // Check in_arr for NaNs - SLLLLLLOOOOOW
   // for (auto &var : {"ne", "w"}) {
   //   auto fidx = this->field_to_index.get_idx(var);
@@ -323,8 +323,8 @@ void HWITSystem::solve_phi(
 
   // Field indices
   int npts = GetNpoints();
-  int w_idx = this->field_to_index.get_idx("w");
-  int phi_idx = this->field_to_index.get_idx("phi");
+  int w_idx = this->field_to_index["w"];
+  int phi_idx = this->field_to_index["phi"];
 
   // Set up factors for electrostatic potential solve
   StdRegions::ConstFactorMap factors;
@@ -377,7 +377,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Poisson solve. Note that you can still perform a Poisson solve using a
   // discontinuous field, which is done via the hybridisable discontinuous
   // Galerkin (HDG) approach.
-  int phi_idx = this->field_to_index.get_idx("phi");
+  int phi_idx = this->field_to_index["phi"];
   m_fields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
       m_session, m_graph, m_session->GetVariable(phi_idx), true, true);
 
