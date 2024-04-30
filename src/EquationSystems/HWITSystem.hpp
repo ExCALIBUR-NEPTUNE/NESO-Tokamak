@@ -53,7 +53,7 @@ public:
   std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
       energy_enstrophy_recorder;
   /// Callback handler to call user defined callbacks.
-  SolverCallbackHandler<HWITSystem> m_solver_callback_handler;
+  SolverCallbackHandler<HWITSystem> solver_callback_handler;
 
   /// Free particle system memory on destruction
   inline virtual ~HWITSystem() {}
@@ -79,26 +79,26 @@ protected:
   /// Bool to enable/disable mass recordings
   bool mass_recording_enabled;
   /// Hasegawa-Wakatani α
-  NekDouble m_alpha;
+  NekDouble alpha;
   /// Hasegawa-Wakatani κ
   NekDouble m_kappa;
 
   /// Advection object used in the electron density equation
   SU::AdvectionSharedPtr adv_obj;
   /// Advection type
-  std::string m_adv_type;
+  std::string adv_type;
   /// Magnetic field vector
-  std::vector<NekDouble> m_B;
+  std::vector<NekDouble> B;
   /// Magnitude of the magnetic field
-  NekDouble m_Bmag;
+  NekDouble mag_B;
   /// Normalised magnetic field vector
-  std::vector<NekDouble> m_b_unit;
+  std::vector<NekDouble> b_unit;
   /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
    * particle evaluation/projection methods
    */
-  std::map<std::string, MR::DisContFieldSharedPtr> m_discont_fields;
+  std::map<std::string, MR::DisContFieldSharedPtr> discont_fields;
   /// Storage for ExB drift velocity
-  Array<OneD, Array<OneD, NekDouble>> m_ExB_vel;
+  Array<OneD, Array<OneD, NekDouble>> ExB_vel;
   /// Riemann solver type (used for all advection terms)
   std::string m_riemann_solver_type;
 
@@ -161,17 +161,17 @@ protected:
 
 private:
   /// d00 coefficient for Helmsolve
-  NekDouble m_d00;
+  NekDouble d00;
   /// d11 coefficient for Helmsolve
-  NekDouble m_d11;
+  NekDouble d11;
   /// d22 coefficient for Helmsolve
-  NekDouble m_d22;
+  NekDouble d22;
   /// Storage for component of ne advection velocity normal to trace elements
   Array<OneD, NekDouble> m_norm_vel_elec;
   /// Number of particle timesteps per fluid timestep.
   int m_num_part_substeps;
   /// Number of time steps between particle trajectory step writes.
-  int m_num_write_particle_steps;
+  int particle_output_freq;
   /// Particle timestep size.
   double m_part_timestep;
   /// Riemann solver object used in electron advection

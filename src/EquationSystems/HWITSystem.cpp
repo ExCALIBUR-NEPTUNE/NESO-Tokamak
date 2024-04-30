@@ -27,7 +27,7 @@ create(const LU::SessionReaderSharedPtr &session,
 HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
                        const SD::MeshGraphSharedPtr &graph)
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
-      m_ExB_vel(graph->GetSpaceDimension()) {
+      ExB_vel(graph->GetSpaceDimension()) {
   this->required_fld_names = {"ne",       "w",        "phi",
                               "gradphi0", "gradphi1", "gradphi2"};
   this->int_fld_names = {"ne", "w"};
@@ -137,22 +137,21 @@ void HWITSystem::explicit_time_int(
   // Calculate grad_phi
   compute_grad_phi();
 
+  double inv_B_sq = 1. * inv_B_sq;
   // v_ExB = grad(phi) X B / |B|^2
-  Vmath::Svtsvtp(npts, -m_B[2] / m_Bmag / m_Bmag,
-                 m_fields[gradphi1_idx]->GetPhys(), 1, m_B[1] / m_Bmag / m_Bmag,
-                 m_fields[gradphi2_idx]->GetPhys(), 1, m_ExB_vel[0], 1);
-  Vmath::Svtsvtp(npts, -m_B[0] / m_Bmag / m_Bmag,
-                 m_fields[gradphi2_idx]->GetPhys(), 1, m_B[2] / m_Bmag / m_Bmag,
-                 m_fields[gradphi0_idx]->GetPhys(), 1, m_ExB_vel[1], 1);
+  Vmath::Svtsvtp(npts, -this->B[2] * inv_B_sq,
+                 m_fields[gradphi1_idx]->GetPhys(), 1, this->B[1] * inv_B_sq,
+                 m_fields[gradphi2_idx]->GetPhys(), 1, this->ExB_vel[0], 1);
+  Vmath::Svtsvtp(npts, -this->B[0] * inv_B_sq,
+                 m_fields[gradphi2_idx]->GetPhys(), 1, this->B[2] * inv_B_sq,
+                 m_fields[gradphi0_idx]->GetPhys(), 1, this->ExB_vel[1], 1);
   if (this->m_graph->GetMeshDimension() == 3) {
-
-    Vmath::Svtsvtp(npts, -m_B[1] / m_Bmag / m_Bmag,
-                   m_fields[gradphi0_idx]->GetPhys(), 1,
-                   m_B[0] / m_Bmag / m_Bmag, m_fields[gradphi1_idx]->GetPhys(),
-                   1, m_ExB_vel[2], 1);
+    Vmath::Svtsvtp(npts, -this->B[1] * inv_B_sq,
+                   m_fields[gradphi0_idx]->GetPhys(), 1, this->B[0] * inv_B_sq,
+                   m_fields[gradphi1_idx]->GetPhys(), 1, this->ExB_vel[2], 1);
   }
   // Advect ne and w
-  this->adv_obj->Advect(2, m_fields, m_ExB_vel, in_arr, out_arr, time);
+  this->adv_obj->Advect(2, m_fields, this->ExB_vel, in_arr, out_arr, time);
   for (auto i = 0; i < 2; ++i) {
     Vmath::Neg(npts, out_arr[i], 1);
   }
@@ -161,7 +160,7 @@ void HWITSystem::explicit_time_int(
   Array<OneD, NekDouble> HWterm_2D_alpha(npts);
   Vmath::Vsub(npts, m_fields[phi_idx]->GetPhys(), 1,
               m_fields[ne_idx]->GetPhys(), 1, HWterm_2D_alpha, 1);
-  Vmath::Smul(npts, m_alpha, HWterm_2D_alpha, 1, HWterm_2D_alpha, 1);
+  Vmath::Smul(npts, this->alpha, HWterm_2D_alpha, 1, HWterm_2D_alpha, 1);
   Vmath::Vadd(npts, out_arr[w_idx], 1, HWterm_2D_alpha, 1, out_arr[w_idx], 1);
   Vmath::Vadd(npts, out_arr[ne_idx], 1, HWterm_2D_alpha, 1, out_arr[ne_idx], 1);
 
@@ -201,7 +200,7 @@ Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm(
  *  @brief Compute trace-normal advection velocities for the plasma density.
  */
 Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm_elec() {
-  return get_adv_vel_norm(m_norm_vel_elec, m_ExB_vel);
+  return get_adv_vel_norm(m_norm_vel_elec, this->ExB_vel);
 }
 
 /**
@@ -247,7 +246,7 @@ void HWITSystem::get_flux_vector_diff(
 void HWITSystem::get_flux_vector_elec(
     const Array<OneD, Array<OneD, NekDouble>> &field_vals,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux) {
-  get_flux_vector(field_vals, m_ExB_vel, flux);
+  get_flux_vector(field_vals, this->ExB_vel, flux);
 }
 
 /**
@@ -259,39 +258,43 @@ void HWITSystem::load_params() {
   // Type of advection to use -- in theory we also support flux reconstruction
   // for quad-based meshes, or you can use a standard convective term if you
   // were fully continuous in space. Default is DG.
-  m_session->LoadSolverInfo("AdvectionType", m_adv_type, "WeakDG");
+  m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
   // Magnetic field strength
-  m_B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
-  m_session->LoadParameter("Bx", m_B[0], 0.0);
-  m_session->LoadParameter("By", m_B[1], 0.0);
-  m_session->LoadParameter("Bz", m_B[2], 1.0);
+  this->B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
+  m_session->LoadParameter("Bx", this->B[0], 0.0);
+  m_session->LoadParameter("By", this->B[1], 0.0);
+  m_session->LoadParameter("Bz", this->B[2], 1.0);
   // *** Bx=By=0 is assumed elsewhere in the code ***
-  NESOASSERT(m_B[0] == 0, "Fluid solver doesn't yet correctly handle Bx != 0");
-  NESOASSERT(m_B[1] == 0, "Fluid solver doesn't yet correctly handle By != 0");
+  NESOASSERT(this->B[0] == 0,
+             "Fluid solver doesn't yet correctly handle Bx != 0");
+  NESOASSERT(this->B[1] == 0,
+             "Fluid solver doesn't yet correctly handle By != 0");
 
   // Coefficient factors for potential solve
-  m_session->LoadParameter("d00", m_d00, 1);
-  m_session->LoadParameter("d11", m_d11, 1);
-  m_session->LoadParameter("d22", m_d22, 1);
+  m_session->LoadParameter("d00", this->d00, 1);
+  m_session->LoadParameter("d11", this->d11, 1);
+  m_session->LoadParameter("d22", this->d22, 1);
 
   // Type of Riemann solver to use. Default = "Upwind"
   m_session->LoadSolverInfo("UpwindType", m_riemann_solver_type, "Upwind");
 
   // Particle-related parameters
+  m_session->LoadParameter("particle_output_freq", particle_output_freq, 0);
   m_session->LoadParameter("num_particle_steps_per_fluid_step",
                            m_num_part_substeps, 1);
   m_part_timestep = m_timestep / m_num_part_substeps;
 
   // Compute some properties derived from params
-  m_Bmag = std::sqrt(m_B[0] * m_B[0] + m_B[1] * m_B[1] + m_B[2] * m_B[2]);
-  m_b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
-  for (auto idim = 0; idim < m_b_unit.size(); idim++) {
-    m_b_unit[idim] = (m_Bmag > 0) ? m_B[idim] / m_Bmag : 0.0;
+  this->mag_B = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1] +
+                          this->B[2] * this->B[2]);
+  this->b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
+  for (auto idim = 0; idim < this->b_unit.size(); idim++) {
+    this->b_unit[idim] = (this->mag_B > 0) ? this->B[idim] / this->mag_B : 0.0;
   }
 
   // alpha (required)
-  m_session->LoadParameter("HW_alpha", m_alpha);
+  m_session->LoadParameter("HW_alpha", this->alpha);
 
   // kappa (required)
   m_session->LoadParameter("HW_kappa", m_kappa);
@@ -331,9 +334,9 @@ void HWITSystem::solve_phi(
   // Helmholtz => Poisson (lambda = 0)
   factors[StdRegions::eFactorLambda] = 0.0;
   // Set coefficient factors
-  factors[StdRegions::eFactorCoeffD00] = m_d00;
-  factors[StdRegions::eFactorCoeffD11] = m_d11;
-  factors[StdRegions::eFactorCoeffD22] = m_d22;
+  factors[StdRegions::eFactorCoeffD00] = this->d00;
+  factors[StdRegions::eFactorCoeffD11] = this->d11;
+  factors[StdRegions::eFactorCoeffD22] = this->d22;
 
   // Solve for phi. Output of this routine is in coefficient (spectral)
   // space, so backwards transform to physical space since we'll need that
@@ -348,17 +351,17 @@ void HWITSystem::v_GenerateSummary(SU::SummaryList &s) {
   TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
 
   std::stringstream tmpss;
-  tmpss << "[" << m_d00 << "," << m_d11 << "," << m_d22 << "]";
+  tmpss << "[" << this->d00 << "," << this->d11 << "," << this->d22 << "]";
   SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
   SU::AddSummaryItem(s, "Riemann solver", m_riemann_solver_type);
 
   tmpss = std::stringstream();
-  tmpss << "[" << m_B[0] << "," << m_B[1] << "," << m_B[2] << "]";
+  tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] << "]";
   SU::AddSummaryItem(s, "B", tmpss.str());
-  SU::AddSummaryItem(s, "|B|", m_Bmag);
+  SU::AddSummaryItem(s, "|B|", this->mag_B);
 
-  SU::AddSummaryItem(s, "HW alpha", m_alpha);
+  SU::AddSummaryItem(s, "HW alpha", this->alpha);
   SU::AddSummaryItem(s, "HW kappa", m_kappa);
 }
 
@@ -384,7 +387,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Create storage for ExB vel
   int npts = GetNpoints();
   for (int i = 0; i < m_graph->GetSpaceDimension(); ++i) {
-    m_ExB_vel[i] = Array<OneD, NekDouble>(npts, 0.0);
+    this->ExB_vel[i] = Array<OneD, NekDouble>(npts, 0.0);
   }
 
   // Type of advection class to be used. By default, we only support the
@@ -407,7 +410,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Advection objects
   // Need one per advection velocity
   this->adv_obj =
-      SU::GetAdvectionFactory().CreateInstance(m_adv_type, m_adv_type);
+      SU::GetAdvectionFactory().CreateInstance(this->adv_type, this->adv_type);
 
   // Set callback functions to compute flux vectors
   this->adv_obj->SetFluxVector(&HWITSystem::get_flux_vector_elec, this);
@@ -428,7 +431,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Store DisContFieldSharedPtr casts of fields in a map, indexed by name
   int idx = 0;
   for (auto &field_name : m_session->GetVariables()) {
-    m_discont_fields[field_name] =
+    this->discont_fields[field_name] =
         std::dynamic_pointer_cast<MR::DisContField>(m_fields[idx]);
     idx++;
   }
@@ -436,8 +439,9 @@ void HWITSystem::v_InitObject(bool create_field) {
   if (this->particles_enabled) {
     // Set up object to evaluate density field
     this->particle_sys->setup_evaluate_grad_phi(
-        m_discont_fields.at("gradphi0"), m_discont_fields.at("gradphi1"),
-        m_discont_fields.at("gradphi2"));
+        this->discont_fields.at("gradphi0"),
+        this->discont_fields.at("gradphi1"),
+        this->discont_fields.at("gradphi2"));
   }
 
   // Bind RHS function for explicit time integration
@@ -453,8 +457,8 @@ void HWITSystem::v_InitObject(bool create_field) {
   if (this->energy_enstrophy_recording_enabled) {
     this->energy_enstrophy_recorder =
         std::make_shared<GrowthRatesRecorder<MultiRegions::DisContField>>(
-            m_session, 2, m_discont_fields["ne"], m_discont_fields["w"],
-            m_discont_fields["phi"], GetNpoints(), m_alpha, m_kappa);
+            m_session, 2, this->discont_fields["ne"], this->discont_fields["w"],
+            this->discont_fields["phi"], GetNpoints(), this->alpha, m_kappa);
   }
 }
 
@@ -630,11 +634,11 @@ bool HWITSystem::v_PostIntegrate(int step) {
     this->energy_enstrophy_recorder->compute(step);
   }
 
-  m_solver_callback_handler.call_post_integrate(this);
+  this->solver_callback_handler.call_post_integrate(this);
 
   // Writes a step of the particle trajectory.
-  if (this->particles_enabled && m_num_write_particle_steps > 0 &&
-      (step % m_num_write_particle_steps) == 0) {
+  if (this->particles_enabled && particle_output_freq > 0 &&
+      (step % particle_output_freq) == 0) {
     this->particle_sys->write(step);
   }
   return TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_PostIntegrate(
@@ -648,7 +652,7 @@ bool HWITSystem::v_PostIntegrate(int step) {
  * @param step Time step number
  */
 bool HWITSystem::v_PreIntegrate(int step) {
-  m_solver_callback_handler.call_pre_integrate(this);
+  this->solver_callback_handler.call_pre_integrate(this);
 
   if (this->particles_enabled) {
     // Integrate the particle system to the requested time.
