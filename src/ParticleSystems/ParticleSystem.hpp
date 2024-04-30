@@ -78,17 +78,16 @@ public:
     this->session->LoadParameter("By", By, 0.0);
     this->session->LoadParameter("Bz", Bz, 0.0);
     double particle_B_scaling;
-    this->get_from_session(this->session, "particle_B_scaling",
-                           particle_B_scaling, 1.0);
+    this->session->LoadParameter("particle_B_scaling", particle_B_scaling, 1.0);
     Bx *= particle_B_scaling;
     By *= particle_B_scaling;
     Bz *= particle_B_scaling;
     double particle_thermal_velocity;
-    this->get_from_session(this->session, "particle_thermal_velocity",
-                           particle_thermal_velocity, 0.0);
+    this->session->LoadParameter("particle_thermal_velocity",
+                                 particle_thermal_velocity, 0.0);
     double particle_velocity_B_scaling;
-    this->get_from_session(this->session, "particle_velocity_B_scaling",
-                           particle_velocity_B_scaling, 0.0);
+    this->session->LoadParameter("particle_velocity_B_scaling",
+                                 particle_velocity_B_scaling, 0.0);
 
     // Report param values (later in the initialisation)
     report_param("Random seed", seed);
@@ -273,8 +272,7 @@ public:
    */
   inline void initialise_particles_from_fields() {
     double h_alpha;
-    this->get_from_session(this->session, "particle_v_drift_scaling", h_alpha,
-                           1.0);
+    this->session->LoadParameter("particle_v_drift_scaling", h_alpha, 1.0);
     const double k_alpha = h_alpha;
 
     this->evaluate_fields();
@@ -374,24 +372,6 @@ protected:
 
   /// Periodic Boundary Conditions
   std::shared_ptr<NektarCartesianPeriodic> pbc;
-
-  /**
-   * Helper function to get values from the session file.
-   *
-   * @param session Session object.
-   * @param name Name of the parameter.
-   * @param[out] output Reference to the output variable.
-   * @param default_value Default value if name not found in the session file.
-   */
-  template <typename T>
-  inline void get_from_session(LU::SessionReaderSharedPtr session,
-                               std::string name, T &output, T default_value) {
-    if (session->DefinesParameter(name)) {
-      session->LoadParameter(name, output);
-    } else {
-      output = default_value;
-    }
-  }
 
   /**
    *  Apply boundary conditions and transfer particles between MPI ranks.
