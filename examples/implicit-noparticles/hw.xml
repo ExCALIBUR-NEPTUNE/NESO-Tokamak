@@ -28,7 +28,7 @@
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = NumSteps/1600     </P>
             <P> IO_CheckSteps = NumSteps/160      </P>
-            <P> particle_num_write_particle_steps = 1 </P>
+            <P> particle_output_freq = 1          </P>
             <!-- Magnetic field strength -->
             <P> Bx       = 0.0 </P>
             <P> By       = 0.0 </P>

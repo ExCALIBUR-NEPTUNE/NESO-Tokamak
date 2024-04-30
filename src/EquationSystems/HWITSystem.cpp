@@ -28,8 +28,9 @@ HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
                        const SD::MeshGraphSharedPtr &graph)
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
       m_ExB_vel(graph->GetSpaceDimension()) {
-  m_required_flds = {"ne", "w", "phi", "gradphi0", "gradphi1", "gradphi2"};
-  m_int_fld_names = {"ne", "w"};
+  this->required_fld_names = {"ne",       "w",        "phi",
+                              "gradphi0", "gradphi1", "gradphi2"};
+  this->int_fld_names = {"ne", "w"};
 
   // Frequency of growth rate recording. Set zero to disable.
   m_diag_growth_rates_recording_enabled =

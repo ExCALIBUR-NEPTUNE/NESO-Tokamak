@@ -89,19 +89,14 @@ public:
     double particle_velocity_B_scaling;
     this->get_from_session(this->session, "particle_velocity_B_scaling",
                            particle_velocity_B_scaling, 0.0);
-    if (rank == 0) {
-      nprint("================================================================="
-             "=====");
-      nprint("Particle count:", this->num_parts_tot);
-      nprint("Particle mass:", particle_mass);
-      nprint("Particle charge:", particle_charge);
-      nprint("Particle seed:", seed);
-      nprint("Particle B scaling:", particle_B_scaling);
-      nprint("Particle velocity B scaling:", particle_velocity_B_scaling);
-      nprint("Particle thermal velocity:", particle_thermal_velocity);
-      nprint("================================================================="
-             "=====");
-    }
+
+    // Report param values (later in the initialisation)
+    report_param("Random seed", seed);
+    report_param("Mass", particle_mass);
+    report_param("Charge", particle_charge);
+    report_param("Thermal velocity", particle_thermal_velocity);
+    report_param("B scaling", particle_B_scaling);
+    report_param("Velocity scaling", particle_velocity_B_scaling);
 
     std::array<double, 3> unitB;
     const double inverse_len_B = 1.0 / std::sqrt(Bx*Bx + By*By + Bz*Bz);

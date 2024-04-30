@@ -4,7 +4,7 @@
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
-#include "nektar_interface/time_evolved_eqnsys_base.hpp"
+#include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
 
 #include <LibUtilities/LinearAlgebra/NekNonlinSysIter.h>
@@ -51,7 +51,7 @@ public:
   /// Object that allows optional recording of energy and enstrophy growth
   /// rates
   std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
-      m_diag_growth_rates_recorder;
+      energy_enstrophy_recorder;
   /// Callback handler to call user defined callbacks.
   SolverCallbackHandler<HWITSystem> m_solver_callback_handler;
 
@@ -75,9 +75,9 @@ protected:
   LibUtilities::NekNonlinSysIterSharedPtr nonlin_sys;
 
   /// Bool to enable/disable growth rate recordings
-  bool m_diag_growth_rates_recording_enabled;
+  bool energy_enstrophy_recording_enabled;
   /// Bool to enable/disable mass recordings
-  bool m_diag_mass_recording_enabled;
+  bool mass_recording_enabled;
   /// Hasegawa-Wakatani α
   NekDouble m_alpha;
   /// Hasegawa-Wakatani κ
