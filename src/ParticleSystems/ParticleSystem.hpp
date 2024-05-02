@@ -128,7 +128,7 @@ public:
         initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
         initial_distribution[Sym<REAL>("B")][px][0] = Bx;
         initial_distribution[Sym<REAL>("B")][px][1] = By;
-        initial_distribution[Sym<REAL>("B")][px][2] = Bz; ////
+        initial_distribution[Sym<REAL>("B")][px][2] = Bz;
         initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] = px + rstart;
       }
 
