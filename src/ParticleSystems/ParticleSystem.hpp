@@ -1,11 +1,13 @@
 #ifndef HW_IMPURITY_TRANSPORT_PARTICLE_SYSTEM_H
 #define HW_IMPURITY_TRANSPORT_PARTICLE_SYSTEM_H
 
+#include <array>
+
 #include <nektar_interface/function_evaluation.hpp>
 #include <nektar_interface/function_projection.hpp>
 #include <nektar_interface/particle_boundary_conditions.hpp>
 #include <nektar_interface/particle_cell_mapping/particle_cell_mapping_common.hpp>
-#include <nektar_interface/partsys_base.hpp>
+#include <nektar_interface/solver_base/partsys_base.hpp>
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
@@ -75,17 +77,32 @@ public:
     this->session->LoadParameter("Bx", Bx, 0.0);
     this->session->LoadParameter("By", By, 0.0);
     this->session->LoadParameter("Bz", Bz, 0.0);
+    double particle_B_scaling;
+    this->session->LoadParameter("particle_B_scaling", particle_B_scaling, 1.0);
+    Bx *= particle_B_scaling;
+    By *= particle_B_scaling;
+    Bz *= particle_B_scaling;
+    double particle_thermal_velocity;
+    this->session->LoadParameter("particle_thermal_velocity",
+                                 particle_thermal_velocity, 0.0);
+    double particle_velocity_B_scaling;
+    this->session->LoadParameter("particle_velocity_B_scaling",
+                                 particle_velocity_B_scaling, 0.0);
 
-    if (rank == 0) {
-      nprint("================================================================="
-             "=====");
-      nprint("Particle count:", this->num_parts_tot);
-      nprint("Particle mass:", particle_mass);
-      nprint("Particle charge:", particle_charge);
-      nprint("Particle seed:", seed);
-      nprint("================================================================="
-             "=====");
-    }
+    // Report param values (later in the initialisation)
+    report_param("Random seed", seed);
+    report_param("Mass", particle_mass);
+    report_param("Charge", particle_charge);
+    report_param("Thermal velocity", particle_thermal_velocity);
+    report_param("B scaling", particle_B_scaling);
+    report_param("Velocity scaling", particle_velocity_B_scaling);
+
+    std::array<double, 3> unitB;
+    const double inverse_len_B = 1.0 / std::sqrt(Bx * Bx + By * By + Bz * Bz);
+    unitB.at(0) = Bx * inverse_len_B;
+    unitB.at(1) = By * inverse_len_B;
+    unitB.at(2) = Bz * inverse_len_B;
+    std::normal_distribution d{0.0, particle_thermal_velocity};
 
     if (N > 0) {
       ParticleSet initial_distribution(
@@ -94,11 +111,18 @@ public:
                                               rng_phasespace);
 
       for (int px = 0; px < N; px++) {
-        for (int dimx = 0; dimx < 3; dimx++) {
+        for (int dimx = 0; dimx < this->graph->GetMeshDimension(); dimx++) {
+          // Create the position in dimx
           const REAL pos_shift = this->pbc->global_origin[dimx];
           const REAL pos_tmp = pos_shift + positions[dimx][px];
           initial_distribution[Sym<REAL>("POSITION")][px][dimx] = pos_tmp;
-          initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] = 0.0;
+          // Create the velocity in dimx
+          REAL vtmp = 0.0;
+          vtmp += particle_velocity_B_scaling * unitB.at(dimx);
+          if (particle_thermal_velocity > 0.0) {
+            vtmp += d(rng_phasespace);
+          }
+          initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] = vtmp;
         }
         initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
         initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
@@ -121,6 +145,10 @@ public:
     parallel_advection_restore(this->particle_group);
     // Move particles to the owning ranks and correct cells.
     this->transfer_particles();
+
+    init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
+                Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
+                Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
   };
 
   /// Disable (implicit) copies.
@@ -152,6 +180,7 @@ public:
     }
 
     this->simulation_time = time_end;
+    this->transfer_particles();
   }
 
   /**
@@ -184,12 +213,19 @@ public:
    * Evaluate grad(phi) and B at the particle locations.
    */
   inline void evaluate_fields() {
+    NESOASSERT(this->field_evaluate_gradphi0 != nullptr,
+               "FieldEvaluate not setup.");
+    NESOASSERT(this->field_evaluate_gradphi1 != nullptr,
+               "FieldEvaluate not setup.");
+    NESOASSERT(this->field_evaluate_gradphi2 != nullptr,
+               "FieldEvaluate not setup.");
     this->field_evaluate_gradphi0->evaluate(Sym<REAL>("E0"));
     this->field_evaluate_gradphi1->evaluate(Sym<REAL>("E1"));
     this->field_evaluate_gradphi2->evaluate(Sym<REAL>("E2"));
 
     /*
      * Uncomment and implement for a non-uniform magnetic field.
+     * Remeber to apply the particle_B_scaling coefficient.
      */
     /*
     particle_loop(
@@ -205,33 +241,40 @@ public:
   }
 
   /**
-   *  Write particle properties to an output file.
-   *
-   *  @param step Time step number.
-   */
-  inline void write(const int step) {
-
-    if (this->sycl_target->comm_pair.rank_parent == 0) {
-      nprint("Writing particle properties at step", step);
-    }
-
-    if (!this->h5part_exists) {
-      // Create instance to write particle data to h5 file
-      this->h5part = std::make_shared<H5Part>(
-          "particle_trajectory.h5part", this->particle_group,
-          Sym<REAL>("POSITION"), Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"),
-          Sym<REAL>("E0"), Sym<REAL>("E1"), Sym<REAL>("E2"),
-          Sym<INT>("PARTICLE_ID"));
-      this->h5part_exists = true;
-    }
-
-    this->h5part->write();
-  }
-
-  /**
    * Apply boundary conditions.
    */
   inline void boundary_conditions() { this->pbc->execute(); }
+
+  /**
+   * Adds a velocity drift of \alpha * V_drift where V_drift = -grad(phi) X B
+   * evaluation to the velocity of each particle. The coefficient \alpha is the
+   * read from the session file key `particle_v_drift_scaling`.
+   */
+  inline void initialise_particles_from_fields() {
+    double h_alpha;
+    this->session->LoadParameter("particle_v_drift_scaling", h_alpha, 1.0);
+    const double k_alpha = h_alpha;
+
+    this->evaluate_fields();
+    particle_loop(
+        "ParticleSystem:initialise_particles_from_fields", this->particle_group,
+        [=](auto VELOCITY, auto B, auto E0, auto E1, auto E2) {
+          // Ei contains d(phi)/dx_i.
+          const auto mE0 = -1.0 * E0.at(0);
+          const auto mE1 = -1.0 * E1.at(0);
+          const auto mE2 = -1.0 * E2.at(0);
+          REAL exb0, exb1, exb2;
+          MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B.at(0), B.at(1), B.at(2),
+                                   exb0, exb1, exb2);
+          VELOCITY.at(0) += k_alpha * exb0;
+          VELOCITY.at(1) += k_alpha * exb1;
+          VELOCITY.at(2) += k_alpha * exb2;
+        },
+        Access::write(Sym<REAL>("VELOCITY")), Access::read(Sym<REAL>("B")),
+        Access::read(Sym<REAL>("E0")), Access::read(Sym<REAL>("E1")),
+        Access::read(Sym<REAL>("E2")))
+        ->execute();
+  }
 
 protected:
   inline void integrate_inner(const double dt_inner) {
@@ -309,24 +352,6 @@ protected:
 
   /// Periodic Boundary Conditions
   std::shared_ptr<NektarCartesianPeriodic> pbc;
-
-  /**
-   * Helper function to get values from the session file.
-   *
-   * @param session Session object.
-   * @param name Name of the parameter.
-   * @param[out] output Reference to the output variable.
-   * @param default_value Default value if name not found in the session file.
-   */
-  template <typename T>
-  inline void get_from_session(LU::SessionReaderSharedPtr session,
-                               std::string name, T &output, T default_value) {
-    if (session->DefinesParameter(name)) {
-      session->LoadParameter(name, output);
-    } else {
-      output = default_value;
-    }
-  }
 
   /**
    *  Apply boundary conditions and transfer particles between MPI ranks.

@@ -31,6 +31,9 @@
 *.out
 *.app
 
+# IDE configs
+.vscode
+
 # Build dirs
 build
 builds

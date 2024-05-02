@@ -10,8 +10,8 @@ static std::string class_name;
 std::string HWITSystem::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
         "HWIT", HWITSystem::create,
-        "(2D) Hasegawa-Wakatani equation system, adapted to run in 3D "
-        "domains.");
+        "(2D) Hasegawa-Wakatani equation system. Runs in either a 2D or 3D "
+        "domain.");
 /**
  * @brief Creates an instance of this class.
  */
@@ -27,17 +27,26 @@ create(const LU::SessionReaderSharedPtr &session,
 HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
                        const SD::MeshGraphSharedPtr &graph)
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
-      m_ExB_vel(graph->GetSpaceDimension()) {
-  m_required_flds = {"ne", "w", "phi", "gradphi0", "gradphi1", "gradphi2"};
-  m_int_fld_names = {"ne", "w"};
+      ExB_vel(graph->GetSpaceDimension()) {
+  this->required_fld_names = {"ne",       "w",        "phi",
+                              "gradphi0", "gradphi1", "gradphi2"};
+  this->int_fld_names = {"ne", "w"};
 
-  // Frequency of growth rate recording. Set zero to disable.
-  m_diag_growth_rates_recording_enabled =
+  // Determine whether energy,enstrophy recording is enabled (output freq is
+  // set)
+  this->energy_enstrophy_recording_enabled =
       session->DefinesParameter("growth_rates_recording_step");
+}
 
-  // Frequency of mass recording. Set zero to disable.
-  m_diag_mass_recording_enabled =
-      session->DefinesParameter("mass_recording_step");
+void HWITSystem::calc_init_phi_and_gradphi() {
+  Array<OneD, Array<OneD, NekDouble>> in_arr(m_fields.size());
+  for (auto ii = 0; ii < m_fields.size(); ii++) {
+    in_arr[ii] = m_fields[ii]->GetPhys();
+  }
+  solve_phi(in_arr);
+  if (this->particles_enabled) {
+    compute_grad_phi();
+  }
 }
 
 /**
@@ -45,10 +54,10 @@ HWITSystem::HWITSystem(const LU::SessionReaderSharedPtr &session,
  * (Stop-gap until NP's gradient-evaluate can be extended to 3D).
  */
 void HWITSystem::compute_grad_phi() {
-  int phi_idx = m_field_to_index.get_idx("phi");
-  int gradphi0_idx = m_field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = m_field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = m_field_to_index.get_idx("gradphi2");
+  int phi_idx = this->field_to_index["phi"];
+  int gradphi0_idx = this->field_to_index["gradphi0"];
+  int gradphi1_idx = this->field_to_index["gradphi1"];
+  int gradphi2_idx = this->field_to_index["gradphi2"];
   m_fields[phi_idx]->PhysDeriv(m_fields[phi_idx]->GetPhys(),
                                m_fields[gradphi0_idx]->UpdatePhys(),
                                m_fields[gradphi1_idx]->UpdatePhys(),
@@ -99,15 +108,15 @@ void HWITSystem::explicit_time_int(
 
   // Get field indices
   int npts = GetNpoints();
-  int gradphi0_idx = m_field_to_index.get_idx("gradphi0");
-  int gradphi1_idx = m_field_to_index.get_idx("gradphi1");
-  int gradphi2_idx = m_field_to_index.get_idx("gradphi2");
-  int ne_idx = m_field_to_index.get_idx("ne");
-  int phi_idx = m_field_to_index.get_idx("phi");
-  int w_idx = m_field_to_index.get_idx("w");
+  int gradphi0_idx = this->field_to_index["gradphi0"];
+  int gradphi1_idx = this->field_to_index["gradphi1"];
+  int gradphi2_idx = this->field_to_index["gradphi2"];
+  int ne_idx = this->field_to_index["ne"];
+  int phi_idx = this->field_to_index["phi"];
+  int w_idx = this->field_to_index["w"];
   // // Check in_arr for NaNs - SLLLLLLOOOOOW
   // for (auto &var : {"ne", "w"}) {
-  //   auto fidx = m_field_to_index.get_idx(var);
+  //   auto fidx = this->field_to_index.get_idx(var);
   //   for (auto ii = 0; ii < in_arr[fidx].size(); ii++) {
   //     std::stringstream err_msg;
   //     err_msg << "Found NaN in field " << var;
@@ -116,7 +125,7 @@ void HWITSystem::explicit_time_int(
   // }
 
   if (this->m_explicitAdvection) {
-    zero_out_array(out_arr);
+    zero_array_of_arrays(out_arr);
   }
 
   // Solve for electrostatic potential
@@ -124,19 +133,21 @@ void HWITSystem::explicit_time_int(
   // Calculate grad_phi
   compute_grad_phi();
 
+  double inv_B_sq = 1. * inv_B_sq;
   // v_ExB = grad(phi) X B / |B|^2
-  Vmath::Svtsvtp(npts, -m_B[2] / m_Bmag / m_Bmag,
-                 m_fields[gradphi1_idx]->GetPhys(), 1, m_B[1] / m_Bmag / m_Bmag,
-                 m_fields[gradphi2_idx]->GetPhys(), 1, m_ExB_vel[0], 1);
-  Vmath::Svtsvtp(npts, -m_B[0] / m_Bmag / m_Bmag,
-                 m_fields[gradphi2_idx]->GetPhys(), 1, m_B[2] / m_Bmag / m_Bmag,
-                 m_fields[gradphi0_idx]->GetPhys(), 1, m_ExB_vel[1], 1);
-  Vmath::Svtsvtp(npts, -m_B[1] / m_Bmag / m_Bmag,
-                 m_fields[gradphi0_idx]->GetPhys(), 1, m_B[0] / m_Bmag / m_Bmag,
-                 m_fields[gradphi1_idx]->GetPhys(), 1, m_ExB_vel[2], 1);
-
+  Vmath::Svtsvtp(npts, -this->B[2] * inv_B_sq,
+                 m_fields[gradphi1_idx]->GetPhys(), 1, this->B[1] * inv_B_sq,
+                 m_fields[gradphi2_idx]->GetPhys(), 1, this->ExB_vel[0], 1);
+  Vmath::Svtsvtp(npts, -this->B[0] * inv_B_sq,
+                 m_fields[gradphi2_idx]->GetPhys(), 1, this->B[2] * inv_B_sq,
+                 m_fields[gradphi0_idx]->GetPhys(), 1, this->ExB_vel[1], 1);
+  if (this->m_graph->GetMeshDimension() == 3) {
+    Vmath::Svtsvtp(npts, -this->B[1] * inv_B_sq,
+                   m_fields[gradphi0_idx]->GetPhys(), 1, this->B[0] * inv_B_sq,
+                   m_fields[gradphi1_idx]->GetPhys(), 1, this->ExB_vel[2], 1);
+  }
   // Advect ne and w
-  this->adv_obj->Advect(2, m_fields, m_ExB_vel, in_arr, out_arr, time);
+  this->adv_obj->Advect(2, m_fields, this->ExB_vel, in_arr, out_arr, time);
   for (auto i = 0; i < 2; ++i) {
     Vmath::Neg(npts, out_arr[i], 1);
   }
@@ -145,12 +156,12 @@ void HWITSystem::explicit_time_int(
   Array<OneD, NekDouble> HWterm_2D_alpha(npts);
   Vmath::Vsub(npts, m_fields[phi_idx]->GetPhys(), 1,
               m_fields[ne_idx]->GetPhys(), 1, HWterm_2D_alpha, 1);
-  Vmath::Smul(npts, m_alpha, HWterm_2D_alpha, 1, HWterm_2D_alpha, 1);
+  Vmath::Smul(npts, this->alpha, HWterm_2D_alpha, 1, HWterm_2D_alpha, 1);
   Vmath::Vadd(npts, out_arr[w_idx], 1, HWterm_2D_alpha, 1, out_arr[w_idx], 1);
   Vmath::Vadd(npts, out_arr[ne_idx], 1, HWterm_2D_alpha, 1, out_arr[ne_idx], 1);
 
   // Add -\kappa*\dpartial\phi/\dpartial y to RHS
-  Vmath::Svtvp(npts, -m_kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
+  Vmath::Svtvp(npts, -this->kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
                out_arr[ne_idx], 1, out_arr[ne_idx], 1);
 }
 
@@ -185,7 +196,7 @@ Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm(
  *  @brief Compute trace-normal advection velocities for the plasma density.
  */
 Array<OneD, NekDouble> &HWITSystem::get_adv_vel_norm_elec() {
-  return get_adv_vel_norm(m_norm_vel_elec, m_ExB_vel);
+  return get_adv_vel_norm(this->norm_vel_elec, this->ExB_vel);
 }
 
 /**
@@ -231,7 +242,7 @@ void HWITSystem::get_flux_vector_diff(
 void HWITSystem::get_flux_vector_elec(
     const Array<OneD, Array<OneD, NekDouble>> &field_vals,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux) {
-  get_flux_vector(field_vals, m_ExB_vel, flux);
+  get_flux_vector(field_vals, this->ExB_vel, flux);
 }
 
 /**
@@ -243,62 +254,48 @@ void HWITSystem::load_params() {
   // Type of advection to use -- in theory we also support flux reconstruction
   // for quad-based meshes, or you can use a standard convective term if you
   // were fully continuous in space. Default is DG.
-  m_session->LoadSolverInfo("AdvectionType", m_adv_type, "WeakDG");
+  m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
   // Magnetic field strength
-  m_B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
-  m_session->LoadParameter("Bx", m_B[0], 0.0);
-  m_session->LoadParameter("By", m_B[1], 0.0);
-  m_session->LoadParameter("Bz", m_B[2], 1.0);
+  this->B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
+  m_session->LoadParameter("Bx", this->B[0], 0.0);
+  m_session->LoadParameter("By", this->B[1], 0.0);
+  m_session->LoadParameter("Bz", this->B[2], 1.0);
   // *** Bx=By=0 is assumed elsewhere in the code ***
-  NESOASSERT(m_B[0] == 0, "Fluid solver doesn't yet correctly handle Bx != 0");
-  NESOASSERT(m_B[1] == 0, "Fluid solver doesn't yet correctly handle By != 0");
+  NESOASSERT(this->B[0] == 0,
+             "Fluid solver doesn't yet correctly handle Bx != 0");
+  NESOASSERT(this->B[1] == 0,
+             "Fluid solver doesn't yet correctly handle By != 0");
 
   // Coefficient factors for potential solve
-  m_session->LoadParameter("d00", m_d00, 1);
-  m_session->LoadParameter("d11", m_d11, 1);
-  m_session->LoadParameter("d22", m_d22, 1);
+  m_session->LoadParameter("d00", this->d00, 1);
+  m_session->LoadParameter("d11", this->d11, 1);
+  m_session->LoadParameter("d22", this->d22, 1);
 
   // Type of Riemann solver to use. Default = "Upwind"
-  m_session->LoadSolverInfo("UpwindType", m_riemann_solver_type, "Upwind");
+  m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type, "Upwind");
 
   // Particle-related parameters
+  m_session->LoadParameter("particle_output_freq", particle_output_freq, 0);
   m_session->LoadParameter("num_particle_steps_per_fluid_step",
-                           m_num_part_substeps, 1);
-  m_session->LoadParameter("particle_num_write_particle_steps",
-                           m_num_write_particle_steps, 0);
-  m_part_timestep = m_timestep / m_num_part_substeps;
+                           this->num_part_substeps, 1);
+  this->part_timestep = m_timestep / this->num_part_substeps;
 
   // Compute some properties derived from params
-  m_Bmag = std::sqrt(m_B[0] * m_B[0] + m_B[1] * m_B[1] + m_B[2] * m_B[2]);
-  m_b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
-  for (auto idim = 0; idim < m_b_unit.size(); idim++) {
-    m_b_unit[idim] = (m_Bmag > 0) ? m_B[idim] / m_Bmag : 0.0;
+  this->mag_B = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1] +
+                          this->B[2] * this->B[2]);
+  this->b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
+  for (auto idim = 0; idim < this->b_unit.size(); idim++) {
+    this->b_unit[idim] = (this->mag_B > 0) ? this->B[idim] / this->mag_B : 0.0;
   }
 
   // alpha (required)
-  m_session->LoadParameter("HW_alpha", m_alpha);
+  m_session->LoadParameter("HW_alpha", this->alpha);
 
   // kappa (required)
-  m_session->LoadParameter("HW_kappa", m_kappa);
+  m_session->LoadParameter("HW_kappa", this->kappa);
 }
 
-/**
- * @brief Utility function to print the size of a 1D Nektar array.
- * @param arr Array to print the size of
- * @param label Label to include in the output message
- * @param all_tasks If true, print message on all tasks, else print only on
- * task 0 (default=false)
- */
-void HWITSystem::print_arr_size(const Array<OneD, NekDouble> &arr,
-                                std::string label, bool all_tasks) {
-  if (m_session->GetComm()->TreatAsRankZero() || all_tasks) {
-    if (!label.empty()) {
-      std::cout << label << " ";
-    }
-    std::cout << "size = " << arr.size() << std::endl;
-  }
-}
 /**
  * @brief Calls HelmSolve to solve for the electric potential
  *
@@ -309,17 +306,17 @@ void HWITSystem::solve_phi(
 
   // Field indices
   int npts = GetNpoints();
-  int w_idx = m_field_to_index.get_idx("w");
-  int phi_idx = m_field_to_index.get_idx("phi");
+  int w_idx = this->field_to_index["w"];
+  int phi_idx = this->field_to_index["phi"];
 
   // Set up factors for electrostatic potential solve
   StdRegions::ConstFactorMap factors;
   // Helmholtz => Poisson (lambda = 0)
   factors[StdRegions::eFactorLambda] = 0.0;
   // Set coefficient factors
-  factors[StdRegions::eFactorCoeffD00] = m_d00;
-  factors[StdRegions::eFactorCoeffD11] = m_d11;
-  factors[StdRegions::eFactorCoeffD22] = m_d22;
+  factors[StdRegions::eFactorCoeffD00] = this->d00;
+  factors[StdRegions::eFactorCoeffD11] = this->d11;
+  factors[StdRegions::eFactorCoeffD22] = this->d22;
 
   // Solve for phi. Output of this routine is in coefficient (spectral)
   // space, so backwards transform to physical space since we'll need that
@@ -334,20 +331,18 @@ void HWITSystem::v_GenerateSummary(SU::SummaryList &s) {
   TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
 
   std::stringstream tmpss;
-  tmpss << "[" << m_d00 << "," << m_d11 << "," << m_d22 << "]";
+  tmpss << "[" << this->d00 << "," << this->d11 << "," << this->d22 << "]";
   SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
-  SU::AddSummaryItem(s, "Riemann solver", m_riemann_solver_type);
-  // Particle stuff
-  // SU::AddSummaryItem(s, "Num. part. substeps", m_num_part_substeps);
-  SU::AddSummaryItem(s, "Part. output freq", m_num_write_particle_steps);
-  tmpss = std::stringstream();
-  tmpss << "[" << m_B[0] << "," << m_B[1] << "," << m_B[2] << "]";
-  SU::AddSummaryItem(s, "B", tmpss.str());
-  SU::AddSummaryItem(s, "|B|", m_Bmag);
+  SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
 
-  SU::AddSummaryItem(s, "HW alpha", m_alpha);
-  SU::AddSummaryItem(s, "HW kappa", m_kappa);
+  tmpss = std::stringstream();
+  tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] << "]";
+  SU::AddSummaryItem(s, "B", tmpss.str());
+  SU::AddSummaryItem(s, "|B|", this->mag_B);
+
+  SU::AddSummaryItem(s, "HW alpha", this->alpha);
+  SU::AddSummaryItem(s, "HW kappa", this->kappa);
 }
 
 /**
@@ -365,14 +360,14 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Poisson solve. Note that you can still perform a Poisson solve using a
   // discontinuous field, which is done via the hybridisable discontinuous
   // Galerkin (HDG) approach.
-  int phi_idx = m_field_to_index.get_idx("phi");
+  int phi_idx = this->field_to_index["phi"];
   m_fields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
       m_session, m_graph, m_session->GetVariable(phi_idx), true, true);
 
   // Create storage for ExB vel
   int npts = GetNpoints();
   for (int i = 0; i < m_graph->GetSpaceDimension(); ++i) {
-    m_ExB_vel[i] = Array<OneD, NekDouble>(npts, 0.0);
+    this->ExB_vel[i] = Array<OneD, NekDouble>(npts, 0.0);
   }
 
   // Type of advection class to be used. By default, we only support the
@@ -382,32 +377,33 @@ void HWITSystem::v_InitObject(bool create_field) {
            "Unsupported projection type: only discontinuous"
            " projection supported.");
 
-  // Do not forwards transform initial condition.
-  m_homoInitialFwd = false; ////
+  // Turn off forward-transform of initial conditions.
+  m_homoInitialFwd = false;
 
   // Define the normal velocity fields.
   // These are populated at each step (by reference) in calls to GetVnAdv()
   if (m_fields[0]->GetTrace()) {
     auto nTrace = GetTraceNpoints();
-    m_norm_vel_elec = Array<OneD, NekDouble>(nTrace);
+    this->norm_vel_elec = Array<OneD, NekDouble>(nTrace);
   }
 
   // Advection objects
   // Need one per advection velocity
   this->adv_obj =
-      SU::GetAdvectionFactory().CreateInstance(m_adv_type, m_adv_type);
+      SU::GetAdvectionFactory().CreateInstance(this->adv_type, this->adv_type);
 
   // Set callback functions to compute flux vectors
   this->adv_obj->SetFluxVector(&HWITSystem::get_flux_vector_elec, this);
 
   // Create Riemann solvers (one per advection object) and set normal velocity
   // callback functions
-  m_riemann_elec = SU::GetRiemannSolverFactory().CreateInstance(
-      m_riemann_solver_type, m_session);
-  m_riemann_elec->SetScalar("Vn", &HWITSystem::get_adv_vel_norm_elec, this);
+  this->riemann_solver = SU::GetRiemannSolverFactory().CreateInstance(
+      this->riemann_solver_type, m_session);
+  this->riemann_solver->SetScalar("Vn", &HWITSystem::get_adv_vel_norm_elec,
+                                  this);
 
   // Tell advection objects about the Riemann solvers and finish init
-  this->adv_obj->SetRiemannSolver(m_riemann_elec);
+  this->adv_obj->SetRiemannSolver(this->riemann_solver);
   this->adv_obj->InitObject(m_session, m_fields);
 
   // Bind projection function for time integration object
@@ -416,7 +412,7 @@ void HWITSystem::v_InitObject(bool create_field) {
   // Store DisContFieldSharedPtr casts of fields in a map, indexed by name
   int idx = 0;
   for (auto &field_name : m_session->GetVariables()) {
-    m_discont_fields[field_name] =
+    this->discont_fields[field_name] =
         std::dynamic_pointer_cast<MR::DisContField>(m_fields[idx]);
     idx++;
   }
@@ -424,8 +420,9 @@ void HWITSystem::v_InitObject(bool create_field) {
   if (this->particles_enabled) {
     // Set up object to evaluate density field
     this->particle_sys->setup_evaluate_grad_phi(
-        m_discont_fields.at("gradphi0"), m_discont_fields.at("gradphi1"),
-        m_discont_fields.at("gradphi2"));
+        this->discont_fields.at("gradphi0"),
+        this->discont_fields.at("gradphi1"),
+        this->discont_fields.at("gradphi2"));
   }
 
   // Bind RHS function for explicit time integration
@@ -438,11 +435,12 @@ void HWITSystem::v_InitObject(bool create_field) {
   }
 
   // Create diagnostic for recording growth rates
-  if (m_diag_growth_rates_recording_enabled) {
-    m_diag_growth_rates_recorder =
+  if (this->energy_enstrophy_recording_enabled) {
+    this->energy_enstrophy_recorder =
         std::make_shared<GrowthRatesRecorder<MultiRegions::DisContField>>(
-            m_session, 2, m_discont_fields["ne"], m_discont_fields["w"],
-            m_discont_fields["phi"], GetNpoints(), m_alpha, m_kappa);
+            m_session, 2, this->discont_fields["ne"], this->discont_fields["w"],
+            this->discont_fields["phi"], GetNpoints(), this->alpha,
+            this->kappa);
   }
 }
 
@@ -614,15 +612,15 @@ void HWITSystem::do_null_precon(const Array<OneD, const NekDouble> &in_arr,
  * @param step Time step number
  */
 bool HWITSystem::v_PostIntegrate(int step) {
-  if (m_diag_growth_rates_recording_enabled) {
-    m_diag_growth_rates_recorder->compute(step);
+  if (energy_enstrophy_recording_enabled) {
+    this->energy_enstrophy_recorder->compute(step);
   }
 
-  m_solver_callback_handler.call_post_integrate(this);
+  this->solver_callback_handler.call_post_integrate(this);
 
   // Writes a step of the particle trajectory.
-  if (this->particles_enabled && m_num_write_particle_steps > 0 &&
-      (step % m_num_write_particle_steps) == 0) {
+  if (this->particles_enabled && particle_output_freq > 0 &&
+      (step % particle_output_freq) == 0) {
     this->particle_sys->write(step);
   }
   return TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_PostIntegrate(
@@ -636,26 +634,28 @@ bool HWITSystem::v_PostIntegrate(int step) {
  * @param step Time step number
  */
 bool HWITSystem::v_PreIntegrate(int step) {
-  m_solver_callback_handler.call_pre_integrate(this);
+  this->solver_callback_handler.call_pre_integrate(this);
 
   if (this->particles_enabled) {
     // Integrate the particle system to the requested time.
     this->particle_sys->evaluate_fields();
-    this->particle_sys->integrate(m_time + m_timestep, m_part_timestep);
+    this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
   }
 
   return UnsteadySystem::v_PreIntegrate(step);
 }
 
 /**
- * @brief Convenience function to zero a Nektar Array of 1D Arrays.
- *
- * @param out_arr Array of 1D arrays to be zeroed
- *
+ * @brief After reading ICs, calculate phi and grad(phi)
  */
-void HWITSystem::zero_out_array(Array<OneD, Array<OneD, NekDouble>> &out_arr) {
-  for (auto ifld = 0; ifld < out_arr.size(); ifld++) {
-    Vmath::Zero(out_arr[ifld].size(), out_arr[ifld], 1);
+void HWITSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
+                                        const int domain) {
+  TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_SetInitialConditions(
+      init_time, dump_ICs, domain);
+  calc_init_phi_and_gradphi();
+  if (this->particle_sys) {
+    this->particle_sys->initialise_particles_from_fields();
   }
 }
+
 } // namespace NESO::Solvers::hw_impurity_transport
