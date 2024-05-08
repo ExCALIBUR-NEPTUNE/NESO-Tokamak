@@ -1,0 +1,30 @@
+# This is a Spack Environment file.
+#
+# It describes the set of packages to be installed when developing,
+# along with configuration settings.
+spack:
+  # add package specs to the `specs` list
+  specs:
+  - neso-hw-impurity-transport%gcc
+  view:
+    gcc-hipsycl:
+      root: views/gcc-hipsycl
+      select: ['%gcc']
+      link_type: symlink
+  concretizer:
+    unify: when_possible
+  repos:
+  - ./repo
+  - ../../NESO/NESO-Spack
+  - $spack/var/spack/repos/builtin
+  packages:
+    all:
+      providers:
+        mpi: [mpich, openmpi]
+  develop:
+    neso:
+      path: ../../NESO
+      spec: neso@working
+    neso-hw-impurity-transport:
+      path: ../
+      spec: neso-hw-impurity-transport@working
