@@ -1,0 +1,3 @@
+[submodule "NESO"]
+	path = NESO
+	url = https://github.com/ExCALIBUR-NEPTUNE/NESO.git
