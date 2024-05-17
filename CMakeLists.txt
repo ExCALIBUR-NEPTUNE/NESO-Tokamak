@@ -29,7 +29,7 @@ find_package(Nektar++ REQUIRED)
 # find MPI
 find_package(MPI REQUIRED)
 # Add the NESO-Particles dependencies
-find_package(NESO-PARTICLES REQUIRED)
+find_package(NESO-Particles REQUIRED)
 
 # Identify source files
 set(SRC_FILES src/EquationSystems/HWITSystem.cpp)
