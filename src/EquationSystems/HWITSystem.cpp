@@ -133,7 +133,7 @@ void HWITSystem::explicit_time_int(
   // Calculate grad_phi
   compute_grad_phi();
 
-  double inv_B_sq = 1. * inv_B_sq;
+  double inv_B_sq = 1. / this->mag_B / this->mag_B;
   // v_ExB = grad(phi) X B / |B|^2
   Vmath::Svtsvtp(npts, -this->B[2] * inv_B_sq,
                  m_fields[gradphi1_idx]->GetPhys(), 1, this->B[1] * inv_B_sq,
