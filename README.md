@@ -5,8 +5,7 @@ A NESO-based solver for modelling impurity transport in a plasma governed by the
 The easiest way to build the app is to use the [Spack package manager](https://spack.readthedocs.io/en/latest/index.html).
 The build process has been tested with **Spack v0.19.0**; later versions may also work, but aren't recommended.
 
-### Install Spack v0.19.0
-To install Spack v0.19.0, follow the [official instructions](https://spack.readthedocs.io/en/latest/getting_started.html#installation).
+1. Install Spack v0.19.0, via the [official instructions](https://spack.readthedocs.io/en/latest/getting_started.html#installation).
 On Debian-based systems (e.g. Ubuntu) the following should work:
 
 ```bash
@@ -23,16 +22,12 @@ export SPACK_ROOT=$HOME/.spack
 source $SPACK_ROOT/share/spack/setup-env.sh
 ```
 
-
-### Clone NESO and its dependencies
-Next, having git-cloned this repository, change to the root directory (containing this readme) and obtain the required versions of NESO and its dependencies with:
+2. Next, having git-cloned this repository, change to the root directory (containing this readme) and obtain the required versions of NESO and its dependencies with:
 ```bash
 git submodule update --init --recursive
 ```
 
-
-### Build NESO and the app
-The app can then be built with:
+3. The app can then be built with:
 ```bash
 cd spack
 spack env activate .
