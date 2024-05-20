@@ -1,3 +1,9 @@
+# Python stuff
+__pycache__/
+*.py[cod]
+*$py.class
+env
+
 # Prerequisites
 *.d
 
@@ -41,9 +47,6 @@ builds
 # Example run dir
 example-runs
 
-# Python
-__pycache__
-
 # Spack
 spack-build-*/
 spack-build-*.txt
@@ -51,3 +54,6 @@ spack-configure-args.txt
 spack/.spack-env
 spack/spack.lock
 spack/views
+
+# Postprocessing subdirectories
+postproc/*/
