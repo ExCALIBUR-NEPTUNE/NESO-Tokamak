@@ -4,9 +4,7 @@ from pathlib import Path
 # Some standard locations in the repo. Assumes this file is two directories below the repo root.
 LOCATIONS = {}
 LOCATIONS["repo_root"] = os.path.abspath(os.path.dirname(__file__) + "/../..")
-LOCATIONS["runs"] = os.path.normpath(
-    os.path.join(LOCATIONS["repo_root"], "example-runs")
-)
+LOCATIONS["runs"] = os.path.normpath(os.path.join(LOCATIONS["repo_root"], "runs"))
 LOCATIONS["postproc"] = os.path.normpath(
     os.path.join(LOCATIONS["repo_root"], "postproc")
 )

@@ -45,7 +45,7 @@ build
 builds
 
 # Example run dir
-example-runs
+runs
 
 # Spack
 spack-build-*/

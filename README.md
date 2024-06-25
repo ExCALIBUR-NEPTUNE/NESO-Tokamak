@@ -50,7 +50,7 @@ spack load mpich
 ./scripts/run_eg.sh [example_name]
 ```
 
-- This will copy `./examples/[example_name]` to `./example-runs/[example_name]` and run the solver in that directory with 4 MPI processes by default.
+- This will copy `./examples/[example_name]` to `./runs/[example_name]` and run the solver in that directory with 4 MPI processes by default.
 - To run with a different number of MPI processes, use `<-n num_MPI> `
 - The solver executable is assumed to be in the most recently modified `spack-build*` directory. To choose a different build location, use `<-b build_dir_path>`.
 

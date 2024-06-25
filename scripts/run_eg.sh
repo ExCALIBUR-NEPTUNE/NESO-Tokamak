@@ -21,7 +21,7 @@ execute() {
 generate_run_dir() {
     local eg_dir="$1"
     local run_dir="$2"
-    run_dir="$REPO_ROOT/example-runs/$eg_name"
+    run_dir="$REPO_ROOT/runs/$eg_name"
     if [ -e "$run_dir" ]; then
         read -p "Overwrite existing run directory at $run_dir? (Y/N): " choice && [[ $choice == [yY] || $choice == [yY][eE][sS] ]] || exit 5
         \rm -rf "$run_dir"
@@ -123,7 +123,7 @@ eg_dir="$REPO_ROOT/examples/$eg_name"
 validate_paths "$solver_exec" "$eg_dir"
 
 # Set up run directory, confirming overwrite if it already exists
-run_dir="$REPO_ROOT/example-runs/$eg_name"
+run_dir="$REPO_ROOT/runs/$eg_name"
 generate_run_dir "$eg_dir" "$run_dir"
 
 # Read run command template and populate it
