@@ -47,5 +47,13 @@ builds
 # Example run dir
 example-runs
 
+# Spack
+spack-build-*/
+spack-build-*.txt
+spack-configure-args.txt
+spack/.spack-env
+spack/spack.lock
+spack/views
+
 # Postprocessing subdirectories
 postproc/*/
