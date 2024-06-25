@@ -57,3 +57,4 @@ spack/views
 
 # Postprocessing subdirectories
 postproc/*/
+!postproc/common
