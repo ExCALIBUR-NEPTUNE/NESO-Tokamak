@@ -21,7 +21,7 @@ execute() {
 generate_run_dir() {
     local eg_dir="$1"
     local run_dir="$2"
-    run_dir="$REPO_ROOT/example-runs/$eg_name"
+    run_dir="$REPO_ROOT/runs/$eg_name"
     if [ -e "$run_dir" ]; then
         read -p "Overwrite existing run directory at $run_dir? (Y/N): " choice && [[ $choice == [yY] || $choice == [yY][eE][sS] ]] || exit 5
         \rm -rf "$run_dir"
@@ -43,6 +43,10 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
     case $1 in
         -b|--build-dir)
+        if [ -z "$2" ]; then
+            echo "Empty build dir supplied"
+            exit 7
+        fi
         build_dir=$(realpath "$2")
         shift 2
         ;;
@@ -90,8 +94,17 @@ set_run_cmd() {
 }
 
 validate_paths() {
-    local solver_exec=$1
-    local eg_dir=$2
+    local build_dir=$1
+    local solver_exec=$2
+    local eg_dir=$3
+
+    if [ -z "$build_dir" ]; then
+        # default build dir wasn't found and none was supplied
+        echo "No build directory at ./spack-build*"
+        echo "Set solver location with '-b <build_dir>'"
+        exit 4
+    fi
+
     if [ ! -f "$solver_exec" ]; then
         echo "No solver found at $solver_exec"
         exit 3
@@ -120,10 +133,10 @@ report_options
 solver_exec="$build_dir/$solver_name"
 eg_dir="$REPO_ROOT/examples/$eg_name"
 # Validate exec, examples paths
-validate_paths "$solver_exec" "$eg_dir"
+validate_paths "$build_dir" "$solver_exec" "$eg_dir"
 
 # Set up run directory, confirming overwrite if it already exists
-run_dir="$REPO_ROOT/example-runs/$eg_name"
+run_dir="$REPO_ROOT/runs/$eg_name"
 generate_run_dir "$eg_dir" "$run_dir"
 
 # Read run command template and populate it
