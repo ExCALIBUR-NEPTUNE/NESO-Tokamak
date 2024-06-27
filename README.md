@@ -73,4 +73,9 @@ FieldConvert-rg [config_xml] [mesh_xml] [chk_name] [vtu_name]
 ## Known issues / annoyances
 
 - Particle hdf5 output isn't finalised until the solver finishes, so interrupted runs will generate an unreadable file.
+- If all fluid boundary conditions are periodic, the nektar++ routine used to solve for the potential arbitrarily sets one of the degrees of freedom to zero in order to avoid a singular solution.  This leads to an artifact in the potential (which eventually creates similar artifacts in the vorticity and density fields, see below).
+
+<img src="./docs/img/phi_artifact.png" center="left" width="400">
+
+The nektar++ developers are currently working on a fix for this.
 ---
