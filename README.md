@@ -78,4 +78,5 @@ FieldConvert-rg [config_xml] [mesh_xml] [chk_name] [vtu_name]
 <img src="./docs/img/phi_artifact.png" center="left" width="400">
 
 The nektar++ developers are currently working on a fix for this.
+
 ---
