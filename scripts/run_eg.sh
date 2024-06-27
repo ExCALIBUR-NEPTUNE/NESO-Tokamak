@@ -111,6 +111,9 @@ validate_paths() {
     fi
     if [ ! -d "$eg_dir" ]; then
         echo "No example directory found at $eg_dir"
+        echo
+        echo "Valid example names are:"
+        echo "$(find $REPO_ROOT/examples -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
         exit 4
     fi
 }
