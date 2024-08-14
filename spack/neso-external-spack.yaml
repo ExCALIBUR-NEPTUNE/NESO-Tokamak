@@ -5,7 +5,7 @@
 spack:
   # add package specs to the `specs` list
   specs:
-  - neso-hw-impurity-transport%gcc
+  - neso-tokamak%gcc
   view:
     gcc-hipsycl:
       root: views/gcc-hipsycl
@@ -33,4 +33,4 @@ spack:
       spec: neso-particles@working
     neso-hw-impurity-transport:
       path: ../
-      spec: neso-hw-impurity-transport@working
+      spec: neso-tokamak@working

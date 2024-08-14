@@ -1,5 +1,5 @@
-# NESO-hw-impurity-transport
-A NESO-based solver for modelling impurity transport in a plasma governed by the Hasegawa-Wakatani equations.
+# NESO-Tokamak
+A NESO-based solver for modelling MAST-U.
 
 ## Building
 The easiest way to build the app is to use the [Spack package manager](https://spack.readthedocs.io/en/latest/index.html).

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<NEKTAR>
+    <COLLECTIONS DEFAULT="auto" />
+    <EXPANSIONS>
+        <E COMPOSITE="C[10]" NUMMODES="4" TYPE="MODIFIED" FIELDS="T" />
+    </EXPANSIONS>
+
+    <CONDITIONS>
+        <SOLVERINFO>
+            <I PROPERTY="EQTYPE" VALUE="UnsteadyDiffusion" />
+            <I PROPERTY="Projection" VALUE="Continuous" />
+            <I PROPERTY="DiffusionAdvancement"  VALUE="Implicit"/>
+            <I PROPERTY="TimeIntegrationMethod" VALUE="IMEXOrder3" />
+        </SOLVERINFO>
+
+        <PARAMETERS>
+            <P> NumSteps       = 200    </P>
+            <P> TimeStep       = 5e4    </P>
+            <P> IO_InfoSteps   = 10     </P>
+            <P> IO_CheckSteps  = 10     </P>
+            <P> epsilon    = 1.0        </P>
+            <P> k_par      = 1e4        </P>
+            <P> k_perp     = 1e0        </P>
+            <P> TCore      = 300.0      </P>
+        </PARAMETERS>
+
+        <VARIABLES>
+            <V ID="0"> T </V>
+        </VARIABLES>
+
+        <BOUNDARYREGIONS>
+            <B ID="0"> C[1] </B>
+            <B ID="1"> C[2] </B>
+            <B ID="2"> C[3] </B>
+            <B ID="3"> C[4] </B>
+            <B ID="4"> C[5] </B>
+            <B ID="5"> C[6] </B>
+            <B ID="6"> C[7] </B>
+            <B ID="7"> C[8] </B>
+            <B ID="8"> C[9] </B>
+        </BOUNDARYREGIONS>
+        <BOUNDARYCONDITIONS>
+            <!--Core -->
+            <REGION REF="0"> 
+                <D VAR="T"     VALUE="TCore" />
+            </REGION>
+            <!--Lower outer -->
+            <REGION REF="1">
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+            </REGION>
+            <!--Upper outer -->
+            <REGION REF="2">
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+            </REGION>
+            <!--Upper inner -->
+            <REGION REF="3">
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+            </REGION>
+            <!--Lower inner -->
+            <REGION REF="4">
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+            </REGION>
+            <!--LFS SOL -->
+            <REGION REF="5">
+                <D VAR="T"    VALUE="0.0" />
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <!-- <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
+            </REGION>
+            <!--HFS SOL -->
+            <REGION REF="6">
+                <D VAR="T"    VALUE="0.0" />
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <!-- <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
+            </REGION>
+            <!--Bottom PFR -->
+            <REGION REF="7">
+                <D VAR="T"    VALUE="0.0" />
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <!-- <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
+            </REGION>
+            <!--Top PFR -->
+            <REGION REF="8">
+                <D VAR="T"    VALUE="0.0" />
+                <!-- <N VAR="T"     VALUE="0.0" /> -->
+                <!-- <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
+            </REGION>
+        </BOUNDARYCONDITIONS>
+        
+        <FUNCTION NAME="InitialConditions">
+            <E VAR="T"    VALUE="1.0" />
+        </FUNCTION>
+        
+        <FUNCTION NAME="MagneticField">
+            <F VAR="Bx,By,Bz"  FILE="B.pts"  />
+        </FUNCTION>
+
+    </CONDITIONS>
+</NEKTAR>

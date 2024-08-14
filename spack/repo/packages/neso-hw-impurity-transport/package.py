@@ -3,12 +3,12 @@ import os
 import shutil
 
 
-class NesoHwImpurityTransport(CMakePackage):
-    """NESO-HW-Impurity-Transport"""
+class NesoTokamak(CMakePackage):
+    """NESO-Tokamak"""
 
-    homepage = "https://github.com/ExCALIBUR-NEPTUNE/NESO-hw-impurity-transport"
+    homepage = "https://github.com/ExCALIBUR-NEPTUNE/NESO-Tokamak"
 
-    git = "https://github.com/ExCALIBUR-NEPTUNE/NESO-hw-impurity-transport.git"
+    git = "https://github.com/ExCALIBUR-NEPTUNE/NESO-Tokamak.git"
     version("working", branch="main")
     version("main", branch="main")
 

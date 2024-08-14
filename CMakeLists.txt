@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(
-  NESOHWIT
+  NESOTOKAMAK
   VERSION 0.0.1
   LANGUAGES CXX)
 
@@ -32,7 +32,11 @@ find_package(MPI REQUIRED)
 find_package(NESO-Particles REQUIRED)
 
 # Identify source files
-set(SRC_FILES src/EquationSystems/HWITSystem.cpp)
+set(SRC_FILES
+src/EquationSystems/TokamakSystem.cpp
+src/BoundaryConditions/TokamakBndCond.cpp
+src/BoundaryConditions/ObliqueBC.cpp
+)
 
 # ##############################################################################
 # Build object library; used by solver exec and tests
@@ -53,7 +57,7 @@ add_sycl_to_target(TARGET ${OBJLIB_NAME} SOURCES ${SRC_FILES})
 # ##############################################################################
 # Build solver exec
 # ##############################################################################
-set(EXEC_NAME hw-impurity-transport)
+set(EXEC_NAME tokamak)
 
 add_executable(${EXEC_NAME} src/main.cpp $<TARGET_OBJECTS:${OBJLIB_NAME}>)
 

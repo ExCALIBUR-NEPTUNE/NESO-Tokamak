@@ -122,7 +122,7 @@ validate_paths() {
 REPO_ROOT=$( cd -- "$(realpath $( dirname -- "${BASH_SOURCE[0]}" )/..)" &> /dev/null && pwd )
 
 # Default options
-solver_name="hw-impurity-transport"
+solver_name="tokamak"
 eg_name='Not set'
 nmpi='4'
 build_dir='Not set'
