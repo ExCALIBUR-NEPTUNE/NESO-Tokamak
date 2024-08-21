@@ -9,8 +9,8 @@ std::string ObliqueBC::className =
     GetTokamakBndCondFactory().RegisterCreatorFunction(
         "Oblique", ObliqueBC::create, "Oblique boundary condition.");
 
-ObliqueBC::ObliqueBC(const LibUtilities::SessionReaderSharedPtr &pSession,
-                     const Array<OneD, MultiRegions::ExpListSharedPtr> &pFields,
+ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
+                     const Array<OneD, MR::ExpListSharedPtr> &pFields,
                      const Array<OneD, Array<OneD, NekDouble>> &pNormals,
                      const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
                      const int pSpaceDim, const int bcRegion, const int cnt)

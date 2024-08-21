@@ -12,8 +12,8 @@ public:
     friend class MemoryManager<ObliqueBC>;
 
     static TokamakBndCondSharedPtr create(
-        const LibUtilities::SessionReaderSharedPtr &pSession,
-        const Array<OneD, MultiRegions::ExpListSharedPtr> &pFields,
+        const LU::SessionReaderSharedPtr &pSession,
+        const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
         const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
         const int pSpaceDim, const int bcRegion, const int cnt)
@@ -33,8 +33,8 @@ protected:
                  const NekDouble &time) override;
 
 private:
-    ObliqueBC(const LibUtilities::SessionReaderSharedPtr &pSession,
-              const Array<OneD, MultiRegions::ExpListSharedPtr> &pFields,
+    ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
+              const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
               const int pSpaceDim, const int bcRegion, const int cnt);

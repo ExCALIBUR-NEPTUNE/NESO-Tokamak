@@ -11,8 +11,8 @@ TokamakBndCondFactory &GetTokamakBndCondFactory()
 }
 
 TokamakBndCond::TokamakBndCond(
-    const LibUtilities::SessionReaderSharedPtr &pSession,
-    const Array<OneD, MultiRegions::ExpListSharedPtr> &pFields,
+    const LU::SessionReaderSharedPtr &pSession,
+    const Array<OneD, MR::ExpListSharedPtr> &pFields,
     const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
     const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
     const int pSpaceDim, const int bcRegion, const int cnt)

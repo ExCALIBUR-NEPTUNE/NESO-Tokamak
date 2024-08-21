@@ -1,6 +1,7 @@
 #ifndef TOKAMAKSYSTEM_H
 #define TOKAMAKSYSTEM_H
 
+#include "../BoundaryConditions/TokamakBndCond.h"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
@@ -68,11 +69,14 @@ protected:
     /// Hasegawa-Wakatani α
     NekDouble alpha;
     /// Magnetic field vector
-    std::vector<NekDouble> B;
+    // std::vector<NekDouble> B;
+    Array<OneD, Array<OneD, NekDouble>> B;
     /// Implicit solver parameter
     NekDouble bnd_evaluate_time = 0.0;
     /// Normalised magnetic field vector
-    std::vector<NekDouble> b_unit;
+    // std::vector<NekDouble> b_unit;
+    Array<OneD, Array<OneD, NekDouble>> b_unit;
+
     /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
      * particle evaluation/projection methods
      */
@@ -90,7 +94,8 @@ protected:
     /// Hasegawa-Wakatani κ
     NekDouble kappa;
     /// Magnitude of the magnetic field
-    NekDouble mag_B;
+    // NekDouble mag_B;
+    Array<OneD, NekDouble> mag_B;
     /// Implicit solver counter
     int newton_its_counter = 0;
     /// Implicit solver counter
@@ -101,6 +106,9 @@ protected:
     std::string riemann_solver_type;
     /// Implicit solver parameter
     NekDouble time_int_lambda = 0.0;
+
+    /// Boundary Conditions
+    std::vector<TokamakBndCondSharedPtr> m_bndConds;
 
     void calc_init_phi_and_gradphi();
     void calc_ref_vals(const Array<OneD, const NekDouble> &in_arr);
@@ -143,6 +151,10 @@ protected:
                                  [[maybe_unused]] const bool &flag);
     void solve_phi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
 
+    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
+                               NekDouble time);
+    void SetBoundaryConditionsBwdWeight();
+
     virtual void v_GenerateSummary(SU::SummaryList &s) override;
     virtual void v_InitObject(bool DeclareField) override;
     virtual bool v_PostIntegrate(int step) override;
@@ -157,6 +169,12 @@ private:
     NekDouble d11;
     /// d22 coefficient for Helmsolve
     NekDouble d22;
+
+    // For Diffusion
+    NekDouble m_kperp;
+    NekDouble m_kpar;
+    StdRegions::VarCoeffMap m_varcoeff;
+
     /// Storage for component of ne advection velocity normal to trace elements
     Array<OneD, NekDouble> norm_vel_elec;
     /// Number of particle timesteps per fluid timestep.

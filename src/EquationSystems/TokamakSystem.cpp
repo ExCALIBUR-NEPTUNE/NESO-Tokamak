@@ -97,7 +97,7 @@ void TokamakSystem::do_ode_projection(
 {
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
-    SetBoundaryConditions(time);
+    SetBoundaryConditions(out_arr, time);
     for (int i = 0; i < num_vars; ++i)
     {
         Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
@@ -143,21 +143,30 @@ void TokamakSystem::explicit_time_int(
     solve_phi(in_arr);
     // Calculate grad_phi
     compute_grad_phi();
+    Array<OneD, NekDouble> inv_B_sq(npts);
+    Vmath::Smul(npts, 1.0, &mag_B[0], 1, &inv_B_sq[0], 1);
+    Vmath::Vdiv(npts, &inv_B_sq[0], 1, &mag_B[0], 1, &inv_B_sq[0], 1);
 
-    double inv_B_sq = 1. / this->mag_B / this->mag_B;
-    // v_ExB = grad(phi) X B / |B|^2
-    Vmath::Svtsvtp(npts, -this->B[2] * inv_B_sq,
-                   m_fields[gradphi1_idx]->GetPhys(), 1, this->B[1] * inv_B_sq,
-                   m_fields[gradphi2_idx]->GetPhys(), 1, this->ExB_vel[0], 1);
-    Vmath::Svtsvtp(npts, -this->B[0] * inv_B_sq,
-                   m_fields[gradphi2_idx]->GetPhys(), 1, this->B[2] * inv_B_sq,
-                   m_fields[gradphi0_idx]->GetPhys(), 1, this->ExB_vel[1], 1);
+    // double inv_B_sq = 1. / this->mag_B / this->mag_B;
+    //  v_ExB = - grad(phi) X B / |B|^2
+    Vmath::Vvtvvtm(npts, this->B[1], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
+                   this->B[2], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
+                   this->ExB_vel[0], 1);
+    Vmath::Vmul(npts, ExB_vel[0], 1, inv_B_sq, 1, ExB_vel[0], 1);
+
+    Vmath::Vvtvvtm(npts, this->B[2], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
+                   this->B[0], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
+                   this->ExB_vel[1], 1);
+
+    Vmath::Vmul(npts, ExB_vel[1], 1, inv_B_sq, 1, ExB_vel[1], 1);
+
     if (this->m_graph->GetMeshDimension() == 3)
     {
-        Vmath::Svtsvtp(npts, -this->B[1] * inv_B_sq,
-                       m_fields[gradphi0_idx]->GetPhys(), 1,
-                       this->B[0] * inv_B_sq, m_fields[gradphi1_idx]->GetPhys(),
-                       1, this->ExB_vel[2], 1);
+        Vmath::Vvtvvtm(npts, this->B[0], 1, m_fields[gradphi1_idx]->GetPhys(),
+                       1, this->B[1], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
+                       this->ExB_vel[2], 1);
+
+        Vmath::Vmul(npts, ExB_vel[2], 1, inv_B_sq, 1, ExB_vel[2], 1);
     }
     // Advect ne and w
     this->adv_obj->Advect(2, m_fields, this->ExB_vel, in_arr, out_arr, time);
@@ -281,16 +290,62 @@ void TokamakSystem::load_params()
     // were fully continuous in space. Default is DG.
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
+    int npoints = m_fields[0]->GetNpoints();
     // Magnetic field strength
-    this->B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
-    m_session->LoadParameter("Bx", this->B[0], 0.0);
-    m_session->LoadParameter("By", this->B[1], 0.0);
-    m_session->LoadParameter("Bz", this->B[2], 1.0);
+    // this->B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
+    // m_session->LoadParameter("Bx", this->B[0], 0.0);
+    // m_session->LoadParameter("By", this->B[1], 0.0);
+    // m_session->LoadParameter("Bz", this->B[2], 1.0);
+
+    if (m_session->DefinesFunction("MagneticField"))
+    {
+        B = Array<OneD, Array<OneD, NekDouble>>(3);
+
+        Array<OneD, NekDouble> d00(npoints, 1.0);
+        Array<OneD, NekDouble> d01(npoints, 0.0);
+        Array<OneD, NekDouble> d02(npoints, 0.0);
+        Array<OneD, NekDouble> d10(npoints, 0.0);
+        Array<OneD, NekDouble> d11(npoints, 1.0);
+        Array<OneD, NekDouble> d12(npoints, 0.0);
+        Array<OneD, NekDouble> d20(npoints, 0.0);
+        Array<OneD, NekDouble> d21(npoints, 0.0);
+        Array<OneD, NekDouble> d22(npoints, 1.0);
+
+        std::vector<std::string> Bstring;
+        Bstring.push_back("Bx");
+        Bstring.push_back("By");
+        Bstring.push_back("Bz");
+        Bstring.resize(3);
+
+        GetFunction("MagneticField")->Evaluate(Bstring, B);
+        for (int k = 0; k < npoints; k++)
+        {
+            d00[k] = (m_kpar - m_kperp) * B[0][k] * B[0][k] + m_kperp;
+            d01[k] = (m_kpar - m_kperp) * B[0][k] * B[1][k];
+            d02[k] = (m_kpar - m_kperp) * B[0][k] * B[2][k];
+            d10[k] = (m_kpar - m_kperp) * B[1][k] * B[0][k];
+            d11[k] = (m_kpar - m_kperp) * B[1][k] * B[1][k] + m_kperp;
+            d12[k] = (m_kpar - m_kperp) * B[1][k] * B[2][k];
+            d20[k] = (m_kpar - m_kperp) * B[2][k] * B[0][k];
+            d21[k] = (m_kpar - m_kperp) * B[2][k] * B[1][k];
+            d22[k] = (m_kpar - m_kperp) * B[2][k] * B[2][k] + m_kperp;
+        }
+        m_varcoeff[StdRegions::eVarCoeffD00] = d00;
+        m_varcoeff[StdRegions::eVarCoeffD01] = d01;
+        m_varcoeff[StdRegions::eVarCoeffD02] = d02;
+        m_varcoeff[StdRegions::eVarCoeffD10] = d10;
+        m_varcoeff[StdRegions::eVarCoeffD11] = d11;
+        m_varcoeff[StdRegions::eVarCoeffD12] = d12;
+        m_varcoeff[StdRegions::eVarCoeffD20] = d20;
+        m_varcoeff[StdRegions::eVarCoeffD21] = d21;
+        m_varcoeff[StdRegions::eVarCoeffD22] = d22;
+    }
+
     // *** Bx=By=0 is assumed elsewhere in the code ***
-    NESOASSERT(this->B[0] == 0,
-               "Fluid solver doesn't yet correctly handle Bx != 0");
-    NESOASSERT(this->B[1] == 0,
-               "Fluid solver doesn't yet correctly handle By != 0");
+    // NESOASSERT(this->B[0] == 0,
+    //            "Fluid solver doesn't yet correctly handle Bx != 0");
+    // NESOASSERT(this->B[1] == 0,
+    //            "Fluid solver doesn't yet correctly handle By != 0");
 
     // Coefficient factors for potential solve
     m_session->LoadParameter("d00", this->d00, 1);
@@ -308,13 +363,27 @@ void TokamakSystem::load_params()
     this->part_timestep = m_timestep / this->num_part_substeps;
 
     // Compute some properties derived from params
-    this->mag_B  = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1] +
-                             this->B[2] * this->B[2]);
-    this->b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
+
+    // this->mag_B = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1]
+    // +
+    //                         this->B[2] * this->B[2]);
+    this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
+    for (int i = 0; i < 3; ++i)
+    {
+        Vmath::Vvtvp(npoints, &this->B[i][0], 1, &this->B[i][0], 1, &mag_B[0],
+                     1, &mag_B[0], 1);
+    }
+
+    //this->b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
+    this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
+
     for (auto idim = 0; idim < this->b_unit.size(); idim++)
     {
-        this->b_unit[idim] =
-            (this->mag_B > 0) ? this->B[idim] / this->mag_B : 0.0;
+        for (int k = 0; k < npoints; ++k)
+        {
+            this->b_unit[idim][k] =
+                (this->mag_B[k] > 0) ? this->B[idim][k] / this->mag_B[k] : 0.0;
+        }
     }
 
     // alpha (required)
@@ -366,10 +435,10 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 
     SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
 
-    tmpss = std::stringstream();
-    tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] << "]";
-    SU::AddSummaryItem(s, "B", tmpss.str());
-    SU::AddSummaryItem(s, "|B|", this->mag_B);
+    // tmpss = std::stringstream();
+    // tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] <<
+    // "]"; SU::AddSummaryItem(s, "B", tmpss.str()); SU::AddSummaryItem(s,
+    // "|B|", this->mag_B);
 
     SU::AddSummaryItem(s, "HW alpha", this->alpha);
     SU::AddSummaryItem(s, "HW kappa", this->kappa);
@@ -469,6 +538,46 @@ void TokamakSystem::v_InitObject(bool create_field)
     {
         init_nonlin_sys_solver();
     }
+
+    for (size_t i = 0; i < m_fields.size(); ++i)
+    {
+        bool Set = false;
+        Array<OneD, const SD::BoundaryConditionShPtr> BndConds;
+        Array<OneD, MR::ExpListSharedPtr> BndExp;
+        size_t cnt = 0;
+        BndConds   = m_fields[i]->GetBndConditions();
+        BndExp     = m_fields[i]->GetBndCondExpansions();
+
+        for (size_t n = 0; n < BndConds.size(); ++n)
+        {
+            std::string type =
+                m_fields[0]->GetBndConditions()[n]->GetUserDefined();
+            if (type.rfind("Oblique", 0) == 0)
+            {
+                ASSERTL0(
+                    BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
+                    "Oblique boundary condition must be of type Robin <R>");
+                std::string::size_type indxBeg = type.find_first_of(':') + 1;
+                std::string fieldcomps = type.substr(indxBeg, std::string::npos);
+            }
+            if (m_fields[0]
+                    ->GetBndConditions()[n]
+                    ->GetBoundaryConditionType() == SD::ePeriodic)
+            {
+                continue;
+            }
+
+            if (!type.empty())
+            {
+                m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
+                    type, m_session, m_fields, m_traceNormals, B, m_spacedim, n,
+                    cnt));
+            }
+            cnt += m_fields[i]->GetBndCondExpansions()[n]->GetExpSize();
+        }
+    }
+
+    SetBoundaryConditionsBwdWeight();
 
     // Create diagnostic for recording growth rates
     if (this->energy_enstrophy_recording_enabled)
@@ -718,6 +827,31 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
     if (this->particle_sys)
     {
         this->particle_sys->initialise_particles_from_fields();
+    }
+}
+
+void TokamakSystem::SetBoundaryConditions(
+    Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time)
+{
+    if (!m_bndConds.empty())
+    {
+        // Loop over user-defined boundary conditions
+        for (auto &x : m_bndConds)
+        {
+            x->Apply(B, physarray, time);
+        }
+    }
+}
+
+void TokamakSystem::SetBoundaryConditionsBwdWeight()
+{
+    if (m_bndConds.size())
+    {
+        // Loop over user-defined boundary conditions
+        for (auto &x : m_bndConds)
+        {
+            x->ApplyBwdWeight();
+        }
     }
 }
 

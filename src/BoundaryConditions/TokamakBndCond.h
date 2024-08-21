@@ -7,6 +7,11 @@
 #include <LibUtilities/BasicUtils/SharedArray.hpp>
 #include <MultiRegions/ExpList.h>
 
+using namespace Nektar;
+namespace LU = Nektar::LibUtilities;
+namespace MR = Nektar::MultiRegions;
+namespace SD = Nektar::SpatialDomains;
+
 namespace NESO::Solvers::tokamak
 {
 class TokamakBndCond;
@@ -15,16 +20,16 @@ class TokamakBndCond;
 typedef std::shared_ptr<TokamakBndCond> TokamakBndCondSharedPtr;
 
 /// Declaration of the boundary condition factory
-typedef LibUtilities::NekFactory<
-    std::string, TokamakBndCond, const LibUtilities::SessionReaderSharedPtr &,
-    const Array<OneD, MultiRegions::ExpListSharedPtr> &,
-    const Array<OneD, Array<OneD, NekDouble>> &,
-    const Array<OneD, Array<OneD, NekDouble>> &, const int, const int,
-    const int>
+typedef LU::NekFactory<std::string, TokamakBndCond,
+                       const LU::SessionReaderSharedPtr &,
+                       const Array<OneD, MR::ExpListSharedPtr> &,
+                       const Array<OneD, Array<OneD, NekDouble>> &,
+                       const Array<OneD, Array<OneD, NekDouble>> &, const int,
+                       const int, const int>
     TokamakBndCondFactory;
 
 /// Declaration of the boundary condition factory singleton
-TokamakBndCondFactory &GetDiffBndCondFactory();
+TokamakBndCondFactory &GetTokamakBndCondFactory();
 
 /**
  * @class TokamakBndCond
@@ -51,9 +56,9 @@ public:
 
 protected:
     /// Session reader
-    LibUtilities::SessionReaderSharedPtr m_session;
+    LU::SessionReaderSharedPtr m_session;
     /// Array of fields
-    Array<OneD, MultiRegions::ExpListSharedPtr> m_fields;
+    Array<OneD, MR::ExpListSharedPtr> m_fields;
     /// Trace normals
     Array<OneD, Array<OneD, NekDouble>> m_normals;
     /// Oblique Field
@@ -69,8 +74,8 @@ protected:
     int m_offset;
 
     /// Constructor
-    TokamakBndCond(const LibUtilities::SessionReaderSharedPtr &pSession,
-                   const Array<OneD, MultiRegions::ExpListSharedPtr> &pFields,
+    TokamakBndCond(const LU::SessionReaderSharedPtr &pSession,
+                   const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
                    const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
                    const int pSpaceDim, const int bcRegion, const int cnt);
