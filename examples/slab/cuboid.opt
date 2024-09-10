@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<NEKTAR>
+    <COLLECTIONS>
+        <OPERATOR TYPE="BwdTrans">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="SumFac" />
+        </OPERATOR>
+        <OPERATOR TYPE="Helmholtz">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="NoCollection" />
+        </OPERATOR>
+        <OPERATOR TYPE="IProductWRTBase">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="NoCollection" />
+        </OPERATOR>
+        <OPERATOR TYPE="IProductWRTDerivBase">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="IterPerExp" />
+        </OPERATOR>
+        <OPERATOR TYPE="PhysDeriv">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="NoCollection" />
+        </OPERATOR>
+        <OPERATOR TYPE="PhysInterp1DScaled">
+            <ELEMENT TYPE="H" ORDER="*" IMPTYPE="NoCollection" />
+        </OPERATOR>
+    </COLLECTIONS>
+</NEKTAR>
