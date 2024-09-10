@@ -31,9 +31,9 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
       ExB_vel(graph->GetSpaceDimension())
 {
-    this->required_fld_names = {"ne",       "w",        "phi",
+    this->required_fld_names = {"T",        "ne",       "w",       "phi",
                                 "gradphi0", "gradphi1", "gradphi2"};
-    this->int_fld_names      = {"ne", "w"};
+    this->int_fld_names      = {"T", "ne", "w"};
 
     // Determine whether energy,enstrophy recording is enabled (output freq is
     // set)
@@ -91,7 +91,7 @@ void TokamakSystem::compute_grad_phi()
  * @param time Current simulation time
  *
  */
-void TokamakSystem::do_ode_projection(
+void TokamakSystem::DoOdeProjection(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
@@ -111,7 +111,7 @@ void TokamakSystem::do_ode_projection(
  * @param in_arr physical values of all fields
  * @param[out] out_arr output array (RHSs of time integration equations)
  */
-void TokamakSystem::explicit_time_int(
+void TokamakSystem::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
@@ -124,15 +124,6 @@ void TokamakSystem::explicit_time_int(
     int ne_idx       = this->field_to_index["ne"];
     int phi_idx      = this->field_to_index["phi"];
     int w_idx        = this->field_to_index["w"];
-    // // Check in_arr for NaNs - SLLLLLLOOOOOW
-    // for (auto &var : {"ne", "w"}) {
-    //   auto fidx = this->field_to_index.get_idx(var);
-    //   for (auto ii = 0; ii < in_arr[fidx].size(); ii++) {
-    //     std::stringstream err_msg;
-    //     err_msg << "Found NaN in field " << var;
-    //     NESOASSERT(std::isfinite(in_arr[fidx][ii]), err_msg.str().c_str());
-    //   }
-    // }
 
     if (this->m_explicitAdvection)
     {
@@ -143,12 +134,12 @@ void TokamakSystem::explicit_time_int(
     solve_phi(in_arr);
     // Calculate grad_phi
     compute_grad_phi();
+
+    // Calculate ExB velocity
     Array<OneD, NekDouble> inv_B_sq(npts);
     Vmath::Smul(npts, 1.0, &mag_B[0], 1, &inv_B_sq[0], 1);
     Vmath::Vdiv(npts, &inv_B_sq[0], 1, &mag_B[0], 1, &inv_B_sq[0], 1);
 
-    // double inv_B_sq = 1. / this->mag_B / this->mag_B;
-    //  v_ExB = - grad(phi) X B / |B|^2
     Vmath::Vvtvvtm(npts, this->B[1], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
                    this->B[2], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
                    this->ExB_vel[0], 1);
@@ -168,14 +159,16 @@ void TokamakSystem::explicit_time_int(
 
         Vmath::Vmul(npts, ExB_vel[2], 1, inv_B_sq, 1, ExB_vel[2], 1);
     }
-    // Advect ne and w
-    this->adv_obj->Advect(2, m_fields, this->ExB_vel, in_arr, out_arr, time);
-    for (auto i = 0; i < 2; ++i)
+
+    // Advect T, ne and w
+    this->adv_obj->Advect(3, m_fields, this->ExB_vel, in_arr, out_arr, time);
+    for (auto i = 0; i < 3; ++i)
     {
         Vmath::Neg(npts, out_arr[i], 1);
     }
 
-    // Add \alpha*(\phi-ne) to RHS
+    // HW equation
+    //  Add \alpha*(\phi-ne) to RHS
     Array<OneD, NekDouble> HWterm_2D_alpha(npts);
     Vmath::Vsub(npts, m_fields[phi_idx]->GetPhys(), 1,
                 m_fields[ne_idx]->GetPhys(), 1, HWterm_2D_alpha, 1);
@@ -187,6 +180,24 @@ void TokamakSystem::explicit_time_int(
     // Add -\kappa*\dpartial\phi/\dpartial y to RHS
     Vmath::Svtvp(npts, -this->kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
                  out_arr[ne_idx], 1, out_arr[ne_idx], 1);
+
+    if (m_explicitDiffusion)
+    {
+        int nVariables = in_arr.size();
+        Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nVariables);
+        for (int i = 0; i < nVariables; ++i)
+        {
+            outarrayDiff[i] = Array<OneD, NekDouble>(out_arr[i].size(), 0.0);
+        }
+
+        m_diffusion->Diffuse(nVariables, m_fields, in_arr, outarrayDiff);
+
+        for (int i = 0; i < nVariables; ++i)
+        {
+            Vmath::Vadd(out_arr[i].size(), &outarrayDiff[i][0], 1,
+                        &out_arr[i][0], 1, &out_arr[i][0], 1);
+        }
+    }
 }
 
 /**
@@ -253,15 +264,39 @@ void TokamakSystem::get_flux_vector(
 }
 
 /**
- * @brief Construct the flux vector for the diffusion problem.
- * @todo not implemented
+ * @brief Construct the flux vector for the anisotropic diffusion problem.
  */
-void TokamakSystem::get_flux_vector_diff(
+void TokamakSystem::GetFluxVectorDiff(
     const Array<OneD, Array<OneD, NekDouble>> &in_arr,
-    const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
+    const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &qfield,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &viscous_tensor)
 {
-    std::cout << "*** GetFluxVectorDiff not defined! ***" << std::endl;
+    unsigned int nDim              = qfield.size();
+    unsigned int nConvectiveFields = qfield[0].size();
+    unsigned int nPts              = qfield[0][0].size();
+
+    StdRegions::VarCoeffType vc[3][3] = {
+        {StdRegions::eVarCoeffD00, StdRegions::eVarCoeffD01,
+         StdRegions::eVarCoeffD02},
+        {StdRegions::eVarCoeffD01, StdRegions::eVarCoeffD11,
+         StdRegions::eVarCoeffD12},
+        {StdRegions::eVarCoeffD02, StdRegions::eVarCoeffD12,
+         StdRegions::eVarCoeffD22}};
+
+    for (unsigned int i = 0; i < nConvectiveFields; ++i)
+    {
+        for (unsigned int j = 0; j < nDim; ++j)
+        {
+            Vmath::Vmul(nPts, m_varcoeff[vc[j][0]].GetValue(), 1, qfield[0][i],
+                        1, viscous_tensor[j][i], 1);
+            for (unsigned int k = 1; k < nDim; ++k)
+            {
+                Vmath::Vvtvp(nPts, m_varcoeff[vc[j][k]].GetValue(), 1,
+                             qfield[k][i], 1, viscous_tensor[j][i], 1,
+                             viscous_tensor[j][i], 1);
+            }
+        }
+    }
 }
 
 /**
@@ -290,67 +325,107 @@ void TokamakSystem::load_params()
     // were fully continuous in space. Default is DG.
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
-    int npoints = m_fields[0]->GetNpoints();
-    // Magnetic field strength
-    // this->B = std::vector<NekDouble>(m_graph->GetSpaceDimension(), 0);
-    // m_session->LoadParameter("Bx", this->B[0], 0.0);
-    // m_session->LoadParameter("By", this->B[1], 0.0);
-    // m_session->LoadParameter("Bz", this->B[2], 1.0);
+    int npoints  = m_fields[0]->GetNpoints();
+    this->B      = Array<OneD, Array<OneD, NekDouble>>(3);
+    this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
+    std::vector<std::string> Bstring;
+    Bstring.push_back("Bx");
+    Bstring.push_back("By");
+    Bstring.push_back("Bz");
+    Bstring.resize(3);
 
-    if (m_session->DefinesFunction("MagneticField"))
+    if (m_session->DefinesFunction("MagneticMeanField"))
     {
-        B = Array<OneD, Array<OneD, NekDouble>>(3);
-
-        Array<OneD, NekDouble> d00(npoints, 1.0);
-        Array<OneD, NekDouble> d01(npoints, 0.0);
-        Array<OneD, NekDouble> d02(npoints, 0.0);
-        Array<OneD, NekDouble> d10(npoints, 0.0);
-        Array<OneD, NekDouble> d11(npoints, 1.0);
-        Array<OneD, NekDouble> d12(npoints, 0.0);
-        Array<OneD, NekDouble> d20(npoints, 0.0);
-        Array<OneD, NekDouble> d21(npoints, 0.0);
-        Array<OneD, NekDouble> d22(npoints, 1.0);
-
-        std::vector<std::string> Bstring;
-        Bstring.push_back("Bx");
-        Bstring.push_back("By");
-        Bstring.push_back("Bz");
-        Bstring.resize(3);
-
-        GetFunction("MagneticField")->Evaluate(Bstring, B);
-        for (int k = 0; k < npoints; k++)
+        Array<OneD, Array<OneD, NekDouble>> B2D(3);
+        GetFunction("MagneticMeanField")->Evaluate(Bstring, B2D);
+        for (int d = 0; d < 3; ++d)
         {
-            d00[k] = (m_kpar - m_kperp) * B[0][k] * B[0][k] + m_kperp;
-            d01[k] = (m_kpar - m_kperp) * B[0][k] * B[1][k];
-            d02[k] = (m_kpar - m_kperp) * B[0][k] * B[2][k];
-            d10[k] = (m_kpar - m_kperp) * B[1][k] * B[0][k];
-            d11[k] = (m_kpar - m_kperp) * B[1][k] * B[1][k] + m_kperp;
-            d12[k] = (m_kpar - m_kperp) * B[1][k] * B[2][k];
-            d20[k] = (m_kpar - m_kperp) * B[2][k] * B[0][k];
-            d21[k] = (m_kpar - m_kperp) * B[2][k] * B[1][k];
-            d22[k] = (m_kpar - m_kperp) * B[2][k] * B[2][k] + m_kperp;
+            B[d] = Array<OneD, NekDouble>(npoints, 0.0);
         }
-        m_varcoeff[StdRegions::eVarCoeffD00] = d00;
-        m_varcoeff[StdRegions::eVarCoeffD01] = d01;
-        m_varcoeff[StdRegions::eVarCoeffD02] = d02;
-        m_varcoeff[StdRegions::eVarCoeffD10] = d10;
-        m_varcoeff[StdRegions::eVarCoeffD11] = d11;
-        m_varcoeff[StdRegions::eVarCoeffD12] = d12;
-        m_varcoeff[StdRegions::eVarCoeffD20] = d20;
-        m_varcoeff[StdRegions::eVarCoeffD21] = d21;
-        m_varcoeff[StdRegions::eVarCoeffD22] = d22;
+
+        int npoints_2d = B2D[0].size();
+        int increments = npoints / npoints_2d;
+        Array<OneD, NekDouble> Bx(npoints_2d);
+        Array<OneD, NekDouble> Bz(npoints_2d);
+        for (int i = 0; i < increments; ++i)
+        {
+            Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B[1][i * npoints_2d], 1);
+
+            NekDouble theta = i * 2 * M_PI / increments;
+            for (int j = 0; j < npoints_2d; ++j)
+            {
+                Bx[j] = cos(theta) * B2D[0][j] - sin(theta) * B2D[2][j];
+                Bz[j] = cos(theta) * B2D[2][j] + sin(theta) * B2D[0][j];
+            }
+            Vmath::Vcopy(npoints_2d, &B2D[0][0], 1, &B[0][i * npoints_2d], 1);
+            Vmath::Vcopy(npoints_2d, &B2D[2][0], 1, &B[2][i * npoints_2d], 1);
+        }
+    }
+    else if (m_session->DefinesFunction("MagneticField"))
+    {
+        GetFunction("MagneticField")->Evaluate(Bstring, B);
     }
 
-    // *** Bx=By=0 is assumed elsewhere in the code ***
-    // NESOASSERT(this->B[0] == 0,
-    //            "Fluid solver doesn't yet correctly handle Bx != 0");
-    // NESOASSERT(this->B[1] == 0,
-    //            "Fluid solver doesn't yet correctly handle By != 0");
+    this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
+    for (int i = 0; i < 3; ++i)
+    {
+        Vmath::Vvtvp(npoints, &this->B[i][0], 1, &this->B[i][0], 1, &mag_B[0],
+                     1, &mag_B[0], 1);
+    }
+
+    for (auto idim = 0; idim < 3; idim++)
+    {
+        b_unit[idim] = Array<OneD, NekDouble>(npoints, 0.0);
+        for (int k = 0; k < npoints; ++k)
+        {
+            this->b_unit[idim][k] =
+                (this->mag_B[k] > 0) ? this->B[idim][k] / this->mag_B[k] : 0.0;
+        }
+    }
+
+    /// Anisotropic Diffusivity Tensor
+    Array<OneD, NekDouble> d00(npoints, 1.0);
+    Array<OneD, NekDouble> d01(npoints, 0.0);
+    Array<OneD, NekDouble> d02(npoints, 0.0);
+    Array<OneD, NekDouble> d10(npoints, 0.0);
+    Array<OneD, NekDouble> d11(npoints, 1.0);
+    Array<OneD, NekDouble> d12(npoints, 0.0);
+    Array<OneD, NekDouble> d20(npoints, 0.0);
+    Array<OneD, NekDouble> d21(npoints, 0.0);
+    Array<OneD, NekDouble> d22(npoints, 1.0);
+
+    for (int k = 0; k < npoints; k++)
+    {
+        d00[k] = (m_kpar - m_kperp) * B[0][k] * B[0][k] + m_kperp;
+        d01[k] = (m_kpar - m_kperp) * B[0][k] * B[1][k];
+        d02[k] = (m_kpar - m_kperp) * B[0][k] * B[2][k];
+        d10[k] = (m_kpar - m_kperp) * B[1][k] * B[0][k];
+        d11[k] = (m_kpar - m_kperp) * B[1][k] * B[1][k] + m_kperp;
+        d12[k] = (m_kpar - m_kperp) * B[1][k] * B[2][k];
+        d20[k] = (m_kpar - m_kperp) * B[2][k] * B[0][k];
+        d21[k] = (m_kpar - m_kperp) * B[2][k] * B[1][k];
+        d22[k] = (m_kpar - m_kperp) * B[2][k] * B[2][k] + m_kperp;
+    }
+    m_varcoeff[StdRegions::eVarCoeffD00] = d00;
+    m_varcoeff[StdRegions::eVarCoeffD01] = d01;
+    m_varcoeff[StdRegions::eVarCoeffD02] = d02;
+    m_varcoeff[StdRegions::eVarCoeffD10] = d10;
+    m_varcoeff[StdRegions::eVarCoeffD11] = d11;
+    m_varcoeff[StdRegions::eVarCoeffD12] = d12;
+    m_varcoeff[StdRegions::eVarCoeffD20] = d20;
+    m_varcoeff[StdRegions::eVarCoeffD21] = d21;
+    m_varcoeff[StdRegions::eVarCoeffD22] = d22;
 
     // Coefficient factors for potential solve
-    m_session->LoadParameter("d00", this->d00, 1);
-    m_session->LoadParameter("d11", this->d11, 1);
-    m_session->LoadParameter("d22", this->d22, 1);
+    m_session->LoadParameter("phi_d00", this->phi_d00, 1);
+    m_session->LoadParameter("phi_d11", this->phi_d11, 1);
+    m_session->LoadParameter("phi_d22", this->phi_d22, 1);
+
+    // HW alpha (required)
+    m_session->LoadParameter("HW_alpha", this->alpha);
+
+    // HW kappa (required)
+    m_session->LoadParameter("HW_kappa", this->kappa);
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
@@ -361,36 +436,6 @@ void TokamakSystem::load_params()
     m_session->LoadParameter("num_particle_steps_per_fluid_step",
                              this->num_part_substeps, 1);
     this->part_timestep = m_timestep / this->num_part_substeps;
-
-    // Compute some properties derived from params
-
-    // this->mag_B = std::sqrt(this->B[0] * this->B[0] + this->B[1] * this->B[1]
-    // +
-    //                         this->B[2] * this->B[2]);
-    this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
-    for (int i = 0; i < 3; ++i)
-    {
-        Vmath::Vvtvp(npoints, &this->B[i][0], 1, &this->B[i][0], 1, &mag_B[0],
-                     1, &mag_B[0], 1);
-    }
-
-    //this->b_unit = std::vector<NekDouble>(m_graph->GetSpaceDimension());
-    this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
-
-    for (auto idim = 0; idim < this->b_unit.size(); idim++)
-    {
-        for (int k = 0; k < npoints; ++k)
-        {
-            this->b_unit[idim][k] =
-                (this->mag_B[k] > 0) ? this->B[idim][k] / this->mag_B[k] : 0.0;
-        }
-    }
-
-    // alpha (required)
-    m_session->LoadParameter("HW_alpha", this->alpha);
-
-    // kappa (required)
-    m_session->LoadParameter("HW_kappa", this->kappa);
 }
 
 /**
@@ -412,9 +457,9 @@ void TokamakSystem::solve_phi(
     // Helmholtz => Poisson (lambda = 0)
     factors[StdRegions::eFactorLambda] = 0.0;
     // Set coefficient factors
-    factors[StdRegions::eFactorCoeffD00] = this->d00;
-    factors[StdRegions::eFactorCoeffD11] = this->d11;
-    factors[StdRegions::eFactorCoeffD22] = this->d22;
+    factors[StdRegions::eFactorCoeffD00] = this->phi_d00;
+    factors[StdRegions::eFactorCoeffD11] = this->phi_d11;
+    factors[StdRegions::eFactorCoeffD22] = this->phi_d22;
 
     // Solve for phi. Output of this routine is in coefficient (spectral)
     // space, so backwards transform to physical space since we'll need that
@@ -430,15 +475,11 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
 
     std::stringstream tmpss;
-    tmpss << "[" << this->d00 << "," << this->d11 << "," << this->d22 << "]";
+    tmpss << "[" << this->phi_d00 << "," << this->phi_d11 << ","
+          << this->phi_d22 << "]";
     SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
     SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
-
-    // tmpss = std::stringstream();
-    // tmpss << "[" << this->B[0] << "," << this->B[1] << "," << this->B[2] <<
-    // "]"; SU::AddSummaryItem(s, "B", tmpss.str()); SU::AddSummaryItem(s,
-    // "|B|", this->mag_B);
 
     SU::AddSummaryItem(s, "HW alpha", this->alpha);
     SU::AddSummaryItem(s, "HW kappa", this->kappa);
@@ -478,6 +519,17 @@ void TokamakSystem::v_InitObject(bool create_field)
              "Unsupported projection type: only discontinuous"
              " projection supported.");
 
+    if (m_explicitDiffusion)
+    {
+        std::string diffName;
+        m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
+        m_diffusion = SolverUtils::GetDiffusionFactory().CreateInstance(
+            diffName, diffName);
+        m_diffusion->SetFluxVector(
+            &TokamakSystem::GetFluxVectorDiff, this);
+        m_diffusion->InitObject(m_session, m_fields);
+    }
+
     // Turn off forward-transform of initial conditions.
     m_homoInitialFwd = false;
 
@@ -509,7 +561,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     this->adv_obj->InitObject(m_session, m_fields);
 
     // Bind projection function for time integration object
-    m_ode.DefineProjection(&TokamakSystem::do_ode_projection, this);
+    m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
 
     // Store DisContFieldSharedPtr casts of fields in a map, indexed by name
     int idx = 0;
@@ -530,9 +582,9 @@ void TokamakSystem::v_InitObject(bool create_field)
     }
 
     // Bind RHS function for explicit time integration
-    m_ode.DefineOdeRhs(&TokamakSystem::explicit_time_int, this);
+    m_ode.DefineOdeRhs(&TokamakSystem::DoOdeRhs, this);
     // Bind RHS function for implicit time integration
-    m_ode.DefineImplicitSolve(&TokamakSystem::implicit_time_int, this);
+    m_ode.DefineImplicitSolve(&TokamakSystem::DoImplicitSolve, this);
 
     if (!m_explicitAdvection)
     {
@@ -550,19 +602,17 @@ void TokamakSystem::v_InitObject(bool create_field)
 
         for (size_t n = 0; n < BndConds.size(); ++n)
         {
-            std::string type =
-                m_fields[0]->GetBndConditions()[n]->GetUserDefined();
+            std::string type = BndConds[n]->GetUserDefined();
             if (type.rfind("Oblique", 0) == 0)
             {
                 ASSERTL0(
                     BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
                     "Oblique boundary condition must be of type Robin <R>");
                 std::string::size_type indxBeg = type.find_first_of(':') + 1;
-                std::string fieldcomps = type.substr(indxBeg, std::string::npos);
+                std::string fieldcomps =
+                    type.substr(indxBeg, std::string::npos);
             }
-            if (m_fields[0]
-                    ->GetBndConditions()[n]
-                    ->GetBoundaryConditionType() == SD::ePeriodic)
+            if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
             {
                 continue;
             }
@@ -573,7 +623,7 @@ void TokamakSystem::v_InitObject(bool create_field)
                     type, m_session, m_fields, m_traceNormals, B, m_spacedim, n,
                     cnt));
             }
-            cnt += m_fields[i]->GetBndCondExpansions()[n]->GetExpSize();
+            cnt += BndExp[n]->GetExpSize();
         }
     }
 
@@ -592,7 +642,7 @@ void TokamakSystem::v_InitObject(bool create_field)
 
 void TokamakSystem::init_nonlin_sys_solver()
 {
-    int npts_tot = 2 * m_fields[0]->GetNpoints();
+    int npts_tot = 3 * m_fields[0]->GetNpoints();
 
     // Create the key to hold settings for nonlin solver
     LibUtilities::NekSysKey key = LibUtilities::NekSysKey();
@@ -633,7 +683,7 @@ void TokamakSystem::init_nonlin_sys_solver()
     this->nonlin_sys->SetSysOperators(nekSysOp);
 }
 
-void TokamakSystem::implicit_time_int(
+void TokamakSystem::DoImplicitSolve(
     const Array<OneD, const Array<OneD, NekDouble>> &inpnts,
     Array<OneD, Array<OneD, NekDouble>> &outpnt, const NekDouble time,
     const NekDouble lambda)
@@ -642,11 +692,11 @@ void TokamakSystem::implicit_time_int(
     this->bnd_evaluate_time = time;
     unsigned int npoints    = m_fields[0]->GetNpoints();
 
-    Array<OneD, NekDouble> in_arr(2 * npoints);
-    Array<OneD, NekDouble> outarray(2 * npoints, 0.0);
+    Array<OneD, NekDouble> in_arr(3 * npoints);
+    Array<OneD, NekDouble> outarray(3 * npoints, 0.0);
     Array<OneD, NekDouble> tmp;
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         int noffset = i * npoints;
         Vmath::Vcopy(npoints, inpnts[i], 1, tmp = in_arr + noffset, 1);
@@ -654,7 +704,7 @@ void TokamakSystem::implicit_time_int(
 
     implicit_time_int_1D(in_arr, outarray);
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         int noffset = i * npoints;
         Vmath::Vcopy(npoints, outarray + noffset, 1, outpnt[i], 1);
@@ -680,9 +730,9 @@ void TokamakSystem::calc_ref_vals(const Array<OneD, const NekDouble> &in_arr)
 {
     unsigned int npoints = m_fields[0]->GetNpoints();
 
-    Array<OneD, NekDouble> magnitdEstimat(2, 0.0);
+    Array<OneD, NekDouble> magnitdEstimat(3, 0.0);
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         int offset = i * npoints;
         magnitdEstimat[i] =
@@ -692,7 +742,7 @@ void TokamakSystem::calc_ref_vals(const Array<OneD, const NekDouble> &in_arr)
                                       Nektar::LibUtilities::ReduceSum);
 
     this->in_arr_norm = 0.0;
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         this->in_arr_norm += magnitdEstimat[i];
     }
@@ -703,9 +753,9 @@ void TokamakSystem::nonlin_sys_evaluator_1D(
     [[maybe_unused]] const bool &flag)
 {
     unsigned int npoints = m_fields[0]->GetNpoints();
-    Array<OneD, Array<OneD, NekDouble>> in2D(2);
-    Array<OneD, Array<OneD, NekDouble>> out2D(2);
-    for (int i = 0; i < 2; ++i)
+    Array<OneD, Array<OneD, NekDouble>> in2D(3);
+    Array<OneD, Array<OneD, NekDouble>> out2D(3);
+    for (int i = 0; i < 3; ++i)
     {
         int offset = i * npoints;
         in2D[i]    = in_arr + offset;
@@ -719,16 +769,16 @@ void TokamakSystem::nonlin_sys_evaluator(
     Array<OneD, Array<OneD, NekDouble>> &out)
 {
     unsigned int npoints = m_fields[0]->GetNpoints();
-    Array<OneD, Array<OneD, NekDouble>> inpnts(2);
-    for (int i = 0; i < 2; ++i)
+    Array<OneD, Array<OneD, NekDouble>> inpnts(3);
+    for (int i = 0; i < 3; ++i)
     {
         inpnts[i] = Array<OneD, NekDouble>(npoints, 0.0);
     }
 
-    do_ode_projection(in_arr, inpnts, this->bnd_evaluate_time);
-    explicit_time_int(inpnts, out, this->bnd_evaluate_time);
+    DoOdeProjection(in_arr, inpnts, this->bnd_evaluate_time);
+    DoOdeRhs(inpnts, out, this->bnd_evaluate_time);
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         Vmath::Svtvp(npoints, -this->time_int_lambda, out[i], 1, in_arr[i], 1,
                      out[i], 1);

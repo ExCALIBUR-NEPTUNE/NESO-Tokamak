@@ -40,6 +40,6 @@
         <NekMeshCommandLine>tok.msh mastu.xml </NekMeshCommandLine>
     </Metadata>
     <EXPANSIONS>
-        <E COMPOSITE="C[10]" NUMMODES="4" TYPE="MODIFIED" FIELDS="T" />
+        <E COMPOSITE="C[10]" NUMMODES="4" TYPE="MODIFIED" FIELDS="T,ne,w,phi,gradphi0,gradphi1,gradphi2" />
     </EXPANSIONS>
 </NEKTAR>

@@ -15,6 +15,7 @@
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
 #include <SolverUtils/RiemannSolvers/RiemannSolver.h>
+#include <SolverUtils/Diffusion/Diffusion.h>
 
 #include <solvers/solver_callback_handler.hpp>
 
@@ -69,13 +70,14 @@ protected:
     /// Hasegawa-Wakatani α
     NekDouble alpha;
     /// Magnetic field vector
-    // std::vector<NekDouble> B;
     Array<OneD, Array<OneD, NekDouble>> B;
+    /// Normalised magnetic field vector
+    Array<OneD, Array<OneD, NekDouble>> b_unit;
+    /// Magnitude of the magnetic field
+    Array<OneD, NekDouble> mag_B;
+
     /// Implicit solver parameter
     NekDouble bnd_evaluate_time = 0.0;
-    /// Normalised magnetic field vector
-    // std::vector<NekDouble> b_unit;
-    Array<OneD, Array<OneD, NekDouble>> b_unit;
 
     /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
      * particle evaluation/projection methods
@@ -93,9 +95,7 @@ protected:
     NekDouble jacobi_free_eps = 5.0E-08;
     /// Hasegawa-Wakatani κ
     NekDouble kappa;
-    /// Magnitude of the magnetic field
-    // NekDouble mag_B;
-    Array<OneD, NekDouble> mag_B;
+
     /// Implicit solver counter
     int newton_its_counter = 0;
     /// Implicit solver counter
@@ -107,6 +107,9 @@ protected:
     /// Implicit solver parameter
     NekDouble time_int_lambda = 0.0;
 
+    SU::DiffusionSharedPtr m_diffusion;
+
+
     /// Boundary Conditions
     std::vector<TokamakBndCondSharedPtr> m_bndConds;
 
@@ -116,7 +119,7 @@ protected:
     void do_null_precon(const Array<OneD, const NekDouble> &in_arr,
                         Array<OneD, NekDouble> &out_arr, const bool &flag);
 
-    void explicit_time_int(
+    void DoOdeRhs(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
@@ -132,7 +135,7 @@ protected:
     void get_phi_solve_rhs(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, NekDouble> &rhs);
-    void implicit_time_int(
+    void DoImplicitSolve(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time,
         const NekDouble lambda);
@@ -164,11 +167,11 @@ protected:
 
 private:
     /// d00 coefficient for Helmsolve
-    NekDouble d00;
+    NekDouble phi_d00;
     /// d11 coefficient for Helmsolve
-    NekDouble d11;
+    NekDouble phi_d11;
     /// d22 coefficient for Helmsolve
-    NekDouble d22;
+    NekDouble phi_d22;
 
     // For Diffusion
     NekDouble m_kperp;
@@ -186,12 +189,13 @@ private:
     /// Riemann solver object used in electron advection
     SU::RiemannSolverSharedPtr riemann_solver;
 
-    void do_ode_projection(
+    void DoOdeProjection(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
+
     Array<OneD, NekDouble> &get_adv_vel_norm_elec();
 
-    void get_flux_vector_diff(
+    void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &viscous_tensor);
