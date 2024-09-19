@@ -19,17 +19,23 @@
             <I PROPERTY="AdvectionAdvancement"         VALUE="Implicit"      />
             <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
             <I PROPERTY="UpwindType"                   VALUE="Upwind"        />
+            <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.05                 </P>
+            <P> TimeStep      = 0.5                 </P>
             <P> NumSteps      = 6000                 </P>
             <P> TFinal        = NumSteps*TimeStep    </P>
-            <P> IO_InfoSteps  = 30                   </P>
-            <P> IO_CheckSteps = 30                   </P>
+            <P> IO_InfoSteps  = 5                   </P>
+            <P> IO_CheckSteps = 5                   </P>
             <P> particle_output_freq = IO_CheckSteps </P>
 
+            <P> epsilon         = 1.0   </P>
+            <!-- Anisotropic diffusion -->
+            <P> k_par           = 1e6   </P>
+            <P> k_perp          = 1e0   </P>
+            <P> TCore           = 300.0 </P>
             <!-- d22 Coeff for Helmholtz solve -->
             <P> phi_d22      = 0.0 </P> 
             <!-- HW params -->
@@ -57,7 +63,7 @@
             <P> particle_thermal_velocity = 0.0 </P>
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-14  </P>
-            <P> NekNonlinSysMaxIterations = 30       </P>
+            <P> NekNonlinSysMaxIterations = 5       </P>
             <P> NewtonRelativeIteTol      = 1.0E-10  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
@@ -129,9 +135,9 @@
             <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
-            <E VAR="Bx"  DOMAIN="0" VALUE="0"  />
-            <E VAR="By"  DOMAIN="0" VALUE="0"  />
-            <E VAR="Bz"  DOMAIN="0" VALUE="1"  />
+            <E VAR="Bx"  DOMAIN="0" VALUE="1"  />
+            <E VAR="By"  DOMAIN="0" VALUE="1"  />
+            <E VAR="Bz"  DOMAIN="0" VALUE="0"  />
         </FUNCTION>
     </CONDITIONS>
 </NEKTAR>

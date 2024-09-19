@@ -73,6 +73,9 @@ protected:
     Array<OneD, Array<OneD, NekDouble>> B;
     /// Normalised magnetic field vector
     Array<OneD, Array<OneD, NekDouble>> b_unit;
+    // B in cylindrical polar (r, z, theta)
+    Array<OneD, Array<OneD, NekDouble>> B_pol;
+    
     /// Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
 
@@ -166,16 +169,12 @@ protected:
                                         const int domain) override;
 
 private:
-    /// d00 coefficient for Helmsolve
-    NekDouble phi_d00;
-    /// d11 coefficient for Helmsolve
-    NekDouble phi_d11;
-    /// d22 coefficient for Helmsolve
-    NekDouble phi_d22;
+    StdRegions::VarCoeffMap m_phi_varcoeff;
 
     // For Diffusion
     NekDouble m_kperp;
     NekDouble m_kpar;
+    StdRegions::ConstFactorMap m_factors;
     StdRegions::VarCoeffMap m_varcoeff;
 
     /// Storage for component of ne advection velocity normal to trace elements

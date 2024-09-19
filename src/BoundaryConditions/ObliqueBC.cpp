@@ -23,7 +23,6 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &magnetic,
                         Array<OneD, Array<OneD, NekDouble>> &physarray,
                         [[maybe_unused]] const NekDouble &time)
 {
-
     // Obtain boundary normals
     Array<OneD, Array<OneD, NekDouble>> Normals(m_spacedim);
     m_fields[0]->GetBoundaryNormals(m_bcRegion, Normals);

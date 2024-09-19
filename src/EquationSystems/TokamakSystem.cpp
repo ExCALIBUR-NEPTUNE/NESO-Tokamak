@@ -136,20 +136,24 @@ void TokamakSystem::DoOdeRhs(
     compute_grad_phi();
 
     // Calculate ExB velocity
-    Array<OneD, NekDouble> inv_B_sq(npts);
-    Vmath::Smul(npts, 1.0, &mag_B[0], 1, &inv_B_sq[0], 1);
-    Vmath::Vdiv(npts, &inv_B_sq[0], 1, &mag_B[0], 1, &inv_B_sq[0], 1);
+    // Array<OneD, NekDouble> inv_B_sq(npts);
+    // Vmath::Vdiv(npts, 1.0, &mag_B[0], 1, &inv_B_sq[0], 1);
+    // Vmath::Vdiv(npts, &inv_B_sq[0], 1, &mag_B[0], 1, &inv_B_sq[0], 1);
 
+    // Vmath::Vmul(npts, this->B[1], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
+    //             this->ExB_vel[0], 1);
     Vmath::Vvtvvtm(npts, this->B[1], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
                    this->B[2], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
                    this->ExB_vel[0], 1);
-    Vmath::Vmul(npts, ExB_vel[0], 1, inv_B_sq, 1, ExB_vel[0], 1);
+    // Vmath::Vmul(npts, ExB_vel[0], 1, inv_B_sq, 1, ExB_vel[0], 1);
 
+    // Vmath::Vmul(npts, this->B[0], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
+    //             this->ExB_vel[1], 1);
     Vmath::Vvtvvtm(npts, this->B[2], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
                    this->B[0], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
                    this->ExB_vel[1], 1);
 
-    Vmath::Vmul(npts, ExB_vel[1], 1, inv_B_sq, 1, ExB_vel[1], 1);
+    // Vmath::Vmul(npts, ExB_vel[1], 1, inv_B_sq, 1, ExB_vel[1], 1);
 
     if (this->m_graph->GetMeshDimension() == 3)
     {
@@ -157,7 +161,7 @@ void TokamakSystem::DoOdeRhs(
                        1, this->B[1], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
                        this->ExB_vel[2], 1);
 
-        Vmath::Vmul(npts, ExB_vel[2], 1, inv_B_sq, 1, ExB_vel[2], 1);
+        // Vmath::Vmul(npts, ExB_vel[2], 1, inv_B_sq, 1, ExB_vel[2], 1);
     }
 
     // Advect T, ne and w
@@ -177,25 +181,34 @@ void TokamakSystem::DoOdeRhs(
     Vmath::Vadd(npts, out_arr[ne_idx], 1, HWterm_2D_alpha, 1, out_arr[ne_idx],
                 1);
 
+    // Get poloidal gradient (y in HW equations)
+    Array<OneD, NekDouble> gradphi_poloidal(npts);
+    Vmath::Vvtvvtp(npts, B_pol[0], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
+                   B_pol[1], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
+                   gradphi_poloidal, 1);
+    // TODO normalise
+
     // Add -\kappa*\dpartial\phi/\dpartial y to RHS
-    Vmath::Svtvp(npts, -this->kappa, m_fields[gradphi1_idx]->GetPhys(), 1,
-                 out_arr[ne_idx], 1, out_arr[ne_idx], 1);
+    Vmath::Svtvp(npts, -this->kappa, gradphi_poloidal, 1, out_arr[ne_idx], 1,
+                 out_arr[ne_idx], 1);
 
     if (m_explicitDiffusion)
     {
         int nVariables = in_arr.size();
+        Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nVariables);
         Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nVariables);
         for (int i = 0; i < nVariables; ++i)
         {
             outarrayDiff[i] = Array<OneD, NekDouble>(out_arr[i].size(), 0.0);
+            diff_fields[i]  = m_fields[i];
         }
 
-        m_diffusion->Diffuse(nVariables, m_fields, in_arr, outarrayDiff);
+        m_diffusion->Diffuse(nVariables, diff_fields, in_arr, outarrayDiff);
 
         for (int i = 0; i < nVariables; ++i)
         {
-            Vmath::Vadd(out_arr[i].size(), &outarrayDiff[i][0], 1,
-                        &out_arr[i][0], 1, &out_arr[i][0], 1);
+            Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
+                        out_arr[i], 1);
         }
     }
 }
@@ -327,6 +340,7 @@ void TokamakSystem::load_params()
 
     int npoints  = m_fields[0]->GetNpoints();
     this->B      = Array<OneD, Array<OneD, NekDouble>>(3);
+    this->B_pol  = Array<OneD, Array<OneD, NekDouble>>(3);
     this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
     std::vector<std::string> Bstring;
     Bstring.push_back("Bx");
@@ -340,25 +354,42 @@ void TokamakSystem::load_params()
         GetFunction("MagneticMeanField")->Evaluate(Bstring, B2D);
         for (int d = 0; d < 3; ++d)
         {
-            B[d] = Array<OneD, NekDouble>(npoints, 0.0);
+            B[d]     = Array<OneD, NekDouble>(npoints, 0.0);
+            B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
         }
 
-        int npoints_2d = B2D[0].size();
-        int increments = npoints / npoints_2d;
-        Array<OneD, NekDouble> Bx(npoints_2d);
-        Array<OneD, NekDouble> Bz(npoints_2d);
-        for (int i = 0; i < increments; ++i)
+        if (this->m_graph->GetMeshDimension() == 3)
         {
-            Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B[1][i * npoints_2d], 1);
-
-            NekDouble theta = i * 2 * M_PI / increments;
-            for (int j = 0; j < npoints_2d; ++j)
+            int npoints_2d = B2D[0].size();
+            int increments = npoints / npoints_2d;
+            Array<OneD, NekDouble> Bx(npoints_2d);
+            Array<OneD, NekDouble> Bz(npoints_2d);
+            for (int i = 0; i < increments; ++i)
             {
-                Bx[j] = cos(theta) * B2D[0][j] - sin(theta) * B2D[2][j];
-                Bz[j] = cos(theta) * B2D[2][j] + sin(theta) * B2D[0][j];
+                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B[1][i * npoints_2d],
+                             1);
+
+                NekDouble theta = i * 2 * M_PI / increments;
+                for (int j = 0; j < npoints_2d; ++j)
+                {
+                    Bx[j] = cos(theta) * B2D[0][j] - sin(theta) * B2D[2][j];
+                    Bz[j] = cos(theta) * B2D[2][j] + sin(theta) * B2D[0][j];
+                }
+                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B[0][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B[2][i * npoints_2d], 1);
+
+                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
+                             &B_pol[1][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
+                             &B_pol[0][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
+                             &B_pol[2][i * npoints_2d], 1);
             }
-            Vmath::Vcopy(npoints_2d, &B2D[0][0], 1, &B[0][i * npoints_2d], 1);
-            Vmath::Vcopy(npoints_2d, &B2D[2][0], 1, &B[2][i * npoints_2d], 1);
+        }
+        else
+        {
+            this->B     = B2D;
+            this->B_pol = B2D;
         }
     }
     else if (m_session->DefinesFunction("MagneticField"))
@@ -416,10 +447,39 @@ void TokamakSystem::load_params()
     m_varcoeff[StdRegions::eVarCoeffD21] = d21;
     m_varcoeff[StdRegions::eVarCoeffD22] = d22;
 
-    // Coefficient factors for potential solve
-    m_session->LoadParameter("phi_d00", this->phi_d00, 1);
-    m_session->LoadParameter("phi_d11", this->phi_d11, 1);
-    m_session->LoadParameter("phi_d22", this->phi_d22, 1);
+    /// Anisotropic Diffusivity Tensor
+    Array<OneD, NekDouble> phi_d00(npoints, 1.0);
+    Array<OneD, NekDouble> phi_d01(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d02(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d10(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d11(npoints, 1.0);
+    Array<OneD, NekDouble> phi_d12(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d20(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d21(npoints, 0.0);
+    Array<OneD, NekDouble> phi_d22(npoints, 1.0);
+
+    for (int k = 0; k < npoints; k++)
+    {
+        d00[k] = -B[0][k] * B[0][k] + 1;
+        d01[k] = -B[0][k] * B[1][k];
+        d02[k] = -B[0][k] * B[2][k];
+        d10[k] = -B[1][k] * B[0][k];
+        d11[k] = -B[1][k] * B[1][k] + 1;
+        d12[k] = -B[1][k] * B[2][k];
+        d20[k] = -B[2][k] * B[0][k];
+        d21[k] = -B[2][k] * B[1][k];
+        d22[k] = -B[2][k] * B[2][k] + 1;
+    }
+
+    m_phi_varcoeff[StdRegions::eVarCoeffD00] = phi_d00;
+    m_phi_varcoeff[StdRegions::eVarCoeffD01] = phi_d01;
+    m_phi_varcoeff[StdRegions::eVarCoeffD02] = phi_d02;
+    m_phi_varcoeff[StdRegions::eVarCoeffD10] = phi_d10;
+    m_phi_varcoeff[StdRegions::eVarCoeffD11] = phi_d11;
+    m_phi_varcoeff[StdRegions::eVarCoeffD12] = phi_d12;
+    m_phi_varcoeff[StdRegions::eVarCoeffD20] = phi_d20;
+    m_phi_varcoeff[StdRegions::eVarCoeffD21] = phi_d21;
+    m_phi_varcoeff[StdRegions::eVarCoeffD22] = phi_d22;
 
     // HW alpha (required)
     m_session->LoadParameter("HW_alpha", this->alpha);
@@ -451,21 +511,15 @@ void TokamakSystem::solve_phi(
     int npts    = GetNpoints();
     int w_idx   = this->field_to_index["w"];
     int phi_idx = this->field_to_index["phi"];
-
-    // Set up factors for electrostatic potential solve
     StdRegions::ConstFactorMap factors;
     // Helmholtz => Poisson (lambda = 0)
     factors[StdRegions::eFactorLambda] = 0.0;
-    // Set coefficient factors
-    factors[StdRegions::eFactorCoeffD00] = this->phi_d00;
-    factors[StdRegions::eFactorCoeffD11] = this->phi_d11;
-    factors[StdRegions::eFactorCoeffD22] = this->phi_d22;
-
     // Solve for phi. Output of this routine is in coefficient (spectral)
     // space, so backwards transform to physical space since we'll need that
     // for the advection step & computing drift velocity.
     m_fields[phi_idx]->HelmSolve(in_arr[w_idx],
-                                 m_fields[phi_idx]->UpdateCoeffs(), factors);
+                                 m_fields[phi_idx]->UpdateCoeffs(), factors,
+                                 m_phi_varcoeff);
     m_fields[phi_idx]->BwdTrans(m_fields[phi_idx]->GetCoeffs(),
                                 m_fields[phi_idx]->UpdatePhys());
 }
@@ -473,11 +527,6 @@ void TokamakSystem::solve_phi(
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 {
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
-
-    std::stringstream tmpss;
-    tmpss << "[" << this->phi_d00 << "," << this->phi_d11 << ","
-          << this->phi_d22 << "]";
-    SU::AddSummaryItem(s, "Helmsolve coeffs.", tmpss.str());
 
     SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
 
@@ -525,8 +574,7 @@ void TokamakSystem::v_InitObject(bool create_field)
         m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
         m_diffusion = SolverUtils::GetDiffusionFactory().CreateInstance(
             diffName, diffName);
-        m_diffusion->SetFluxVector(
-            &TokamakSystem::GetFluxVectorDiff, this);
+        m_diffusion->SetFluxVector(&TokamakSystem::GetFluxVectorDiff, this);
         m_diffusion->InitObject(m_session, m_fields);
     }
 
@@ -608,9 +656,9 @@ void TokamakSystem::v_InitObject(bool create_field)
                 ASSERTL0(
                     BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
                     "Oblique boundary condition must be of type Robin <R>");
-                std::string::size_type indxBeg = type.find_first_of(':') + 1;
-                std::string fieldcomps =
-                    type.substr(indxBeg, std::string::npos);
+                // std::string::size_type indxBeg = type.find_first_of(':') + 1;
+                // std::string fieldcomps =
+                //     type.substr(indxBeg, std::string::npos);
             }
             if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
             {

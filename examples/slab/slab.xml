@@ -19,6 +19,7 @@
             <I PROPERTY="AdvectionAdvancement"         VALUE="Implicit"      />
             <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
             <I PROPERTY="UpwindType"                   VALUE="Upwind"        />
+            <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
 
         <PARAMETERS>
@@ -30,6 +31,11 @@
             <P> IO_CheckSteps = NumSteps/160      </P>
             <P> particle_output_freq = 1          </P>
 
+            <P> epsilon         = 1.0   </P>
+            <!-- Anisotropic diffusion -->
+            <P> k_par           = 1e4   </P>
+            <P> k_perp          = 1e0   </P>
+            <P> TCore           = 300.0 </P>
             <!-- d22 Coeff for Helmholtz solve -->
             <P> phi_d22      = 0.0 </P> 
             <!-- HW params -->
