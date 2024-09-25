@@ -12,10 +12,10 @@
 #include <LibUtilities/Memory/NekMemoryManager.hpp>
 #include <SolverUtils/AdvectionSystem.h>
 #include <SolverUtils/Core/Misc.h>
+#include <SolverUtils/Diffusion/Diffusion.h>
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
 #include <SolverUtils/RiemannSolvers/RiemannSolver.h>
-#include <SolverUtils/Diffusion/Diffusion.h>
 
 #include <solvers/solver_callback_handler.hpp>
 
@@ -75,9 +75,12 @@ protected:
     Array<OneD, Array<OneD, NekDouble>> b_unit;
     // B in cylindrical polar (r, z, theta)
     Array<OneD, Array<OneD, NekDouble>> B_pol;
-    
+
     /// Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
+
+    /// Trace of magnetic field
+    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
     /// Implicit solver parameter
     NekDouble bnd_evaluate_time = 0.0;
@@ -112,7 +115,6 @@ protected:
 
     SU::DiffusionSharedPtr m_diffusion;
 
-
     /// Boundary Conditions
     std::vector<TokamakBndCondSharedPtr> m_bndConds;
 
@@ -122,9 +124,9 @@ protected:
     void do_null_precon(const Array<OneD, const NekDouble> &in_arr,
                         Array<OneD, NekDouble> &out_arr, const bool &flag);
 
-    void DoOdeRhs(
-        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
+    void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                  Array<OneD, Array<OneD, NekDouble>> &out_arr,
+                  const NekDouble time);
 
     Array<OneD, NekDouble> &get_adv_vel_norm(
         Array<OneD, NekDouble> &trace_vel_norm,

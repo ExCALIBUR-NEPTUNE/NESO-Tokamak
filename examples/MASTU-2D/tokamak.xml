@@ -48,7 +48,7 @@
             <P> TCore           = 300.0 </P>
             <!-- Scaling factor for ICs -->
             <P> s        = 0.5 </P>
-            <P> ics_scale        = 0.25 </P>
+            <P> ics_scale        = 0.02 </P>
             <P> xc         = 0.8      </P>
             <P> yc         = 0.0      </P>
             <P> xs         = 0.5      </P>
@@ -85,35 +85,17 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <!-- <B ID="0"> C[1] </B> -->
             <B ID="1"> C[2] </B>
-            <!-- <B ID="2"> C[3] </B>
-            <B ID="3"> C[4] </B>
-            <B ID="4"> C[5] </B>
-            <B ID="5"> C[6] </B>
-            <B ID="6"> C[7] </B>
-            <B ID="7"> C[8] </B>
-            <B ID="8"> C[9] </B> -->
         </BOUNDARYREGIONS>
         <BOUNDARYCONDITIONS>
-            <!--Core -->
-            <!-- <REGION REF="0"> 
-                <D VAR="T"     VALUE="0" />
-                <D VAR="ne"  VALUE="0" />
-                <D VAR="w"   VALUE="0" />
-                <D VAR="phi" VALUE="0" />
-                <D VAR="gradphi0" VALUE="0" />
-                <D VAR="gradphi1" VALUE="0" />
-                <D VAR="gradphi2" VALUE="0" />
-            </REGION> -->
             <!--Wall -->
             <REGION REF="1">
-                <!-- <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
-                <!-- <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
-                <!-- <R VAR="w" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/> -->
-                <D VAR="T" VALUE="0.0"/>
-                <D VAR="ne" VALUE="0.0"/>
-                <D VAR="w" VALUE="0.0"/>
+                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <R VAR="w" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <!-- <N VAR="T" VALUE="0.0"/>
+                <N VAR="ne" VALUE="0.0"/>
+                <N VAR="w" VALUE="0.0"/> -->
                 <D VAR="phi" VALUE="0" />
                 <D VAR="gradphi0" VALUE="0" />
                 <D VAR="gradphi1" VALUE="0" />
@@ -123,7 +105,7 @@
         </BOUNDARYCONDITIONS>
         
         <FUNCTION NAME="InitialConditions">
-            <E VAR="T"  DOMAIN="0" VALUE="0" />
+            <E VAR="T"  DOMAIN="0" VALUE="TCore" />
             <E VAR="ne"  DOMAIN="0" VALUE="0.06*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />
             <E VAR="w"   DOMAIN="0" VALUE="(0.04*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))*(-ics_scale*ics_scale+(x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/ics_scale^4)" />
             <E VAR="phi" DOMAIN="0" VALUE="0.01*exp(-((x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />

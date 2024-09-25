@@ -97,11 +97,11 @@ void TokamakSystem::DoOdeProjection(
 {
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
-    SetBoundaryConditions(out_arr, time);
     for (int i = 0; i < num_vars; ++i)
     {
         Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
     }
+    SetBoundaryConditions(out_arr, time);
 }
 
 /**
@@ -165,8 +165,22 @@ void TokamakSystem::DoOdeRhs(
     }
 
     // Advect T, ne and w
-    this->adv_obj->Advect(3, m_fields, this->ExB_vel, in_arr, out_arr, time);
-    for (auto i = 0; i < 3; ++i)
+
+    size_t nvariables = in_arr.size();
+    size_t nTracePts  = GetTraceTotPoints();
+    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        Fwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
+        Bwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
+        m_fields[i]->GetFwdBwdTracePhys(in_arr[i], Fwd[i], Bwd[i]);
+    }
+
+    this->adv_obj->Advect(nvariables, m_fields, this->ExB_vel, in_arr, out_arr,
+                          time, Fwd, Bwd);
+    for (auto i = 0; i < nvariables; ++i)
     {
         Vmath::Neg(npts, out_arr[i], 1);
     }
@@ -194,18 +208,18 @@ void TokamakSystem::DoOdeRhs(
 
     if (m_explicitDiffusion)
     {
-        int nVariables = in_arr.size();
-        Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nVariables);
-        Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nVariables);
-        for (int i = 0; i < nVariables; ++i)
+        Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nvariables);
+        Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
+        for (int i = 0; i < nvariables; ++i)
         {
             outarrayDiff[i] = Array<OneD, NekDouble>(out_arr[i].size(), 0.0);
             diff_fields[i]  = m_fields[i];
         }
 
-        m_diffusion->Diffuse(nVariables, diff_fields, in_arr, outarrayDiff);
+        m_diffusion->Diffuse(nvariables, diff_fields, in_arr, outarrayDiff, Fwd,
+                             Bwd);
 
-        for (int i = 0; i < nVariables; ++i)
+        for (int i = 0; i < nvariables; ++i)
         {
             Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
                         out_arr[i], 1);
@@ -415,6 +429,9 @@ void TokamakSystem::load_params()
     }
 
     /// Anisotropic Diffusivity Tensor
+    m_session->LoadParameter("k_par", m_kpar, 100.0);
+    m_session->LoadParameter("k_perp", m_kperp, 1.0);
+
     Array<OneD, NekDouble> d00(npoints, 1.0);
     Array<OneD, NekDouble> d01(npoints, 0.0);
     Array<OneD, NekDouble> d02(npoints, 0.0);
@@ -638,9 +655,9 @@ void TokamakSystem::v_InitObject(bool create_field)
     {
         init_nonlin_sys_solver();
     }
-
     for (size_t i = 0; i < m_fields.size(); ++i)
     {
+
         bool Set = false;
         Array<OneD, const SD::BoundaryConditionShPtr> BndConds;
         Array<OneD, MR::ExpListSharedPtr> BndExp;
@@ -667,14 +684,25 @@ void TokamakSystem::v_InitObject(bool create_field)
 
             if (!type.empty())
             {
-                m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
-                    type, m_session, m_fields, m_traceNormals, B, m_spacedim, n,
-                    cnt));
+                if (!Set)
+                {
+                    Array<OneD, Array<OneD, NekDouble>> magneticFieldBndElmt(3);
+
+                    for (int d = 0; d < 3; d++)
+                    {
+                        m_fields[0]->ExtractPhysToBndElmt(
+                            n, B[d], magneticFieldBndElmt[d]);
+                    }
+                    m_bndConds.push_back(
+                        GetTokamakBndCondFactory().CreateInstance(
+                            type, m_session, m_fields, magneticFieldBndElmt,
+                            m_spacedim, n, cnt));
+                    Set = true;
+                }
             }
             cnt += BndExp[n]->GetExpSize();
         }
     }
-
     SetBoundaryConditionsBwdWeight();
 
     // Create diagnostic for recording growth rates
@@ -936,7 +964,7 @@ void TokamakSystem::SetBoundaryConditions(
         // Loop over user-defined boundary conditions
         for (auto &x : m_bndConds)
         {
-            x->Apply(B, physarray, time);
+            x->Apply(physarray, time);
         }
     }
 }

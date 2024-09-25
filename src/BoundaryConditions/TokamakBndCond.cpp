@@ -13,13 +13,20 @@ TokamakBndCondFactory &GetTokamakBndCondFactory()
 TokamakBndCond::TokamakBndCond(
     const LU::SessionReaderSharedPtr &pSession,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
-    const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
-    const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
+    const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
     const int pSpaceDim, const int bcRegion, const int cnt)
-    : m_session(pSession), m_fields(pFields), m_normals(pTraceNormals),
-      m_obliqueField(pObliqueField), m_spacedim(pSpaceDim),
+    : m_session(pSession), m_fields(pFields),
+      m_magneticFieldTrace(pMagneticField), m_spacedim(pSpaceDim),
       m_bcRegion(bcRegion), m_offset(cnt)
 {
+    m_bndExp = Array<OneD, MultiRegions::ExpListSharedPtr>(m_fields.size());
+    for (int v = 0; v < m_fields.size(); ++v)
+    {
+        m_bndExp[v] = m_fields[0]->GetBndCondExpansions()[m_bcRegion];
+    }
+    m_fields[0]->GetBndElmtExpansion(m_bcRegion, m_bndElmtExp, false);
+
+    m_fields[0]->GetBoundaryNormals(m_bcRegion, m_normals);
     m_diffusionAveWeight = 1.0;
 }
 
@@ -30,11 +37,10 @@ TokamakBndCond::TokamakBndCond(
  * @param   physarray
  * @param   time
  */
-void TokamakBndCond::Apply(Array<OneD, Array<OneD, NekDouble>> &magnetic,
-                           Array<OneD, Array<OneD, NekDouble>> &physarray,
+void TokamakBndCond::Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                            const NekDouble &time)
 {
-    v_Apply(magnetic, physarray, time);
+    v_Apply(physarray, time);
 }
 
 /**

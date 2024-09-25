@@ -23,7 +23,6 @@ typedef std::shared_ptr<TokamakBndCond> TokamakBndCondSharedPtr;
 typedef LU::NekFactory<std::string, TokamakBndCond,
                        const LU::SessionReaderSharedPtr &,
                        const Array<OneD, MR::ExpListSharedPtr> &,
-                       const Array<OneD, Array<OneD, NekDouble>> &,
                        const Array<OneD, Array<OneD, NekDouble>> &, const int,
                        const int, const int>
     TokamakBndCondFactory;
@@ -44,8 +43,7 @@ public:
     }
 
     /// Apply the boundary condition
-    void Apply(Array<OneD, Array<OneD, NekDouble>> &magnetic,
-               Array<OneD, Array<OneD, NekDouble>> &physarray,
+    void Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                const NekDouble &time = 0);
 
     /// Apply the Weight of boundary condition
@@ -62,7 +60,7 @@ protected:
     /// Trace normals
     Array<OneD, Array<OneD, NekDouble>> m_normals;
     /// Oblique Field
-    Array<OneD, Array<OneD, NekDouble>> m_obliqueField;
+    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
     /// Space dimension
     int m_spacedim;
     /// Weight for average calculation of diffusion term
@@ -72,16 +70,18 @@ protected:
     int m_bcRegion;
     /// Offset
     int m_offset;
+    /// Expansion of boundary adjacent elements
+    MultiRegions::ExpListSharedPtr m_bndElmtExp;
+    /// Expansion of boundary
+    Array<OneD, MultiRegions::ExpListSharedPtr> m_bndExp;
 
     /// Constructor
     TokamakBndCond(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
-                   const Array<OneD, Array<OneD, NekDouble>> &pTraceNormals,
-                   const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
+                   const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
                    const int pSpaceDim, const int bcRegion, const int cnt);
 
-    virtual void v_Apply(Array<OneD, Array<OneD, NekDouble>> &FwdOblique,
-                         Array<OneD, Array<OneD, NekDouble>> &physarray,
+    virtual void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                          const NekDouble &time) = 0;
 
     virtual void v_ApplyBwdWeight();
