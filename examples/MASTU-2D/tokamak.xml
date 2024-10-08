@@ -16,14 +16,16 @@
             <I PROPERTY="LinSysIterSolverTypeInNonlin"  VALUE="GMRES"/>
             <I PROPERTY="UpwindType"                    VALUE="Upwind"/>
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
+            <I PROPERTY="Mode"                          VALUE="MeanFluid"/>
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 0.5           </P>
-            <P> NumSteps       = 1000</P>
-            <P> IO_CheckSteps  = 5                 </P>
-            <P> IO_InfoSteps   = 5                 </P>
-            <P> epsilon         = 1.0   </P>
+            <P> TimeStep       = 0.1            </P>
+            <P> FinalTime      = 10000              </P>
+            <P> NumSteps       = FinalTime/TimeStep</P>
+            <P> IO_CheckSteps  = 50                 </P>
+            <P> IO_InfoSteps   = 50                 </P>
+            <P> epsilon        = 1.0   </P>
             <!-- Anisotropic diffusion -->
             <P> m_e            = 9.1096e-31        </P>
             <P> m_p            = 1.6726e-27        </P>
@@ -43,26 +45,25 @@
             <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
             <P> a              = 200.0             </P>
 
-            <P> k_par           = 1e4   </P>
-            <P> k_perp          = 1e0   </P>
+            <P> k_par           = 1000000   </P>
+            <P> k_perp          = 1   </P>
             <P> TCore           = 300.0 </P>
             <!-- Scaling factor for ICs -->
             <P> s        = 0.5 </P>
-            <P> ics_scale        = 0.02 </P>
+            <P> ics_scale        = 0.1 </P>
             <P> xc         = 0.8      </P>
             <P> yc         = 0.0      </P>
-            <P> xs         = 0.5      </P>
+            <P> xs         = 0.0      </P>
             <P> ys         = 0        </P>
-            <!-- d22 Coeff for Helmholtz solve -->
-            <P> phi_d22      = 0.0 </P>
+
             <!-- HW params -->
             <P> HW_alpha        = 2   </P>
             <P> HW_kappa        = 1   </P>
             <!-- Implicit solve params -->
-            <P> IterativeSolverTolerance  = 1.0E-14  </P>
+            <P> IterativeSolverTolerance  = 1.0E-4  </P>
             <P> NekNonlinSysMaxIterations = 5       </P>
-            <P> NewtonRelativeIteTol      = 1.0E-10  </P>
-            <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
+            <P> NewtonRelativeIteTol      = 1.0E-4  </P>
+            <P> NonlinIterTolRelativeL2   = 1.0E-4  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
             <!-- Particle system params -->
             <!-- Total number of particles - set = 0 to turn particles off -->
@@ -93,9 +94,6 @@
                 <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
                 <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
                 <R VAR="w" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <!-- <N VAR="T" VALUE="0.0"/>
-                <N VAR="ne" VALUE="0.0"/>
-                <N VAR="w" VALUE="0.0"/> -->
                 <D VAR="phi" VALUE="0" />
                 <D VAR="gradphi0" VALUE="0" />
                 <D VAR="gradphi1" VALUE="0" />
@@ -106,23 +104,16 @@
         
         <FUNCTION NAME="InitialConditions">
             <E VAR="T"  DOMAIN="0" VALUE="TCore" />
-            <E VAR="ne"  DOMAIN="0" VALUE="0.06*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />
-            <E VAR="w"   DOMAIN="0" VALUE="(0.04*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))*(-ics_scale*ics_scale+(x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/ics_scale^4)" />
-            <E VAR="phi" DOMAIN="0" VALUE="0.01*exp(-((x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />
+            <E VAR="ne"  DOMAIN="0" VALUE="0.06*cos(10*x)*cos(10*y)" />
+            <E VAR="w"   DOMAIN="0" VALUE="0.04*cos(10*x)*cos(10*y)" />
+            <E VAR="phi" DOMAIN="0" VALUE="0.01*cos(10*x)*cos(10*y)" />
             <E VAR="gradphi0" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi1" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
-            <E VAR="T"  DOMAIN="1" VALUE="0" />
-            <E VAR="ne"  DOMAIN="1" VALUE="0.06*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />
-            <E VAR="w"   DOMAIN="1" VALUE="(0.04*exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))*(-ics_scale*ics_scale+(x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/ics_scale^4)" />
-            <E VAR="phi" DOMAIN="1" VALUE="0.01*exp(-((x-xc-xs)*(x-xc-xs)+(y-yc-ys)*(y-yc-ys))/(ics_scale*ics_scale))" />
-            <E VAR="gradphi0" DOMAIN="1" VALUE="0" />
-            <E VAR="gradphi1" DOMAIN="1" VALUE="0" />
-            <E VAR="gradphi2" DOMAIN="1" VALUE="0" />
         </FUNCTION>
         
         <FUNCTION NAME="MagneticMeanField">
-            <F VAR="Bx,By,Bz"  FILE="B.pts"  />
+            <F VAR="Bx,By,Bz"  FILE="Bnon-normal.pts"  />
         </FUNCTION>
 
     </CONDITIONS>

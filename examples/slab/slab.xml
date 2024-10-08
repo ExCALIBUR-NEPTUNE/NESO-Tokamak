@@ -143,8 +143,8 @@
             <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
-            <E VAR="Bx"  DOMAIN="0" VALUE="0"  />
-            <E VAR="By"  DOMAIN="0" VALUE="0"  />
+            <E VAR="Bx"  DOMAIN="0" VALUE="1"  />
+            <E VAR="By"  DOMAIN="0" VALUE="1"  />
             <E VAR="Bz"  DOMAIN="0" VALUE="1"  />
         </FUNCTION>
     </CONDITIONS>
