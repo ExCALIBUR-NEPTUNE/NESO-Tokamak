@@ -20,11 +20,11 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 0.1            </P>
-            <P> FinalTime      = 10000              </P>
+            <P> TimeStep       = 1e3            </P>
+            <P> FinalTime      = 100000              </P>
             <P> NumSteps       = FinalTime/TimeStep</P>
-            <P> IO_CheckSteps  = 50                 </P>
-            <P> IO_InfoSteps   = 50                 </P>
+            <P> IO_CheckSteps  = 10                 </P>
+            <P> IO_InfoSteps   = 10                 </P>
             <P> epsilon        = 1.0   </P>
             <!-- Anisotropic diffusion -->
             <P> m_e            = 9.1096e-31        </P>
@@ -45,7 +45,7 @@
             <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
             <P> a              = 200.0             </P>
 
-            <P> k_par           = 1000000   </P>
+            <P> k_par           = 1e4   </P>
             <P> k_perp          = 1   </P>
             <P> TCore           = 300.0 </P>
             <!-- Scaling factor for ICs -->
@@ -104,16 +104,17 @@
         
         <FUNCTION NAME="InitialConditions">
             <E VAR="T"  DOMAIN="0" VALUE="TCore" />
-            <E VAR="ne"  DOMAIN="0" VALUE="0.06*cos(10*x)*cos(10*y)" />
-            <E VAR="w"   DOMAIN="0" VALUE="0.04*cos(10*x)*cos(10*y)" />
-            <E VAR="phi" DOMAIN="0" VALUE="0.01*cos(10*x)*cos(10*y)" />
+            <E VAR="ne"  DOMAIN="0" VALUE="0" />
+            <E VAR="w"   DOMAIN="0" VALUE="0" />
+            <E VAR="phi" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi0" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi1" DOMAIN="0" VALUE="0" />
             <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
+            <E VAR="T"  DOMAIN="1" VALUE="1" />
         </FUNCTION>
         
         <FUNCTION NAME="MagneticMeanField">
-            <F VAR="Bx,By,Bz"  FILE="Bnon-normal.pts"  />
+            <F VAR="Bx,By,Bz"  FILE="B.pts"  />
         </FUNCTION>
 
     </CONDITIONS>

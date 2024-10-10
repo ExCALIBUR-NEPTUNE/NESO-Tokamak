@@ -4,21 +4,20 @@
 #include "../BoundaryConditions/TokamakBndCond.h"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
+#include "ImplicitHelper.hpp"
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
 
-#include "ImplicitHelper.hpp"
-#include <LibUtilities/Memory/NekMemoryManager.hpp>
 #include <SolverUtils/AdvectionSystem.h>
 #include <SolverUtils/Core/Misc.h>
 #include <SolverUtils/Diffusion/Diffusion.h>
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
-#include <SolverUtils/RiemannSolvers/RiemannSolver.h>
 
 #include <solvers/solver_callback_handler.hpp>
 
+using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
 namespace MR = Nektar::MultiRegions;
 namespace SD = Nektar::SpatialDomains;
@@ -104,18 +103,22 @@ protected:
     /// Storage for ExB drift velocity
     Array<OneD, Array<OneD, NekDouble>> ExB_vel;
 
-
-
     /// Boundary Conditions
     std::vector<TokamakBndCondSharedPtr> m_bndConds;
+
+    virtual void load_params() override;
 
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
     void ComputeGradPhi();
 
-    void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-                  Array<OneD, Array<OneD, NekDouble>> &out_arr,
-                  const NekDouble time);
+    void DoOdeRhsMF(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                    Array<OneD, Array<OneD, NekDouble>> &out_arr,
+                    const NekDouble time);
+    void DoOdeRhsET(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                    Array<OneD, Array<OneD, NekDouble>> &out_arr,
+                    const NekDouble time);
+
     void DoOdeProjection(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
@@ -127,10 +130,9 @@ protected:
         Array<OneD, NekDouble> &trace_vel_norm,
         const Array<OneD, Array<OneD, NekDouble>> &adv_vel);
 
-    void GetFluxVector(
-        const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
-        const Array<OneD, Array<OneD, NekDouble>> &adv_vel,
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);
+    void GetFluxVector(const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
+                       const Array<OneD, Array<OneD, NekDouble>> &adv_vel,
+                       Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);
 
     void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
                                NekDouble time);
@@ -155,13 +157,15 @@ private:
     /// Storage for component of ne advection velocity normal to trace elements
     Array<OneD, NekDouble> norm_vel_elec;
 
-
     /// Number of particle timesteps per fluid timestep.
     int num_part_substeps;
     /// Number of time steps between particle trajectory step writes.
     int particle_output_freq;
     /// Particle timestep size.
     double part_timestep;
+
+    /// Riemann solver type (used for all advection terms)
+    std::string riemann_solver_type;
     /// Riemann solver object used in electron advection
     SU::RiemannSolverSharedPtr riemann_solver;
 

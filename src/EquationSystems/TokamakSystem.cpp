@@ -342,7 +342,7 @@ void TokamakSystem::DoOdeRhsMF(
     }
 
     Array<OneD, Array<OneD, NekDouble>> gradn(m_spacedim);
-    for (int i = 0; i < m_spacedim)
+    for (int i = 0; i < m_spacedim; ++i)
     {
         gradn[i] = Array<OneD, NekDouble>(npts, 0.0);
     }
@@ -356,9 +356,9 @@ void TokamakSystem::DoOdeRhsMF(
         m_fields[ne_idx]->PhysDeriv(m_fields[ne_idx]->GetPhys(), gradn[0],
                                     gradn[1], gradn[2]);
     }
-    for (int i = 0; i < m_spacedim)
+    for (int i = 0; i < m_spacedim; ++i)
     {
-        Vmath::Smul(npts, k_perp, gradn[i], 1, this->ExB_vel[i], 1);
+        Vmath::Smul(npts, m_kperp, gradn[i], 1, this->ExB_vel[i], 1);
     }
 
     size_t nvariables = in_arr.size();
@@ -601,9 +601,10 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
 
     SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
-
+    SU::AddSummaryItem(s, "Turbulence mode", this->m_mode);
     SU::AddSummaryItem(s, "HW alpha", this->alpha);
     SU::AddSummaryItem(s, "HW kappa", this->kappa);
+    
 }
 
 /**
