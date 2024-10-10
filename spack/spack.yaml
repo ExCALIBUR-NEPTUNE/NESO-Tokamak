@@ -6,18 +6,16 @@ spack:
   # add package specs to the `specs` list
   specs:
   - neso-tokamak%gcc
-  - py-numpy@1.26
-  - nektar@cyl
   view:
     gcc-hipsycl:
-      root: /home/jedge/NESO-Tokamak/spack/views/gcc-hipsycl
+      root: views/gcc-hipsycl
       select: ['%gcc']
       link_type: symlink
   concretizer:
     unify: when_possible
   repos:
   - ./repo
-  - ../NESO/NESO-Spack
+  - ../../NESO/NESO-Spack
   - $spack/var/spack/repos/builtin
   packages:
     all:
@@ -25,13 +23,14 @@ spack:
         mpi: [mpich, openmpi]
   develop:
     nektar:
-      spec: nektar@=cyl
+      path: ../../NESO/nektar
+      spec: nektar@master
     neso:
-      path: ../NESO
+      path: ../../NESO
       spec: neso@working
     neso-particles:
-      path: ../NESO/neso-particles
+      path: ../../NESO/neso-particles
       spec: neso-particles@working
     neso-tokamak:
-      path: ..
-      spec: neso-tokamak@=working
+      path: ../
+      spec: neso-tokamak@working

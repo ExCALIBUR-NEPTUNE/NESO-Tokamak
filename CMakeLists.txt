@@ -33,7 +33,6 @@ find_package(NESO-Particles REQUIRED)
 
 # Identify source files
 set(SRC_FILES
-src/EquationSystems/ImplicitHelper.cpp
 src/EquationSystems/TokamakSystem.cpp
 src/BoundaryConditions/TokamakBndCond.cpp
 src/BoundaryConditions/ObliqueBC.cpp

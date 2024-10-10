@@ -4,7 +4,7 @@
 #include "../BoundaryConditions/TokamakBndCond.h"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
-#include "ImplicitHelper.hpp"
+
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
@@ -16,7 +16,7 @@
 #include <SolverUtils/Forcing/Forcing.h>
 
 #include <solvers/solver_callback_handler.hpp>
-
+#include "ImplicitHelper.hpp"
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
 namespace MR = Nektar::MultiRegions;
