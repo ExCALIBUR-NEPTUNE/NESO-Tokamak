@@ -1,4 +1,4 @@
-#include "ObliqueBC.h"
+#include "ObliqueBC.hpp"
 
 using namespace std;
 
@@ -51,45 +51,52 @@ ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
 void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                         [[maybe_unused]] const NekDouble &time)
 {
-     int nBCEdgePts = m_bndExp[0]->GetTotPoints();
-     for (int v = 0; v < physarray.size(); ++v)
-     {
-         // Obtain field on boundary elmts
-         Array<OneD, NekDouble> Fwd;
-         m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[v], Fwd);
+    int nBCEdgePts = m_bndExp[0]->GetTotPoints();
+    for (int v = 0; v < physarray.size(); ++v)
+    {
+        // Obtain field on boundary elmts
+        Array<OneD, NekDouble> Fwd;
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[v], Fwd);
 
-         // Obtain field derivative
-         Array<OneD, Array<OneD, NekDouble>> grad(m_spacedim);
-         for (int k = 0; k < m_spacedim; k++)
-         {
-             grad[k] = Array<OneD, NekDouble>(Fwd.size(), 0.0);
-         }
-         if (m_spacedim == 2)
-         {
-             m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1]);
-         }
-         else if (m_spacedim == 3)
-         {
-             m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
-         }
-         // Obtain Flux and normal flux
-         Array<OneD, Array<OneD, NekDouble>> Flux(m_spacedim);
-         Array<OneD, NekDouble> Flux_n(nBCEdgePts, 0.0);
-         for (int k = 0; k < m_spacedim; k++)
-         {
-             Flux[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+        // Obtain field derivative
+        Array<OneD, Array<OneD, NekDouble>> grad(m_spacedim);
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            grad[k] = Array<OneD, NekDouble>(Fwd.size(), 0.0);
+        }
+        if (m_spacedim == 2)
+        {
+            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1]);
+        }
+        else if (m_spacedim == 3)
+        {
+            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
+        }
 
-             for (int j = 0; j < m_spacedim; j++)
-             {
-                 Vmath::Vvtvp(nBCEdgePts, m_diffusivity[k][j], 1, grad[j], 1,
-                              Flux[k], 1, Flux[k], 1);
-             }
-             Vmath::Vvtvp(nBCEdgePts, Flux[k], 1, m_normals[k], 1, Flux_n, 1,
-                          Flux_n, 1);
-         }
+        Array<OneD, NekDouble> bndGrad(m_spacedim);
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+            m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, grad[k], bndGrad[k]);
+        }
+        // Obtain Flux and normal flux
+        Array<OneD, Array<OneD, NekDouble>> Flux(m_spacedim);
+        Array<OneD, NekDouble> Flux_n(nBCEdgePts, 0.0);
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            Flux[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
 
-         m_bndExp[v]->FwdTrans(Flux_n, m_bndExp[v]->UpdateCoeffs());
-     }
+            for (int j = 0; j < m_spacedim; j++)
+            {
+                Vmath::Vvtvp(nBCEdgePts, m_diffusivity[k][j], 1, bndGrad[j], 1,
+                             Flux[k], 1, Flux[k], 1);
+            }
+            Vmath::Vvtvp(nBCEdgePts, Flux[k], 1, m_normals[k], 1, Flux_n, 1,
+                         Flux_n, 1);
+        }
+
+        m_bndExp[v]->FwdTrans(Flux_n, m_bndExp[v]->UpdateCoeffs());
+    }
 }
 
 } // namespace NESO::Solvers::tokamak

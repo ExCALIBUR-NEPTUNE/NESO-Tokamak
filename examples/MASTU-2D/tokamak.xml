@@ -76,13 +76,12 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> T </V>
-            <V ID="1"> ne  </V>
-            <V ID="2"> w   </V>
-            <V ID="3"> phi </V>
-            <V ID="4"> gradphi0 </V>
-            <V ID="5"> gradphi1 </V>
-            <V ID="6"> gradphi2 </V>
+            <V ID="0"> phi </V>
+            <V ID="1"> w   </V>
+            <V ID="2"> Te </V>
+            <V ID="3"> ne  </V>
+            <V ID="2"> Ti </V>
+            <V ID="3"> ni  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -91,26 +90,23 @@
         <BOUNDARYCONDITIONS>
             <!--Wall -->
             <REGION REF="1">
-                <R VAR="T" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <D VAR="phi" USERDEFINEDTYPE="Sheath" VALUE="0.0" PRIMCOEFF="0.0"/>
                 <R VAR="w" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <D VAR="phi" VALUE="0" />
-                <D VAR="gradphi0" VALUE="0" />
-                <D VAR="gradphi1" VALUE="0" />
-                <D VAR="gradphi2" VALUE="0" />
+                <R VAR="Te" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <R VAR="Ti" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <R VAR="ni" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
             </REGION>
             
         </BOUNDARYCONDITIONS>
         
         <FUNCTION NAME="InitialConditions">
-            <E VAR="T"  DOMAIN="0" VALUE="TCore" />
-            <E VAR="ne"  DOMAIN="0" VALUE="0" />
-            <E VAR="w"   DOMAIN="0" VALUE="0" />
             <E VAR="phi" DOMAIN="0" VALUE="0" />
-            <E VAR="gradphi0" DOMAIN="0" VALUE="0" />
-            <E VAR="gradphi1" DOMAIN="0" VALUE="0" />
-            <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
-            <E VAR="T"  DOMAIN="1" VALUE="1" />
+            <E VAR="w"   DOMAIN="0" VALUE="0" />
+            <E VAR="Te"  DOMAIN="0" VALUE="TCore" />
+            <E VAR="ne"  DOMAIN="0" VALUE="0" />
+            <E VAR="Ti"  DOMAIN="0" VALUE="TCore" />
+            <E VAR="ni"  DOMAIN="0" VALUE="0" />
         </FUNCTION>
         
         <FUNCTION NAME="MagneticMeanField">

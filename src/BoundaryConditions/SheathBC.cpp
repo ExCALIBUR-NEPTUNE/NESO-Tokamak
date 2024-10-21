@@ -1,4 +1,4 @@
-#include "SheathBC.h"
+#include "SheathBC.hpp"
 
 using namespace std;
 
@@ -10,19 +10,126 @@ std::string SheathBC::className =
         "Sheath", SheathBC::create, "Sheath boundary condition.");
 
 SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
-                     const Array<OneD, MR::ExpListSharedPtr> &pFields,
-                     const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
-                     const int pSpaceDim, const int bcRegion, const int cnt)
+                   const Array<OneD, MR::ExpListSharedPtr> &pFields,
+                   const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
+                   const int pSpaceDim, const int bcRegion, const int cnt)
     : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion, cnt)
 {
+    m_session->LoadParameter("Ge", Ge, 0.0);
+
     int nBCEdgePts =
         m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
+
+    // Extract magnetic field to boundary then take dot product with normals to
+    // get wall angle
+    Array<OneD, Array<OneD, NekDouble>> B(3);
+    sin_alpha = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+    for (int i = 0; i < 3; ++i)
+    {
+        B[i] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, m_magneticFieldTrace[i],
+                                          B[i]);
+        // B.n = Bncos(pi-alpha)=sin(alpha)
+        Vmath::Vvtvp(nBCEdgePts, B[i], 1, m_normals[i], 1, sin_alpha, 1,
+                     sin_alpha, 1);
+    }
 }
 
 void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                        [[maybe_unused]] const NekDouble &time)
+                       [[maybe_unused]] const NekDouble &time)
 {
-     int nBCEdgePts = m_bndExp[0]->GetTotPoints();
+    int nBCEdgePts = m_bndExp[0]->GetTotPoints();
+    int ne_idx     = 1;
+
+    // Get electron density gradient
+    Array<OneD, NekDouble> ne_bnd;
+    m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[ne_idx], ne_bnd);
+    Array<OneD, Array<OneD, NekDouble>> ne_grad(m_spacedim);
+    for (int d = 0; d < m_spacedim; k++)
+    {
+        ne_grad[d] = Array<OneD, NekDouble>(ne_bnd.size(), 0.0);
+    }
+    if (m_spacedim == 2)
+    {
+        m_bndElmtExp->PhysDeriv(ne_bnd, ne_grad[0], ne_grad[1]);
+    }
+    else if (m_spacedim == 3)
+    {
+        m_bndElmtExp->PhysDeriv(ne_bnd, ne_grad[0], ne_grad[1], ne_grad[2]);
+    }
+    Array<OneD, NekDouble> bndGrad(m_spacedim);
+    for (int k = 0; k < m_spacedim; k++)
+    {
+        bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, ne_grad[k], bndGrad[k]);
+    }
+    Array<OneD, NekDouble> grad_ne(nBCEdgePts, 0.0);
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        Vmath::Vvtvp(nBCEgePts, bndGrad[d], 1, m_normals[d], 1, grad_ne, 1,
+                     grad_ne, 1);
+    }
+
+
+    // Get ion density gradients and calculate ion sum
+    Array<OneD, NekDouble> ion_sum(nBCEdgePts, 0.0);
+    for (int s = 0; s < n_species; ++s)
+    {
+        double Mi = 1;
+        double Zi = 1;
+
+        Array<OneD, NekDouble> ni_bnd;
+
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[ni_idx],
+                                          ni_bnd);
+
+        // Obtain field derivative
+        Array<OneD, Array<OneD, NekDouble>> ni_grad(m_spacedim);
+        for (int d = 0; d < m_spacedim; k++)
+        {
+            ne_grad[d] = Array<OneD, NekDouble>(ni_bnd.size(), 0.0);
+        }
+        if (m_spacedim == 2)
+        {
+            m_bndElmtExp->PhysDeriv(ni_bnd, ni_grad[0], ni_grad[1]);
+        }
+        else if (m_spacedim == 3)
+        {
+            m_bndElmtExp->PhysDeriv(ni_bnd, ni_grad[0], ni_grad[1], ni_grad[2]);
+        }
+        Array<OneD, NekDouble> bndGrad(m_spacedim);
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+            m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, ni_grad[k],
+                                              bndGrad[k]);
+        }
+
+        Array<OneD, NekDouble> grad_ni(nBCEdgePts, 0.0);
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vvtvp(nBCEgePts, bndGrad[d], 1, m_normals[d], 1, grad_ni, 1,
+                         grad_ni, 1);
+        }
+
+        for (int i = 0; i < nBCEdgePts; ++i)
+        {
+            NekDouble C_i_sq[i] = (adiabatic * Ti[i] +
+                                   Zi * s_i * Te[i] * grad_ne[i] / grad_ni[i]) /
+                                  Mi;
+            ion_sum[i] += s_i * Zi * sin_alpha[i] * sqrt(C_i_sq);
+        }
+    }
+
+    for (int i = 0; i < nBCEdgePts; ++i)
+    {
+        phi[i] =
+            Te[i] * log(sqrt(Te[i] / (Me * 2 * M_PI)) * (1. - Ge) / ion_sum[i]);
+    }
+    Array<OneD, NekDouble> wall_potential(nBCEdgePts, lambda);
+    Vmath::Vadd(nBCEdgePts, wall_potential, 1, phi, 1, phi, 1);
+
+    m_bndexp[0]->FwdTrans(phi, m_bndexp[0]->UpdateCoeffs());
 }
 
 } // namespace NESO::Solvers::tokamak

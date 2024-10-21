@@ -1,7 +1,7 @@
 #ifndef TOKAMAKSYSTEM_H
 #define TOKAMAKSYSTEM_H
 
-#include "../BoundaryConditions/TokamakBndCond.h"
+#include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
@@ -17,6 +17,7 @@
 
 #include <solvers/solver_callback_handler.hpp>
 #include "ImplicitHelper.hpp"
+
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
 namespace MR = Nektar::MultiRegions;
@@ -98,6 +99,8 @@ protected:
      * particle evaluation/projection methods
      */
     std::map<std::string, MR::DisContFieldSharedPtr> discont_fields;
+
+    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
     /// Storage for ExB drift velocity
@@ -122,9 +125,6 @@ protected:
     void DoOdeProjection(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
-
-    void do_null_precon(const Array<OneD, const NekDouble> &in_arr,
-                        Array<OneD, NekDouble> &out_arr, const bool &flag);
 
     Array<OneD, NekDouble> &GetAdvVelNorm(
         Array<OneD, NekDouble> &trace_vel_norm,
@@ -173,10 +173,13 @@ private:
 
     Array<OneD, NekDouble> &GetAdvVelNormElec();
 
+    // Diffusive Flux vector
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &viscous_tensor);
+
+    // Advective Flux vector
     void GetFluxVectorElec(
         const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);

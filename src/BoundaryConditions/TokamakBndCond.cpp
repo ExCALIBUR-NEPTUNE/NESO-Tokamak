@@ -1,4 +1,4 @@
-#include "TokamakBndCond.h"
+#include "TokamakBndCond.hpp"
 
 using namespace std;
 

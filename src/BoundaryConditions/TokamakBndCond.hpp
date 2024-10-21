@@ -1,5 +1,5 @@
-#ifndef TOKAMAK_BNDCOND
-#define TOKAMAK_BNDCOND
+#ifndef TOKAMAK_BNDCOND_HPP
+#define TOKAMAK_BNDCOND_HPP
 
 #include <string>
 

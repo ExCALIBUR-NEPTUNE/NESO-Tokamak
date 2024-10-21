@@ -1,15 +1,15 @@
-#ifndef TOKAMAK_OBLIQUE_H
-#define TOKAMAK_OBLIQUE_H
+#ifndef TOKAMAK_SHEATH_HPP
+#define TOKAMAK_SHEATH_HPP
 
-#include "TokamakBndCond.h"
+#include "TokamakBndCond.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-class ObliqueBC : public TokamakBndCond
+class SheathBC : public TokamakBndCond
 {
 public:
-    friend class MemoryManager<ObliqueBC>;
+    friend class MemoryManager<SheathBC>;
 
     static TokamakBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
@@ -30,15 +30,21 @@ protected:
                  const NekDouble &time) override;
 
 private:
-    ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
+    SheathBC(const LU::SessionReaderSharedPtr &pSession,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
               const int pSpaceDim, const int bcRegion, const int cnt);
-    ~ObliqueBC(void) override {};
+    ~SheathBC(void) override {};
 
-    Array<OneD, NekDouble> m_diffusivity[3][3];
-    NekDouble m_kpar;
-    NekDouble m_kperp;
+    // Hardcoded for now
+    NekDouble adiabatic = 5/3;
+    NekDouble Zi = 1;
+
+    NekDouble Ge;
+    NekDouble gamma_i;
+    NekDouble gamma_e;
+    NekDouble sheath_ion_polytropic;
+    Array<OneD, NekDouble> sin_alpha;
 };
 
 } // namespace NESO::Solvers::tokamak

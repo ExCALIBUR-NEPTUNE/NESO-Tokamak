@@ -31,8 +31,7 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
       ExB_vel(graph->GetSpaceDimension())
 {
-    this->required_fld_names = {"T",        "ne",       "w",       "phi",
-                                "gradphi0", "gradphi1", "gradphi2"};
+    this->required_fld_names = {"T", "ne", "w", "phi"};
     this->int_fld_names      = {"T", "ne", "w"};
 
     // Determine whether energy,enstrophy recording is enabled (output freq is
@@ -269,21 +268,17 @@ void TokamakSystem::SolvePhi(
  */
 void TokamakSystem::ComputeGradPhi()
 {
-    int phi_idx      = this->field_to_index["phi"];
-    int gradphi0_idx = this->field_to_index["gradphi0"];
-    int gradphi1_idx = this->field_to_index["gradphi1"];
-    int gradphi2_idx = this->field_to_index["gradphi2"];
-    m_fields[phi_idx]->PhysDeriv(m_fields[phi_idx]->GetPhys(),
-                                 m_fields[gradphi0_idx]->UpdatePhys(),
-                                 m_fields[gradphi1_idx]->UpdatePhys(),
-                                 m_fields[gradphi2_idx]->UpdatePhys());
+    int phi_idx = this->field_to_index["phi"];
+    m_fields[phi_idx]->PhysDeriv(
+        m_fields[phi_idx]->GetPhys(), m_grad_phi[0]->UpdatePhys(),
+        m_grad_phi[1]->UpdatePhys(), m_grad_phi[2]->UpdatePhys());
 
-    m_fields[gradphi0_idx]->FwdTrans(m_fields[gradphi0_idx]->GetPhys(),
-                                     m_fields[gradphi0_idx]->UpdateCoeffs());
-    m_fields[gradphi1_idx]->FwdTrans(m_fields[gradphi1_idx]->GetPhys(),
-                                     m_fields[gradphi1_idx]->UpdateCoeffs());
-    m_fields[gradphi2_idx]->FwdTrans(m_fields[gradphi2_idx]->GetPhys(),
-                                     m_fields[gradphi2_idx]->UpdateCoeffs());
+    m_grad_phi[0]->FwdTrans(m_grad_phi[0]->GetPhys(),
+                            m_grad_phi[0]->UpdateCoeffs());
+    m_grad_phi[1]->FwdTrans(m_grad_phi[1]->GetPhys(),
+                            m_grad_phi[1]->UpdateCoeffs());
+    m_grad_phi[2]->FwdTrans(m_grad_phi[2]->GetPhys(),
+                            m_grad_phi[2]->UpdateCoeffs());
 }
 /**
  * @brief Perform projection into correct polynomial space.
@@ -325,14 +320,15 @@ void TokamakSystem::DoOdeRhsMF(
 {
     // Get field indices
     int npts    = GetNpoints();
-    int ne_idx  = this->field_to_index["ne"];
     int phi_idx = this->field_to_index["phi"];
-    int T_idx   = this->field_to_index["T"];
+    int Te_idx   = this->field_to_index["Te"];
+    int ne_idx  = this->field_to_index["ne"];
+
 
     for (int i = 0; i < npts; ++i)
     {
         m_fields[phi_idx]->UpdatePhys()[i] =
-            this->lambda + m_fields[T_idx]->GetPhys()[i] *
+            this->lambda + m_fields[Te_idx]->GetPhys()[i] *
                                std::log(m_fields[ne_idx]->GetPhys()[i]);
     }
 
@@ -400,14 +396,11 @@ void TokamakSystem::DoOdeRhsET(
 {
 
     // Get field indices
-    int npts         = GetNpoints();
-    int gradphi0_idx = this->field_to_index["gradphi0"];
-    int gradphi1_idx = this->field_to_index["gradphi1"];
-    int gradphi2_idx = this->field_to_index["gradphi2"];
-    int ne_idx       = this->field_to_index["ne"];
-    int phi_idx      = this->field_to_index["phi"];
-    int w_idx        = this->field_to_index["w"];
-
+    int npts    = GetNpoints();
+    int phi_idx = this->field_to_index["phi"];
+    int w_idx   = this->field_to_index["w"];
+    int ne_idx  = this->field_to_index["ne"];
+    
     if (this->m_explicitAdvection)
     {
         zero_array_of_arrays(out_arr);
@@ -419,18 +412,16 @@ void TokamakSystem::DoOdeRhsET(
     ComputeGradPhi();
 
     // Calculate ExB velocity
-    Vmath::Vvtvvtm(npts, this->B[1], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
-                   this->B[2], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
-                   this->ExB_vel[0], 1);
+    Vmath::Vvtvvtm(npts, this->B[1], 1, m_grad_phi[2]->GetPhys(), 1, this->B[2],
+                   1, m_grad_phi[1]->GetPhys(), 1, this->ExB_vel[0], 1);
 
-    Vmath::Vvtvvtm(npts, this->B[2], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
-                   this->B[0], 1, m_fields[gradphi2_idx]->GetPhys(), 1,
-                   this->ExB_vel[1], 1);
+    Vmath::Vvtvvtm(npts, this->B[2], 1, m_grad_phi[0]->GetPhys(), 1, this->B[0],
+                   1, m_grad_phi[2]->GetPhys(), 1, this->ExB_vel[1], 1);
 
     if (this->m_graph->GetMeshDimension() == 3)
     {
-        Vmath::Vvtvvtm(npts, this->B[0], 1, m_fields[gradphi1_idx]->GetPhys(),
-                       1, this->B[1], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
+        Vmath::Vvtvvtm(npts, this->B[0], 1, m_grad_phi[1]->GetPhys(), 1,
+                       this->B[1], 1, m_grad_phi[0]->GetPhys(), 1,
                        this->ExB_vel[2], 1);
     }
 
@@ -457,9 +448,8 @@ void TokamakSystem::DoOdeRhsET(
 
     // Get poloidal gradient (y in HW equations)
     Array<OneD, NekDouble> gradphi_poloidal(npts);
-    Vmath::Vvtvvtp(npts, B_pol[0], 1, m_fields[gradphi0_idx]->GetPhys(), 1,
-                   B_pol[1], 1, m_fields[gradphi1_idx]->GetPhys(), 1,
-                   gradphi_poloidal, 1);
+    Vmath::Vvtvvtp(npts, B_pol[0], 1, m_grad_phi[0]->GetPhys(), 1, B_pol[1], 1,
+                   m_grad_phi[1]->GetPhys(), 1, gradphi_poloidal, 1);
     // TODO normalise
 
     // Add -\kappa*\dpartial\phi/\dpartial y to RHS
@@ -604,7 +594,6 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
     SU::AddSummaryItem(s, "Turbulence mode", this->m_mode);
     SU::AddSummaryItem(s, "HW alpha", this->alpha);
     SU::AddSummaryItem(s, "HW kappa", this->kappa);
-    
 }
 
 /**
@@ -616,6 +605,13 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 void TokamakSystem::v_InitObject(bool create_field)
 {
     TimeEvoEqnSysBase::v_InitObject(create_field);
+
+    m_grad_phi = Array<OneD, MR::DisContFieldSharedPtr>(m_spacedim);
+    for (int i = 0; i < m_spacedim; ++i)
+    {
+        m_grad_phi[i] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+    }
 
     // Since we are starting from a setup where each field is defined to be a
     // discontinuous field (and thus support DG), the first thing we do is to
@@ -687,9 +683,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     {
         // Set up object to evaluate density field
         this->particle_sys->setup_evaluate_grad_phi(
-            this->discont_fields.at("gradphi0"),
-            this->discont_fields.at("gradphi1"),
-            this->discont_fields.at("gradphi2"));
+            m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
     }
 
     // Bind RHS function for explicit time integration
@@ -732,6 +726,11 @@ void TokamakSystem::v_InitObject(bool create_field)
                 ASSERTL0(
                     BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
                     "Oblique boundary condition must be of type Robin <R>");
+            }
+            if (type.rfind("Sheath", 0) == 0)
+            {
+                ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
+                         "Sheath boundary condition must be of type Robin <R>");
             }
             if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
             {
