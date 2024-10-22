@@ -17,6 +17,9 @@ SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
 {
     m_session->LoadParameter("Ge", Ge, 0.0);
     m_session->LoadParameter("lambda", lambda, 0.0);
+    m_session->LoadParameter("m_e", Me, 0.0);
+    m_session->LoadParameter("m_i", Mi, 0.0);
+    m_session->LoadParameter("Z", Zi, 0.0);
 
     int nBCEdgePts =
         m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
@@ -40,11 +43,10 @@ void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                        [[maybe_unused]] const NekDouble &time)
 {
     int nBCEdgePts = m_bndExp[0]->GetTotPoints();
-    int ne_idx     = 1;
     int Te_idx     = 2;
-    int ni_idx     = 3;
+    int ne_idx     = 3;
     int Ti_idx     = 4;
-    double Me      = 0.0005;
+    int ni_idx     = 5;
 
     // Get electron density gradient
     Array<OneD, NekDouble> ne_bnd;
@@ -77,12 +79,10 @@ void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
 
     // Get ion density gradients and calculate ion sum
     Array<OneD, NekDouble> ion_sum(nBCEdgePts, 0.0);
+    // Add support for multiple ions later
     int n_species = 1;
     for (int s = 0; s < n_species; ++s)
     {
-        double Mi = 1;
-        double Zi = 1;
-
         Array<OneD, NekDouble> ni_bnd;
 
         m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[ni_idx],

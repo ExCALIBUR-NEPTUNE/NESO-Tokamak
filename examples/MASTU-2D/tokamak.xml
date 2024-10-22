@@ -20,20 +20,19 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 1e3            </P>
-            <P> FinalTime      = 100000              </P>
+            <P> TimeStep       = 1e3               </P>
+            <P> FinalTime      = 100000            </P>
             <P> NumSteps       = FinalTime/TimeStep</P>
-            <P> IO_CheckSteps  = 10                 </P>
-            <P> IO_InfoSteps   = 10                 </P>
-            <P> epsilon        = 1.0   </P>
-            <!-- Anisotropic diffusion -->
+            <P> IO_CheckSteps  = 10                </P>
+            <P> IO_InfoSteps   = 10                </P>
+            <P> epsilon        = 1.0               </P>
+
             <P> m_e            = 9.1096e-31        </P>
             <P> m_p            = 1.6726e-27        </P>
             <P> A              = 1.0               </P>
             <P> Z              = 1.0               </P>
             <P> m_i            = A*m_p             </P>
-            <P> T_e            = 116050            </P>
-            <P> T_i            = T_e               </P>
+            <P> Ge             = 0.5               </P>
             <P> epsilon_0      = 8.8542e-12        </P>
             <P> e              = 1.6022e-19        </P>
             <P> k_B            = 1.3807e-23        </P>
@@ -44,7 +43,10 @@
             <!-- <P> k_par          = 19.2 * sqrt(2.0 * PI^3.0) * (1.0/sqrt(m_e)) * (epsilon_0^2.0 / e^4.0) * (((k_B * T_e)^(5.0/2.0))/((Z^2.0) * lambda)) </P> -->
             <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
             <P> a              = 200.0             </P>
-
+            <!-- HW params -->
+            <P> HW_alpha        = 2   </P>
+            <P> HW_kappa        = 1   </P>
+            <!-- Anisotropic diffusion -->
             <P> k_par           = 1e4   </P>
             <P> k_perp          = 1   </P>
             <P> TCore           = 300.0 </P>
@@ -56,9 +58,7 @@
             <P> xs         = 0.0      </P>
             <P> ys         = 0        </P>
 
-            <!-- HW params -->
-            <P> HW_alpha        = 2   </P>
-            <P> HW_kappa        = 1   </P>
+
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-4  </P>
             <P> NekNonlinSysMaxIterations = 5       </P>

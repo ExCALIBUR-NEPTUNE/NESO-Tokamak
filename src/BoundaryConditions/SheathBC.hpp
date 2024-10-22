@@ -41,9 +41,10 @@ private:
 
     NekDouble lambda;
     NekDouble Ge;
-    NekDouble gamma_i;
-    NekDouble gamma_e;
-    NekDouble sheath_ion_polytropic;
+    NekDouble Me;
+    NekDouble Mi;
+    NekDouble Zi;
+
     Array<OneD, NekDouble> sin_alpha;
 };
 
