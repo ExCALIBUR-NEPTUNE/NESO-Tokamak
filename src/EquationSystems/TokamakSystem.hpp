@@ -112,7 +112,8 @@ protected:
     std::vector<TokamakBndCondSharedPtr> m_bndConds;
 
     virtual void load_params() override;
-
+    void ReadMagneticField();
+    void CalcDiffTensor();
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
     void ComputeGradPhi();

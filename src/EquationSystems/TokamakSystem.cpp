@@ -41,17 +41,10 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
 }
 
 /**
- * @brief Load all required session parameters into member variables.
+ * @brief Read the magnetic field from file.
  */
-void TokamakSystem::load_params()
+void TokamakSystem::ReadMagneticField()
 {
-    TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::load_params();
-
-    // Type of advection to use -- in theory we also support flux reconstruction
-    // for quad-based meshes, or you can use a standard convective term if you
-    // were fully continuous in space. Default is DG.
-    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
-
     int npoints = m_fields[0]->GetNpoints();
     Array<OneD, MR::ExpListSharedPtr> B_in(3);
     this->B_pol  = Array<OneD, Array<OneD, NekDouble>>(3);
@@ -120,9 +113,6 @@ void TokamakSystem::load_params()
     {
         B[d] = std::static_pointer_cast<MR::DisContField>(B_in[d]);
     }
-
-    m_session->LoadSolverInfo("Mode", m_mode, "MeanFluid");
-
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
     for (int i = 0; i < 3; ++i)
     {
@@ -140,7 +130,10 @@ void TokamakSystem::load_params()
                                         : 0.0;
         }
     }
+}
 
+void CalcDiffTensor()
+{
     /// Anisotropic Diffusivity Tensor
     m_session->LoadParameter("k_par", m_kpar, 100.0);
     m_session->LoadParameter("k_perp", m_kperp, 1.0);
@@ -176,8 +169,26 @@ void TokamakSystem::load_params()
     m_varcoeff[StdRegions::eVarCoeffD20] = d20;
     m_varcoeff[StdRegions::eVarCoeffD21] = d21;
     m_varcoeff[StdRegions::eVarCoeffD22] = d22;
+}
 
-    /// Anisotropic Diffusivity Tensor
+/**
+ * @brief Load all required session parameters into member variables.
+ */
+void TokamakSystem::load_params()
+{
+    TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::load_params();
+
+    // Type of advection to use -- in theory we also support flux reconstruction
+    // for quad-based meshes, or you can use a standard convective term if you
+    // were fully continuous in space. Default is DG.
+    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+
+    int npoints = m_fields[0]->GetNpoints();
+    ReadMagneticField();
+    CalcDiffTensor();
+    m_session->LoadSolverInfo("Mode", m_mode, "MeanFluid");
+
+    /// Perp Laplace Tensor
     Array<OneD, NekDouble> phi_d00(npoints, 1.0);
     Array<OneD, NekDouble> phi_d01(npoints, 0.0);
     Array<OneD, NekDouble> phi_d02(npoints, 0.0);
