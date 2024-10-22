@@ -31,8 +31,8 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
       ExB_vel(graph->GetSpaceDimension())
 {
-    this->required_fld_names = {"T", "ne", "w", "phi"};
-    this->int_fld_names      = {"T", "ne", "w"};
+    this->required_fld_names = {"phi", "w", "Te", "ne"};
+    this->int_fld_names      = {"w", "Te", "ne"};
 
     // Determine whether energy,enstrophy recording is enabled (output freq is
     // set)
@@ -52,8 +52,8 @@ void TokamakSystem::load_params()
     // were fully continuous in space. Default is DG.
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
-    int npoints  = m_fields[0]->GetNpoints();
-    this->B      = Array<OneD, Array<OneD, NekDouble>>(3);
+    int npoints = m_fields[0]->GetNpoints();
+    Array<OneD, MR::ExpListSharedPtr> B_in(3);
     this->B_pol  = Array<OneD, Array<OneD, NekDouble>>(3);
     this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
     std::vector<std::string> Bstring;
@@ -64,23 +64,33 @@ void TokamakSystem::load_params()
 
     if (m_session->DefinesFunction("MagneticMeanField"))
     {
-        Array<OneD, Array<OneD, NekDouble>> B2D(3);
-        GetFunction("MagneticMeanField")->Evaluate(Bstring, B2D);
-        for (int d = 0; d < 3; ++d)
+        if (this->m_graph->GetMeshDimension() == 2)
         {
-            B[d]     = Array<OneD, NekDouble>(npoints, 0.0);
-            B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
+            GetFunction("MagneticMeanField")->Evaluate(Bstring, B_in);
+            for (int d = 0; d < 3; ++d)
+            {
+                this->B_pol[d] = B[d]->GetPhys();
+            }
         }
-
-        if (this->m_graph->GetMeshDimension() == 3)
+        else if (this->m_graph->GetMeshDimension() == 3)
         {
+            Array<OneD, Array<OneD, NekDouble>> B2D(3);
+            GetFunction("MagneticMeanField")->Evaluate(Bstring, B2D);
+
+            Array<OneD, Array<OneD, NekDouble>> B3D(3);
+            for (int d = 0; d < 3; ++d)
+            {
+                B3D[d]   = Array<OneD, NekDouble>(npoints, 0.0);
+                B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
+            }
+
             int npoints_2d = B2D[0].size();
             int increments = npoints / npoints_2d;
             Array<OneD, NekDouble> Bx(npoints_2d);
             Array<OneD, NekDouble> Bz(npoints_2d);
             for (int i = 0; i < increments; ++i)
             {
-                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B[1][i * npoints_2d],
+                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B3D[1][i * npoints_2d],
                              1);
 
                 NekDouble theta = i * 2 * M_PI / increments;
@@ -89,8 +99,8 @@ void TokamakSystem::load_params()
                     Bx[j] = cos(theta) * B2D[0][j] - sin(theta) * B2D[2][j];
                     Bz[j] = cos(theta) * B2D[2][j] + sin(theta) * B2D[0][j];
                 }
-                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B[0][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B[2][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[0][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[2][i * npoints_2d], 1);
 
                 Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
                              &B_pol[1][i * npoints_2d], 1);
@@ -100,15 +110,15 @@ void TokamakSystem::load_params()
                              &B_pol[2][i * npoints_2d], 1);
             }
         }
-        else
-        {
-            this->B     = B2D;
-            this->B_pol = B2D;
-        }
     }
     else if (m_session->DefinesFunction("MagneticField"))
     {
-        GetFunction("MagneticField")->Evaluate(Bstring, B);
+        GetFunction("MagneticField")->Evaluate(Bstring, B_in);
+    }
+    this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    for (int d = 0; d < 3; ++d)
+    {
+        B[d] = std::static_pointer_cast<MR::DisContField>(B_in[d]);
     }
 
     m_session->LoadSolverInfo("Mode", m_mode, "MeanFluid");
@@ -116,8 +126,8 @@ void TokamakSystem::load_params()
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
     for (int i = 0; i < 3; ++i)
     {
-        Vmath::Vvtvp(npoints, &this->B[i][0], 1, &this->B[i][0], 1, &mag_B[0],
-                     1, &mag_B[0], 1);
+        Vmath::Vvtvp(npoints, B[i]->GetPhys(), 1, B[i]->GetPhys(), 1, mag_B, 1,
+                     mag_B, 1);
     }
 
     for (auto idim = 0; idim < 3; idim++)
@@ -125,8 +135,9 @@ void TokamakSystem::load_params()
         b_unit[idim] = Array<OneD, NekDouble>(npoints, 0.0);
         for (int k = 0; k < npoints; ++k)
         {
-            this->b_unit[idim][k] =
-                (this->mag_B[k] > 0) ? this->B[idim][k] / this->mag_B[k] : 0.0;
+            this->b_unit[idim][k] = (this->mag_B[k] > 0)
+                                        ? B[idim]->GetPhys()[k] / this->mag_B[k]
+                                        : 0.0;
         }
     }
 
@@ -247,8 +258,9 @@ void TokamakSystem::SolvePhi(
 
     // Field indices
     int npts    = GetNpoints();
-    int w_idx   = this->field_to_index["w"];
     int phi_idx = this->field_to_index["phi"];
+    int w_idx   = this->field_to_index["w"];
+
     StdRegions::ConstFactorMap factors;
     // Helmholtz => Poisson (lambda = 0)
     factors[StdRegions::eFactorLambda] = 0.0;
@@ -321,9 +333,8 @@ void TokamakSystem::DoOdeRhsMF(
     // Get field indices
     int npts    = GetNpoints();
     int phi_idx = this->field_to_index["phi"];
-    int Te_idx   = this->field_to_index["Te"];
+    int Te_idx  = this->field_to_index["Te"];
     int ne_idx  = this->field_to_index["ne"];
-
 
     for (int i = 0; i < npts; ++i)
     {
@@ -400,7 +411,7 @@ void TokamakSystem::DoOdeRhsET(
     int phi_idx = this->field_to_index["phi"];
     int w_idx   = this->field_to_index["w"];
     int ne_idx  = this->field_to_index["ne"];
-    
+
     if (this->m_explicitAdvection)
     {
         zero_array_of_arrays(out_arr);
@@ -412,16 +423,18 @@ void TokamakSystem::DoOdeRhsET(
     ComputeGradPhi();
 
     // Calculate ExB velocity
-    Vmath::Vvtvvtm(npts, this->B[1], 1, m_grad_phi[2]->GetPhys(), 1, this->B[2],
-                   1, m_grad_phi[1]->GetPhys(), 1, this->ExB_vel[0], 1);
+    Vmath::Vvtvvtm(npts, B[1]->GetPhys(), 1, m_grad_phi[2]->GetPhys(), 1,
+                   B[2]->GetPhys(), 1, m_grad_phi[1]->GetPhys(), 1,
+                   this->ExB_vel[0], 1);
 
-    Vmath::Vvtvvtm(npts, this->B[2], 1, m_grad_phi[0]->GetPhys(), 1, this->B[0],
-                   1, m_grad_phi[2]->GetPhys(), 1, this->ExB_vel[1], 1);
+    Vmath::Vvtvvtm(npts, B[2]->GetPhys(), 1, m_grad_phi[0]->GetPhys(), 1,
+                   B[0]->GetPhys(), 1, m_grad_phi[2]->GetPhys(), 1,
+                   this->ExB_vel[1], 1);
 
     if (this->m_graph->GetMeshDimension() == 3)
     {
-        Vmath::Vvtvvtm(npts, this->B[0], 1, m_grad_phi[1]->GetPhys(), 1,
-                       this->B[1], 1, m_grad_phi[0]->GetPhys(), 1,
+        Vmath::Vvtvvtm(npts, B[0]->GetPhys(), 1, m_grad_phi[1]->GetPhys(), 1,
+                       B[1]->GetPhys(), 1, m_grad_phi[0]->GetPhys(), 1,
                        this->ExB_vel[2], 1);
     }
 
@@ -684,6 +697,7 @@ void TokamakSystem::v_InitObject(bool create_field)
         // Set up object to evaluate density field
         this->particle_sys->setup_evaluate_grad_phi(
             m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
+        this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
     }
 
     // Bind RHS function for explicit time integration
@@ -746,7 +760,7 @@ void TokamakSystem::v_InitObject(bool create_field)
                     for (int d = 0; d < 3; d++)
                     {
                         m_fields[0]->ExtractPhysToBndElmt(
-                            n, B[d], magneticFieldBndElmt[d]);
+                            n, b_unit[d], magneticFieldBndElmt[d]);
                     }
                     m_bndConds.push_back(
                         GetTokamakBndCondFactory().CreateInstance(

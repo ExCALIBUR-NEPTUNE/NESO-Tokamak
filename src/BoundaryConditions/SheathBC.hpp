@@ -18,7 +18,7 @@ public:
         const int pSpaceDim, const int bcRegion, const int cnt)
 
     {
-        TokamakBndCondSharedPtr p = MemoryManager<ObliqueBC>::AllocateSharedPtr(
+        TokamakBndCondSharedPtr p = MemoryManager<SheathBC>::AllocateSharedPtr(
             pSession, pFields, pMagneticField, pSpaceDim, bcRegion, cnt);
         return p;
     }
@@ -38,8 +38,8 @@ private:
 
     // Hardcoded for now
     NekDouble adiabatic = 5/3;
-    NekDouble Zi = 1;
 
+    NekDouble lambda;
     NekDouble Ge;
     NekDouble gamma_i;
     NekDouble gamma_e;

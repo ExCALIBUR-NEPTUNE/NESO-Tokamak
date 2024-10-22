@@ -30,12 +30,14 @@ class ParticleSystem : public PartSysBase
         ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
         ParticleProp(Sym<REAL>("POSITION"), 3, true),
         ParticleProp(Sym<REAL>("VELOCITY"), 3),
-        ParticleProp(Sym<REAL>("B"), 3),
         ParticleProp(Sym<REAL>("M"), 1),
         ParticleProp(Sym<REAL>("Q"), 1),
         ParticleProp(Sym<REAL>("E0"), 1),
         ParticleProp(Sym<REAL>("E1"), 1),
-        ParticleProp(Sym<REAL>("E2"), 1)};
+        ParticleProp(Sym<REAL>("E2"), 1),
+        ParticleProp(Sym<REAL>("B0"), 1),
+        ParticleProp(Sym<REAL>("B1"), 1),
+        ParticleProp(Sym<REAL>("B2"), 1)};
 
 public:
     /**
@@ -76,17 +78,11 @@ public:
         // get particle charge from file
         double particle_charge;
         this->session->LoadParameter("particle_charge", particle_charge, 1.0);
-        // Magnetic field from file
-        double Bx, By, Bz;
-        this->session->LoadParameter("Bx", Bx, 0.0);
-        this->session->LoadParameter("By", By, 0.0);
-        this->session->LoadParameter("Bz", Bz, 0.0);
+
         double particle_B_scaling;
         this->session->LoadParameter("particle_B_scaling", particle_B_scaling,
                                      1.0);
-        Bx *= particle_B_scaling;
-        By *= particle_B_scaling;
-        Bz *= particle_B_scaling;
+
         double particle_thermal_velocity;
         this->session->LoadParameter("particle_thermal_velocity",
                                      particle_thermal_velocity, 0.0);
@@ -102,12 +98,6 @@ public:
         report_param("B scaling", particle_B_scaling);
         report_param("Velocity scaling", particle_velocity_B_scaling);
 
-        std::array<double, 3> unitB;
-        const double inverse_len_B =
-            1.0 / std::sqrt(Bx * Bx + By * By + Bz * Bz);
-        unitB.at(0) = Bx * inverse_len_B;
-        unitB.at(1) = By * inverse_len_B;
-        unitB.at(2) = Bz * inverse_len_B;
         std::normal_distribution d{0.0, particle_thermal_velocity};
 
         if (N > 0)
@@ -129,7 +119,7 @@ public:
                         pos_tmp;
                     // Create the velocity in dimx
                     REAL vtmp = 0.0;
-                    vtmp += particle_velocity_B_scaling * unitB.at(dimx);
+
                     if (particle_thermal_velocity > 0.0)
                     {
                         vtmp += d(rng_phasespace);
@@ -139,9 +129,6 @@ public:
                 }
                 initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
                 initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
-                initial_distribution[Sym<REAL>("B")][px][0] = Bx;
-                initial_distribution[Sym<REAL>("B")][px][1] = By;
-                initial_distribution[Sym<REAL>("B")][px][2] = Bz;
                 initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] =
                     px + rstart;
             }
@@ -229,6 +216,30 @@ public:
     }
 
     /**
+     * Set up the evaluation of B.
+     *
+     * @param gradphi0 Nektar++ field storing B in direction 0.
+     * @param gradphi1 Nektar++ field storing B in direction 1.
+     * @param gradphi2 Nektar++ field storing B in direction 2.
+     */
+    inline void setup_evaluate_B(std::shared_ptr<DisContField> B0,
+                                 std::shared_ptr<DisContField> B1,
+                                 std::shared_ptr<DisContField> B2)
+    {
+        // TODO redo with redone Bary Evaluate.
+        this->field_evaluate_B0 = std::make_shared<FieldEvaluate<DisContField>>(
+            B0, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_B1 = std::make_shared<FieldEvaluate<DisContField>>(
+            B1, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_B2 = std::make_shared<FieldEvaluate<DisContField>>(
+            B2, this->particle_group, this->cell_id_translation);
+
+        this->fields["B0"] = B0;
+        this->fields["B1"] = B1;
+        this->fields["B2"] = B2;
+    }
+
+    /**
      * Evaluate grad(phi) and B at the particle locations.
      */
     inline void evaluate_fields()
@@ -243,21 +254,15 @@ public:
         this->field_evaluate_gradphi1->evaluate(Sym<REAL>("E1"));
         this->field_evaluate_gradphi2->evaluate(Sym<REAL>("E2"));
 
-        /*
-         * Uncomment and implement for a non-uniform magnetic field.
-         * Remeber to apply the particle_B_scaling coefficient.
-         */
-        /*
-        particle_loop(
-            "ParticleSystem::set_magnetic_field", this->particle_group,
-            [=](auto B) {
-              B.at(0) = 0.0;
-              B.at(1) = 0.0;
-              B.at(2) = 0.0;
-            },
-            Access::write(Sym<REAL>("B")))
-            ->execute();
-        */
+        NESOASSERT(this->field_evaluate_B0 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_B1 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_B2 != nullptr,
+                   "FieldEvaluate not setup.");
+        this->field_evaluate_B0->evaluate(Sym<REAL>("B0"));
+        this->field_evaluate_B1->evaluate(Sym<REAL>("B1"));
+        this->field_evaluate_B2->evaluate(Sym<REAL>("B2"));
     }
 
     /**
@@ -283,22 +288,24 @@ public:
         particle_loop(
             "ParticleSystem:initialise_particles_from_fields",
             this->particle_group,
-            [=](auto VELOCITY, auto B, auto E0, auto E1, auto E2)
+            [=](auto VELOCITY, auto E0, auto E1, auto E2, auto B0, auto B1,
+                auto B2)
             {
                 // Ei contains d(phi)/dx_i.
                 const auto mE0 = -1.0 * E0.at(0);
                 const auto mE1 = -1.0 * E1.at(0);
                 const auto mE2 = -1.0 * E2.at(0);
                 REAL exb0, exb1, exb2;
-                MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B.at(0), B.at(1),
-                                         B.at(2), exb0, exb1, exb2);
+                MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B0.at(0), B1.at(0),
+                                         B2.at(0), exb0, exb1, exb2);
                 VELOCITY.at(0) += k_alpha * exb0;
                 VELOCITY.at(1) += k_alpha * exb1;
                 VELOCITY.at(2) += k_alpha * exb2;
             },
-            Access::write(Sym<REAL>("VELOCITY")), Access::read(Sym<REAL>("B")),
-            Access::read(Sym<REAL>("E0")), Access::read(Sym<REAL>("E1")),
-            Access::read(Sym<REAL>("E2")))
+            Access::write(Sym<REAL>("VELOCITY")), Access::read(Sym<REAL>("E0")),
+            Access::read(Sym<REAL>("E1")), Access::read(Sym<REAL>("E2")),
+            Access::read(Sym<REAL>("B0")), Access::read(Sym<REAL>("B1")),
+            Access::read(Sym<REAL>("B2")))
             ->execute();
     }
 
@@ -310,15 +317,15 @@ protected:
 
         particle_loop(
             "ParticleSystem:boris", this->particle_group,
-            [=](auto B, auto E0, auto E1, auto E2, auto Q, auto M, auto P,
-                auto V)
+            [=](auto E0, auto E1, auto E2, auto B0, auto B1, auto B2, auto Q,
+                auto M, auto P, auto V)
             {
                 const REAL QoM = Q.at(0) / M.at(0);
 
                 const REAL scaling_t = QoM * k_dht;
-                const REAL t_0       = B.at(0) * scaling_t;
-                const REAL t_1       = B.at(1) * scaling_t;
-                const REAL t_2       = B.at(2) * scaling_t;
+                const REAL t_0       = B0.at(0) * scaling_t;
+                const REAL t_1       = B1.at(0) * scaling_t;
+                const REAL t_2       = B2.at(0) * scaling_t;
 
                 const REAL tmagsq    = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
                 const REAL scaling_s = 2.0 / (1.0 + tmagsq);
@@ -363,18 +370,23 @@ protected:
                 P.at(1) += k_dt * V.at(1);
                 P.at(2) += k_dt * V.at(2);
             },
-            Access::read(Sym<REAL>("B")), Access::read(Sym<REAL>("E0")),
-            Access::read(Sym<REAL>("E1")), Access::read(Sym<REAL>("E2")),
+            Access::read(Sym<REAL>("E0")), Access::read(Sym<REAL>("E1")),
+            Access::read(Sym<REAL>("E2")), Access::read(Sym<REAL>("B0")),
+            Access::read(Sym<REAL>("B1")), Access::read(Sym<REAL>("B2")),
             Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
             Access::write(Sym<REAL>("POSITION")),
             Access::write(Sym<REAL>("VELOCITY")))
             ->execute();
     };
 
-    /// Object used to evaluate Nektar number density field
+    /// Object used to evaluate Nektar electric field
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi0;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi1;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi2;
+    /// Object used to evaluate Nektar magnetic field
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B0;
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B1;
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B2;
     /// Object used to project onto Nektar number density field
     std::map<std::string, std::shared_ptr<DisContField>> fields;
     /// Simulation time

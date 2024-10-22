@@ -73,7 +73,7 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
             m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
         }
 
-        Array<OneD, NekDouble> bndGrad(m_spacedim);
+        Array<OneD, Array<OneD, NekDouble>> bndGrad(m_spacedim);
         for (int k = 0; k < m_spacedim; k++)
         {
             bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);

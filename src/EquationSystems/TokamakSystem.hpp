@@ -1,5 +1,5 @@
-#ifndef TOKAMAKSYSTEM_H
-#define TOKAMAKSYSTEM_H
+#ifndef TOKAMAKSYSTEM_HPP
+#define TOKAMAKSYSTEM_HPP
 
 #include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
@@ -82,8 +82,11 @@ protected:
     /// Sheath potential
     NekDouble lambda;
 
+    /// Potential Gradient/-E
+    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
+
     /// Magnetic field vector
-    Array<OneD, Array<OneD, NekDouble>> B;
+    Array<OneD, MR::DisContFieldSharedPtr> B;
     /// Normalised magnetic field vector
     Array<OneD, Array<OneD, NekDouble>> b_unit;
     // B in cylindrical polar (r, z, theta)
@@ -100,7 +103,6 @@ protected:
      */
     std::map<std::string, MR::DisContFieldSharedPtr> discont_fields;
 
-    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
     /// Storage for ExB drift velocity
