@@ -2,7 +2,6 @@
 
 // enable multi-core processing
 General.NumThreads = 6;
-
 // open brep geometry
 Merge "Face001_Geometry.brep";
 
