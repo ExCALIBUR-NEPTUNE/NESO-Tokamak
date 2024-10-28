@@ -71,6 +71,7 @@ protected:
     /// Advection type
     std::string adv_type;
 
+    int nSpecies;
     /// Diffusion object used in anisotropic diffusion
     SU::DiffusionSharedPtr m_diffusion;
 

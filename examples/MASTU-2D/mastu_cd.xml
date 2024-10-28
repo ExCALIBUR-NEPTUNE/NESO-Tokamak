@@ -9767,7 +9767,7 @@
         <NekMeshCommandLine>mastu_cd.msh mastu_cd.xml:xml:uncompress </NekMeshCommandLine>
     </Metadata>
     <EXPANSIONS>
-        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="u" />
-        <E COMPOSITE="C[3]" NUMMODES="4" TYPE="MODIFIED" FIELDS="u" />
+        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
+        <E COMPOSITE="C[3]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
     </EXPANSIONS>
 </NEKTAR>

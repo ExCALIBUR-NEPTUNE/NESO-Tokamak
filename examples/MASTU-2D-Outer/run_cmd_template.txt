@@ -1,0 +1,1 @@
+mpirun -np <NMPI> <SOLVER_EXEC> tokamak.xml mastu2D.xml

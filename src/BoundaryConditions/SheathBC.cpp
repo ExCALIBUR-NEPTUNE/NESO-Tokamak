@@ -28,13 +28,13 @@ SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
     // get wall angle
     Array<OneD, Array<OneD, NekDouble>> B(3);
     sin_alpha = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
-    for (int i = 0; i < 3; ++i)
+    for (int d = 0; d < m_spacedim; ++d)
     {
-        B[i] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
-        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, m_magneticFieldTrace[i],
-                                          B[i]);
+        B[d] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, m_magneticFieldTrace[d],
+                                          B[d]);
         // B.n = Bncos(pi-alpha)=sin(alpha)
-        Vmath::Vvtvp(nBCEdgePts, B[i], 1, m_normals[i], 1, sin_alpha, 1,
+        Vmath::Vvtvp(nBCEdgePts, B[d], 1, m_normals[d], 1, sin_alpha, 1,
                      sin_alpha, 1);
     }
 }
@@ -43,10 +43,10 @@ void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                        [[maybe_unused]] const NekDouble &time)
 {
     int nBCEdgePts = m_bndExp[0]->GetTotPoints();
-    int Te_idx     = 2;
-    int ne_idx     = 3;
-    int Ti_idx     = 4;
-    int ni_idx     = 5;
+    int Te_idx     = 1;
+    int ne_idx     = 2;
+    int Ti_idx     = 3;
+    int ni_idx     = 4;
 
     // Get electron density gradient
     Array<OneD, NekDouble> ne_bnd;
@@ -77,7 +77,7 @@ void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                      grad_ne, 1);
     }
 
-    // Get ion density gradients and calculate ion sum
+    // // Get ion density gradients and calculate ion sum
     Array<OneD, NekDouble> ion_sum(nBCEdgePts, 0.0);
     // Add support for multiple ions later
     int n_species = 1;
@@ -92,7 +92,7 @@ void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
         Array<OneD, Array<OneD, NekDouble>> ni_grad(m_spacedim);
         for (int d = 0; d < m_spacedim; d++)
         {
-            ne_grad[d] = Array<OneD, NekDouble>(ni_bnd.size(), 0.0);
+            ni_grad[d] = Array<OneD, NekDouble>(ni_bnd.size(), 0.0);
         }
         if (m_spacedim == 2)
         {

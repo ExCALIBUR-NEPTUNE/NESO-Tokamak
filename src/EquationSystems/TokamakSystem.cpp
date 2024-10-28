@@ -11,7 +11,7 @@ static std::string class_name;
 std::string TokamakSystem::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
         "Tokamak", TokamakSystem::create,
-        "(2D) Tokamak equation system. Runs in either a 2D or 3D "
+        "Tokamak equation system. Runs in either a 2D or 3D "
         "domain.");
 /**
  * @brief Creates an instance of this class.
@@ -31,8 +31,8 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph),
       ExB_vel(graph->GetSpaceDimension())
 {
-    this->required_fld_names = {"phi", "w", "Te", "ne"};
-    this->int_fld_names      = {"w", "Te", "ne"};
+    this->required_fld_names = {"phi", "w", "Te", "ne", "Ti", "ni"};
+    this->int_fld_names      = {"w", "Te", "ne", "Ti", "ni"};
 
     // Determine whether energy,enstrophy recording is enabled (output freq is
     // set)
@@ -46,7 +46,11 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
 void TokamakSystem::ReadMagneticField()
 {
     int npoints = m_fields[0]->GetNpoints();
-    Array<OneD, MR::ExpListSharedPtr> B_in(3);
+    Array<OneD, Array<OneD, NekDouble>> B_in(3);
+    for (int d = 0; d < 3; ++d)
+    {
+        B_in[d] = Array<OneD, NekDouble>(npoints);
+    }
     this->B_pol  = Array<OneD, Array<OneD, NekDouble>>(3);
     this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
     std::vector<std::string> Bstring;
@@ -62,7 +66,7 @@ void TokamakSystem::ReadMagneticField()
             GetFunction("MagneticMeanField")->Evaluate(Bstring, B_in);
             for (int d = 0; d < 3; ++d)
             {
-                this->B_pol[d] = B[d]->GetPhys();
+                this->B_pol[d] = B_in[d];
             }
         }
         else if (this->m_graph->GetMeshDimension() == 3)
@@ -108,35 +112,40 @@ void TokamakSystem::ReadMagneticField()
     {
         GetFunction("MagneticField")->Evaluate(Bstring, B_in);
     }
+
     this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (int d = 0; d < 3; ++d)
     {
-        B[d] = std::static_pointer_cast<MR::DisContField>(B_in[d]);
+        B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        B[d]->UpdatePhys() = B_in[d];
     }
+
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
-    for (int i = 0; i < 3; ++i)
+    for (int d = 0; d < 3; ++d)
     {
-        Vmath::Vvtvp(npoints, B[i]->GetPhys(), 1, B[i]->GetPhys(), 1, mag_B, 1,
+        Vmath::Vvtvp(npoints, B[d]->GetPhys(), 1, B[d]->GetPhys(), 1, mag_B, 1,
                      mag_B, 1);
     }
 
-    for (auto idim = 0; idim < 3; idim++)
+    for (int d = 0; d < 3; d++)
     {
-        b_unit[idim] = Array<OneD, NekDouble>(npoints, 0.0);
+        b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
         for (int k = 0; k < npoints; ++k)
         {
-            this->b_unit[idim][k] = (this->mag_B[k] > 0)
-                                        ? B[idim]->GetPhys()[k] / this->mag_B[k]
-                                        : 0.0;
+            this->b_unit[d][k] = (this->mag_B[k] > 0)
+                                     ? B[d]->GetPhys()[k] / this->mag_B[k]
+                                     : 0.0;
         }
     }
 }
 
-void CalcDiffTensor()
+void TokamakSystem::CalcDiffTensor()
 {
     /// Anisotropic Diffusivity Tensor
     m_session->LoadParameter("k_par", m_kpar, 100.0);
     m_session->LoadParameter("k_perp", m_kperp, 1.0);
+    int npoints = m_fields[0]->GetNpoints();
 
     Array<OneD, NekDouble> d00(npoints, 1.0);
     Array<OneD, NekDouble> d01(npoints, 0.0);
@@ -187,6 +196,7 @@ void TokamakSystem::load_params()
     ReadMagneticField();
     CalcDiffTensor();
     m_session->LoadSolverInfo("Mode", m_mode, "MeanFluid");
+    nSpecies = 2;
 
     /// Perp Laplace Tensor
     Array<OneD, NekDouble> phi_d00(npoints, 1.0);
@@ -201,15 +211,15 @@ void TokamakSystem::load_params()
 
     for (int k = 0; k < npoints; k++)
     {
-        d00[k] = -b_unit[0][k] * b_unit[0][k] + 1;
-        d01[k] = -b_unit[0][k] * b_unit[1][k];
-        d02[k] = -b_unit[0][k] * b_unit[2][k];
-        d10[k] = -b_unit[1][k] * b_unit[0][k];
-        d11[k] = -b_unit[1][k] * b_unit[1][k] + 1;
-        d12[k] = -b_unit[1][k] * b_unit[2][k];
-        d20[k] = -b_unit[2][k] * b_unit[0][k];
-        d21[k] = -b_unit[2][k] * b_unit[1][k];
-        d22[k] = -b_unit[2][k] * b_unit[2][k] + 1;
+        phi_d00[k] = -b_unit[0][k] * b_unit[0][k] + 1;
+        phi_d01[k] = -b_unit[0][k] * b_unit[1][k];
+        phi_d02[k] = -b_unit[0][k] * b_unit[2][k];
+        phi_d10[k] = -b_unit[1][k] * b_unit[0][k];
+        phi_d11[k] = -b_unit[1][k] * b_unit[1][k] + 1;
+        phi_d12[k] = -b_unit[1][k] * b_unit[2][k];
+        phi_d20[k] = -b_unit[2][k] * b_unit[0][k];
+        phi_d21[k] = -b_unit[2][k] * b_unit[1][k];
+        phi_d22[k] = -b_unit[2][k] * b_unit[2][k] + 1;
     }
 
     m_phi_varcoeff[StdRegions::eVarCoeffD00] = phi_d00;
@@ -631,9 +641,9 @@ void TokamakSystem::v_InitObject(bool create_field)
     TimeEvoEqnSysBase::v_InitObject(create_field);
 
     m_grad_phi = Array<OneD, MR::DisContFieldSharedPtr>(m_spacedim);
-    for (int i = 0; i < m_spacedim; ++i)
+    for (int d = 0; d < m_spacedim; ++d)
     {
-        m_grad_phi[i] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        m_grad_phi[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
 
@@ -723,11 +733,11 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
-
+    int nConvectiveFields = 1 + 2 * nSpecies;
     if (!m_explicitAdvection)
     {
         m_implHelper =
-            std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode, 3);
+            std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode, nConvectiveFields);
         m_implHelper->InitialiseNonlinSysSolver();
         m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
                                   m_implHelper);

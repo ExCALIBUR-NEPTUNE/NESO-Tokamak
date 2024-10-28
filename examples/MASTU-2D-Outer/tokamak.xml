@@ -2,8 +2,7 @@
 <NEKTAR>
     <COLLECTIONS DEFAULT="auto" />
     <EXPANSIONS>
-        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
-        <E COMPOSITE="C[3]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
+        <E COMPOSITE="C[1]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
     </EXPANSIONS>
 
     <CONDITIONS>
@@ -85,7 +84,7 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <B ID="1"> C[2] </B>
+            <B ID="1"> C[100] </B>
         </BOUNDARYREGIONS>
         <BOUNDARYCONDITIONS>
             <!--Wall -->
