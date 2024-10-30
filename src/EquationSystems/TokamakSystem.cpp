@@ -134,7 +134,7 @@ void TokamakSystem::ReadMagneticField()
         for (int k = 0; k < npoints; ++k)
         {
             this->b_unit[d][k] = (this->mag_B[k] > 0)
-                                     ? B[d]->GetPhys()[k] / this->mag_B[k]
+                                     ? B[d]->GetPhys()[k] / std::sqrt(this->mag_B[k])
                                      : 0.0;
         }
     }
@@ -305,7 +305,6 @@ void TokamakSystem::ComputeGradPhi()
     m_fields[phi_idx]->PhysDeriv(
         m_fields[phi_idx]->GetPhys(), m_grad_phi[0]->UpdatePhys(),
         m_grad_phi[1]->UpdatePhys(), m_grad_phi[2]->UpdatePhys());
-
     m_grad_phi[0]->FwdTrans(m_grad_phi[0]->GetPhys(),
                             m_grad_phi[0]->UpdateCoeffs());
     m_grad_phi[1]->FwdTrans(m_grad_phi[1]->GetPhys(),
@@ -640,8 +639,8 @@ void TokamakSystem::v_InitObject(bool create_field)
 {
     TimeEvoEqnSysBase::v_InitObject(create_field);
 
-    m_grad_phi = Array<OneD, MR::DisContFieldSharedPtr>(m_spacedim);
-    for (int d = 0; d < m_spacedim; ++d)
+    m_grad_phi = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    for (int d = 0; d < 3; ++d)
     {
         m_grad_phi[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));

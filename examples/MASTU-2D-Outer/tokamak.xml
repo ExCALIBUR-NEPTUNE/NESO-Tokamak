@@ -19,8 +19,8 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 1e3               </P>
-            <P> FinalTime      = 100000            </P>
+            <P> TimeStep       = 1e-6               </P>
+            <P> FinalTime      = 1e-1            </P>
             <P> NumSteps       = FinalTime/TimeStep</P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -38,7 +38,6 @@
             <P> lambda         = 13.0              </P>
             <P> theta          = 2.0               </P>
             <P> n              = 1e18              </P>
-            <P> B              = 1.0               </P>
             <!-- <P> k_par          = 19.2 * sqrt(2.0 * PI^3.0) * (1.0/sqrt(m_e)) * (epsilon_0^2.0 / e^4.0) * (((k_B * T_e)^(5.0/2.0))/((Z^2.0) * lambda)) </P> -->
             <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
             <P> a              = 200.0             </P>
@@ -46,7 +45,7 @@
             <P> HW_alpha        = 2   </P>
             <P> HW_kappa        = 1   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e4   </P>
+            <P> k_par           = 1e6   </P>
             <P> k_perp          = 1   </P>
             <P> TCore           = 300.0 </P>
             <!-- Scaling factor for ICs -->
