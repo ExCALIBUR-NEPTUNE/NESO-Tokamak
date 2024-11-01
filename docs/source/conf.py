@@ -11,4 +11,5 @@ templates_path = ["_templates"]
 exclude_patterns = []
 source_suffix = ['.rst', '.md']
 
+html_css_files = ["custom.css"]
 html_theme = "alabaster"
