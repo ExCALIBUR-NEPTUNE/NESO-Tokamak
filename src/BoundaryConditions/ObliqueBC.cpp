@@ -28,23 +28,26 @@ ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
             m_diffusivity[i][j] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
         }
     }
-    m_session->LoadParameter("k_par", m_kpar, 100.0);
-    m_session->LoadParameter("k_perp", m_kperp, 1.0);
+    NekDouble k_par, k_perp;
+    m_session->LoadParameter("k_par", k_par, 100.0);
+    m_session->LoadParameter("k_perp", k_perp, 1.0);
+    m_kpar  = Array<OneD, NekDouble>(nBCEdgePts, k_par);
+    m_kperp = Array<OneD, NekDouble>(nBCEdgePts, k_perp);
 
     for (int k = 0; k < nBCEdgePts; k++)
     {
         m_diffusivity[0][0][k] =
-            (m_kpar - m_kperp) * B[0][k] * B[0][k] + m_kperp;
-        m_diffusivity[0][1][k] = (m_kpar - m_kperp) * B[0][k] * B[1][k];
-        m_diffusivity[0][2][k] = (m_kpar - m_kperp) * B[0][k] * B[2][k];
-        m_diffusivity[1][0][k] = (m_kpar - m_kperp) * B[1][k] * B[0][k];
+            (m_kpar[k] - m_kperp[k]) * B[0][k] * B[0][k] + m_kperp[k];
+        m_diffusivity[0][1][k] = (m_kpar[k] - m_kperp[k]) * B[0][k] * B[1][k];
+        m_diffusivity[0][2][k] = (m_kpar[k] - m_kperp[k]) * B[0][k] * B[2][k];
+        m_diffusivity[1][0][k] = (m_kpar[k] - m_kperp[k]) * B[1][k] * B[0][k];
         m_diffusivity[1][1][k] =
-            (m_kpar - m_kperp) * B[1][k] * B[1][k] + m_kperp;
-        m_diffusivity[1][2][k] = (m_kpar - m_kperp) * B[1][k] * B[2][k];
-        m_diffusivity[2][0][k] = (m_kpar - m_kperp) * B[2][k] * B[0][k];
-        m_diffusivity[2][1][k] = (m_kpar - m_kperp) * B[2][k] * B[1][k];
+            (m_kpar[k] - m_kperp[k]) * B[1][k] * B[1][k] + m_kperp[k];
+        m_diffusivity[1][2][k] = (m_kpar[k] - m_kperp[k]) * B[1][k] * B[2][k];
+        m_diffusivity[2][0][k] = (m_kpar[k] - m_kperp[k]) * B[2][k] * B[0][k];
+        m_diffusivity[2][1][k] = (m_kpar[k] - m_kperp[k]) * B[2][k] * B[1][k];
         m_diffusivity[2][2][k] =
-            (m_kpar - m_kperp) * B[2][k] * B[2][k] + m_kperp;
+            (m_kpar[k] - m_kperp[k]) * B[2][k] * B[2][k] + m_kperp[k];
     }
 }
 

@@ -37,6 +37,7 @@ src/EquationSystems/TokamakSystem.cpp
 src/BoundaryConditions/TokamakBndCond.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/SheathBC.cpp
+src/Forcing/ReactionsCoupling.cpp
 )
 
 # ##############################################################################

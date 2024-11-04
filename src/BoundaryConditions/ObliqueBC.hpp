@@ -37,8 +37,8 @@ private:
     ~ObliqueBC(void) override {};
 
     Array<OneD, NekDouble> m_diffusivity[3][3];
-    NekDouble m_kpar;
-    NekDouble m_kperp;
+    Array<OneD, NekDouble> m_kpar;
+    Array<OneD, NekDouble> m_kperp;
 };
 
 } // namespace NESO::Solvers::tokamak

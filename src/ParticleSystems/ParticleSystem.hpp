@@ -90,6 +90,8 @@ public:
         this->session->LoadParameter("particle_velocity_B_scaling",
                                      particle_velocity_B_scaling, 0.0);
 
+        this->particle_remover =
+            std::make_shared<ParticleRemover>(this->sycl_target);
         // Report param values (later in the initialisation)
         report_param("Random seed", seed);
         report_param("Mass", particle_mass);
@@ -189,6 +191,42 @@ public:
     }
 
     /**
+     * Setup the projection object to use the following fields.
+     *
+     * @param rho_src Nektar++ fields to project ionised particle data onto.
+     */
+    inline void setup_project(std::shared_ptr<DisContField> ni_src,
+                              std::shared_ptr<DisContField> E_src)
+    {
+        std::vector<std::shared_ptr<DisContField>> fields = {ni_src, E_src};
+        this->field_project = std::make_shared<FieldProject<DisContField>>(
+            fields, this->particle_group, this->cell_id_translation);
+
+        // Setup debugging output for each field
+        this->fields["ni_src"] = ni_src;
+        this->fields["E_src"]  = E_src;
+    }
+
+    /**
+     *  Project the plasma source and momentum contributions from particle data
+     *  onto field data.
+     */
+    inline void project_source_terms()
+    {
+        NESOASSERT(this->field_project != nullptr,
+                   "Field project object is null. Was setup_project called?");
+
+        std::vector<Sym<REAL>> syms = {
+            Sym<REAL>("SOURCE_DENSITY"), Sym<REAL>("SOURCE_MOMENTUM"),
+            Sym<REAL>("SOURCE_MOMENTUM"), Sym<REAL>("SOURCE_ENERGY")};
+        std::vector<int> components = {0, 0, 1, 0};
+        this->field_project->project(syms, components);
+
+        // remove fully ionised particles from the simulation
+        remove_marked_particles();
+    }
+
+    /**
      * Set up the evaluation of grad(phi).
      *
      * @param gradphi0 Nektar++ field storing grad(phi) in direction 0.
@@ -263,6 +301,14 @@ public:
         this->field_evaluate_B0->evaluate(Sym<REAL>("B0"));
         this->field_evaluate_B1->evaluate(Sym<REAL>("B1"));
         this->field_evaluate_B2->evaluate(Sym<REAL>("B2"));
+    }
+
+    inline void remove_marked_particles()
+    {
+        this->particle_remover->remove(
+            this->particle_group,
+            (*this->particle_group)[Sym<INT>("PARTICLE_ID")],
+            this->particle_remove_key);
     }
 
     /**
@@ -378,7 +424,10 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")))
             ->execute();
     };
+    const int particle_remove_key = -1;
+    std::shared_ptr<ParticleRemover> particle_remover;
 
+    std::shared_ptr<FieldProject<DisContField>> field_project;
     /// Object used to evaluate Nektar electric field
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi0;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi1;

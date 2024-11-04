@@ -4,7 +4,7 @@
 #include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
-
+#include "../Forcing/ReactionsCoupling.hpp"
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
@@ -153,8 +153,8 @@ private:
     StdRegions::VarCoeffMap m_phi_varcoeff;
 
     // For Diffusion
-    NekDouble m_kperp;
-    NekDouble m_kpar;
+    Array<OneD, NekDouble> m_kperp;
+    Array<OneD, NekDouble> m_kpar;
     StdRegions::ConstFactorMap m_factors;
     StdRegions::VarCoeffMap m_varcoeff;
 
@@ -174,6 +174,9 @@ private:
     SU::RiemannSolverSharedPtr riemann_solver;
 
     std::shared_ptr<ImplicitHelper> m_implHelper;
+
+    /// Forcing terms
+    std::vector<SolverUtils::ForcingSharedPtr> m_forcing;
 
     Array<OneD, NekDouble> &GetAdvVelNormElec();
 

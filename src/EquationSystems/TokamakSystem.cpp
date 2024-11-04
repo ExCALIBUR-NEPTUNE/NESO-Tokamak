@@ -1,5 +1,7 @@
 #include "TokamakSystem.hpp"
 #include <LibUtilities/BasicUtils/Vmath.hpp>
+#include <FieldUtils/Interpolator.h>
+
 #include <LibUtilities/TimeIntegration/TimeIntegrationScheme.h>
 #include <boost/core/ignore_unused.hpp>
 
@@ -34,6 +36,11 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
     this->required_fld_names = {"phi", "w", "Te", "ne", "Ti", "ni"};
     this->int_fld_names      = {"w", "Te", "ne", "Ti", "ni"};
 
+    if (this->particles_enabled)
+    {
+        this->required_fld_names.push_back("n_src");
+        this->required_fld_names.push_back("E_src");
+    }
     // Determine whether energy,enstrophy recording is enabled (output freq is
     // set)
     this->energy_enstrophy_recording_enabled =
@@ -71,40 +78,91 @@ void TokamakSystem::ReadMagneticField()
         }
         else if (this->m_graph->GetMeshDimension() == 3)
         {
-            Array<OneD, Array<OneD, NekDouble>> B2D(3);
-            GetFunction("MagneticMeanField")->Evaluate(Bstring, B2D);
 
-            Array<OneD, Array<OneD, NekDouble>> B3D(3);
-            for (int d = 0; d < 3; ++d)
-            {
-                B3D[d]   = Array<OneD, NekDouble>(npoints, 0.0);
-                B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
-            }
-
+            LU::PtsIO ptsIO(m_session->GetComm());
+            std::string filename =
+                m_session->GetFunctionFilename("MagneticMeanField", "Bx");
+            LU::PtsFieldSharedPtr inPts2D;
+            ptsIO.Import(filename, inPts2D);
+            // B2D is [x,y,Bx,By,Bz]
+            Array<OneD, Array<OneD, NekDouble>> B2D;
+            inPts2D->GetPts(B2D);
             int npoints_2d = B2D[0].size();
-            int increments = npoints / npoints_2d;
+
+            // B2D is [x,y,z,Bx,By,Bz]
+            Array<OneD, Array<OneD, NekDouble>> B3D(6);
+            int increments = 12;
+
+            for (int d = 0; d < 6; ++d)
+            {
+                B3D[d] = Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
+                // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
+            }
             Array<OneD, NekDouble> Bx(npoints_2d);
             Array<OneD, NekDouble> Bz(npoints_2d);
+            Array<OneD, NekDouble> x(npoints_2d);
+            Array<OneD, NekDouble> z(npoints_2d);
             for (int i = 0; i < increments; ++i)
             {
+                // Straight copy y and By
                 Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B3D[1][i * npoints_2d],
+                             1);
+                Vmath::Vcopy(npoints_2d, &B2D[3][0], 1, &B3D[3][i * npoints_2d],
                              1);
 
                 NekDouble theta = i * 2 * M_PI / increments;
                 for (int j = 0; j < npoints_2d; ++j)
                 {
-                    Bx[j] = cos(theta) * B2D[0][j] - sin(theta) * B2D[2][j];
-                    Bz[j] = cos(theta) * B2D[2][j] + sin(theta) * B2D[0][j];
+                    x[j]  = cos(theta) * B2D[0][j];
+                    z[j]  = sin(theta) * B2D[0][j];
+                    Bx[j] = cos(theta) * B2D[2][j] - sin(theta) * B2D[4][j];
+                    Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
                 }
-                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[0][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[2][i * npoints_2d], 1);
 
-                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
-                             &B_pol[1][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
-                             &B_pol[0][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
-                             &B_pol[2][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d], 1);
+                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d], 1);
+
+                // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
+                //              &B_pol[1][i * npoints_2d], 1);
+                // Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
+                //              &B_pol[0][i * npoints_2d], 1);
+                // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
+                //              &B_pol[2][i * npoints_2d], 1);
+            }
+            LU::PtsFieldSharedPtr inPts;
+
+            inPts = MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
+
+            Array<OneD, Array<OneD, NekDouble>> pts(6);
+            for (int i = 0; i < 6; ++i)
+            {
+                pts[i] = Array<OneD, NekDouble>(npoints);
+            }
+            m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
+            LU::PtsFieldSharedPtr outPts;
+            outPts =
+                MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring, pts);
+            FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
+
+            interp =
+                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
+                    LU::eShepard);
+            interp.CalcWeights(inPts, outPts);
+            if (m_session->GetComm()->GetRank() == 0)
+            {
+                std::cout << std::endl;
+                if (m_session->DefinesCmdLineArgument("verbose"))
+                {
+                    interp.PrintStatistics();
+                }
+            }
+
+            interp.Interpolate(inPts, outPts);
+            for (int d = 0; d < 3; ++d)
+            {
+                outPts->SetPts(d + 3, B_in[d]);
             }
         }
     }
@@ -133,9 +191,10 @@ void TokamakSystem::ReadMagneticField()
         b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
         for (int k = 0; k < npoints; ++k)
         {
-            this->b_unit[d][k] = (this->mag_B[k] > 0)
-                                     ? B[d]->GetPhys()[k] / std::sqrt(this->mag_B[k])
-                                     : 0.0;
+            this->b_unit[d][k] =
+                (this->mag_B[k] > 0)
+                    ? B[d]->GetPhys()[k] / std::sqrt(this->mag_B[k])
+                    : 0.0;
         }
     }
 }
@@ -143,9 +202,14 @@ void TokamakSystem::ReadMagneticField()
 void TokamakSystem::CalcDiffTensor()
 {
     /// Anisotropic Diffusivity Tensor
-    m_session->LoadParameter("k_par", m_kpar, 100.0);
-    m_session->LoadParameter("k_perp", m_kperp, 1.0);
+
+    NekDouble k_par, k_perp;
+    m_session->LoadParameter("k_par", k_par, 100.0);
+    m_session->LoadParameter("k_perp", k_perp, 1.0);
     int npoints = m_fields[0]->GetNpoints();
+
+    m_kpar  = Array<OneD, NekDouble>(npoints, k_par);
+    m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
 
     Array<OneD, NekDouble> d00(npoints, 1.0);
     Array<OneD, NekDouble> d01(npoints, 0.0);
@@ -159,15 +223,18 @@ void TokamakSystem::CalcDiffTensor()
 
     for (int k = 0; k < npoints; k++)
     {
-        d00[k] = (m_kpar - m_kperp) * b_unit[0][k] * b_unit[0][k] + m_kperp;
-        d01[k] = (m_kpar - m_kperp) * b_unit[0][k] * b_unit[1][k];
-        d02[k] = (m_kpar - m_kperp) * b_unit[0][k] * b_unit[2][k];
-        d10[k] = (m_kpar - m_kperp) * b_unit[1][k] * b_unit[0][k];
-        d11[k] = (m_kpar - m_kperp) * b_unit[1][k] * b_unit[1][k] + m_kperp;
-        d12[k] = (m_kpar - m_kperp) * b_unit[1][k] * b_unit[2][k];
-        d20[k] = (m_kpar - m_kperp) * b_unit[2][k] * b_unit[0][k];
-        d21[k] = (m_kpar - m_kperp) * b_unit[2][k] * b_unit[1][k];
-        d22[k] = (m_kpar - m_kperp) * b_unit[2][k] * b_unit[2][k] + m_kperp;
+        d00[k] =
+            (m_kpar[k] - m_kperp[k]) * b_unit[0][k] * b_unit[0][k] + m_kperp[k];
+        d01[k] = (m_kpar[k] - m_kperp[k]) * b_unit[0][k] * b_unit[1][k];
+        d02[k] = (m_kpar[k] - m_kperp[k]) * b_unit[0][k] * b_unit[2][k];
+        d10[k] = (m_kpar[k] - m_kperp[k]) * b_unit[1][k] * b_unit[0][k];
+        d11[k] =
+            (m_kpar[k] - m_kperp[k]) * b_unit[1][k] * b_unit[1][k] + m_kperp[k];
+        d12[k] = (m_kpar[k] - m_kperp[k]) * b_unit[1][k] * b_unit[2][k];
+        d20[k] = (m_kpar[k] - m_kperp[k]) * b_unit[2][k] * b_unit[0][k];
+        d21[k] = (m_kpar[k] - m_kperp[k]) * b_unit[2][k] * b_unit[1][k];
+        d22[k] =
+            (m_kpar[k] - m_kperp[k]) * b_unit[2][k] * b_unit[2][k] + m_kperp[k];
     }
     m_varcoeff[StdRegions::eVarCoeffD00] = d00;
     m_varcoeff[StdRegions::eVarCoeffD01] = d01;
@@ -385,7 +452,7 @@ void TokamakSystem::DoOdeRhsMF(
     }
     for (int i = 0; i < m_spacedim; ++i)
     {
-        Vmath::Smul(npts, m_kperp, gradn[i], 1, this->ExB_vel[i], 1);
+        Vmath::Vmul(npts, m_kperp, 1, gradn[i], 1, this->ExB_vel[i], 1);
     }
 
     size_t nvariables = in_arr.size();
@@ -411,6 +478,11 @@ void TokamakSystem::DoOdeRhsMF(
     {
         Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
                     out_arr[i], 1);
+    }
+    // Add forcing terms
+    for (auto &x : m_forcing)
+    {
+        x->Apply(m_fields, in_arr, out_arr, time);
     }
 }
 
@@ -503,6 +575,11 @@ void TokamakSystem::DoOdeRhsET(
     {
         Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
                     out_arr[i], 1);
+    }
+    // Add forcing terms
+    for (auto &x : m_forcing)
+    {
+        x->Apply(m_fields, in_arr, out_arr, time);
     }
 }
 
@@ -718,6 +795,16 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->particle_sys->setup_evaluate_grad_phi(
             m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
+
+        // Create src fields for coupling to reactions
+        this->discont_fields["ni_src"] =
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->discont_fields["E_src"] =
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->particle_sys->setup_project(this->discont_fields["ni_src"],
+                                          this->discont_fields["E_src"]);
     }
 
     // Bind RHS function for explicit time integration
@@ -735,12 +822,16 @@ void TokamakSystem::v_InitObject(bool create_field)
     int nConvectiveFields = 1 + 2 * nSpecies;
     if (!m_explicitAdvection)
     {
-        m_implHelper =
-            std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode, nConvectiveFields);
+        m_implHelper = std::make_shared<ImplicitHelper>(
+            m_session, m_fields, m_ode, nConvectiveFields);
         m_implHelper->InitialiseNonlinSysSolver();
         m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
                                   m_implHelper);
     }
+
+    // Forcing terms for coupling to Reactions
+    m_forcing = SolverUtils::Forcing::Load(m_session, shared_from_this(),
+                                           m_fields, m_fields.size());
 
     // Setup boundary conditions
     for (size_t i = 0; i < m_fields.size(); ++i)
@@ -844,6 +935,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
         // Integrate the particle system to the requested time.
         this->particle_sys->evaluate_fields();
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
+        this->particle_sys->project_source_terms();
     }
 
     return UnsteadySystem::v_PreIntegrate(step);
