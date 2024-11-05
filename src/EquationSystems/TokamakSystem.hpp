@@ -3,8 +3,8 @@
 
 #include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
-#include "../ParticleSystems/ParticleSystem.hpp"
 #include "../Forcing/ReactionsCoupling.hpp"
+#include "../ParticleSystems/ParticleSystem.hpp"
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
@@ -15,8 +15,8 @@
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
 
-#include <solvers/solver_callback_handler.hpp>
 #include "ImplicitHelper.hpp"
+#include <solvers/solver_callback_handler.hpp>
 
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
@@ -114,7 +114,12 @@ protected:
 
     virtual void load_params() override;
     void ReadMagneticField();
+    void CalcKPar();
+    void CalcKPerp();
     void CalcDiffTensor();
+    void CalcKappaPar();
+    void CalcKappaPerp();
+    void CalcKappaTensor();
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
     void ComputeGradPhi();
@@ -150,13 +155,27 @@ protected:
                                         const int domain) override;
 
 private:
+    // Convenience key for varcoeffmaps
+    static constexpr StdRegions::VarCoeffType vc[3][3] = {
+        {StdRegions::eVarCoeffD00, StdRegions::eVarCoeffD01,
+         StdRegions::eVarCoeffD02},
+        {StdRegions::eVarCoeffD01, StdRegions::eVarCoeffD11,
+         StdRegions::eVarCoeffD12},
+        {StdRegions::eVarCoeffD02, StdRegions::eVarCoeffD12,
+         StdRegions::eVarCoeffD22}};
+
     StdRegions::VarCoeffMap m_phi_varcoeff;
 
     // For Diffusion
+    StdRegions::ConstFactorMap m_factors;
+
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
-    StdRegions::ConstFactorMap m_factors;
-    StdRegions::VarCoeffMap m_varcoeff;
+    StdRegions::VarCoeffMap m_D;
+
+    Array<OneD, NekDouble> m_kappaperp;
+    Array<OneD, NekDouble> m_kappapar;
+    StdRegions::VarCoeffMap m_kappa;
 
     /// Storage for component of ne advection velocity normal to trace elements
     Array<OneD, NekDouble> norm_vel_elec;
@@ -184,12 +203,12 @@ private:
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &viscous_tensor);
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
     // Advective Flux vector
     void GetFluxVectorElec(
         const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 };
 
 } // namespace NESO::Solvers::tokamak

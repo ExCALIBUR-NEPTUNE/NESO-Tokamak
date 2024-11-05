@@ -12,8 +12,9 @@ std::string SheathBC::className =
 SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
-                   const int pSpaceDim, const int bcRegion, const int cnt)
-    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion, cnt)
+                   const int pSpaceDim, const int bcRegion, const int index)
+    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion,
+                     index)
 {
     m_session->LoadParameter("Ge", Ge, 0.0);
     m_session->LoadParameter("lambda", lambda, 0.0);
@@ -24,17 +25,13 @@ SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
     int nBCEdgePts =
         m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
 
-    // Extract magnetic field to boundary then take dot product with normals to
+    // Take dot product of unit b with normals to
     // get wall angle
-    Array<OneD, Array<OneD, NekDouble>> B(3);
     sin_alpha = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
     for (int d = 0; d < m_spacedim; ++d)
     {
-        B[d] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
-        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, m_magneticFieldTrace[d],
-                                          B[d]);
         // B.n = Bncos(pi-alpha)=sin(alpha)
-        Vmath::Vvtvp(nBCEdgePts, B[d], 1, m_normals[d], 1, sin_alpha, 1,
+        Vmath::Vvtvp(nBCEdgePts, m_b[d], 1, m_normals[d], 1, sin_alpha, 1,
                      sin_alpha, 1);
     }
 }

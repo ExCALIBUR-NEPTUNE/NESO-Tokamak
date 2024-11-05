@@ -59,8 +59,8 @@ protected:
     Array<OneD, MR::ExpListSharedPtr> m_fields;
     /// Trace normals
     Array<OneD, Array<OneD, NekDouble>> m_normals;
-    /// Oblique Field
-    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
+    /// Unit magnetic field
+    Array<OneD, Array<OneD, NekDouble>> m_b;
     /// Space dimension
     int m_spacedim;
     /// Weight for average calculation of diffusion term
@@ -68,8 +68,12 @@ protected:
 
     /// Id of the boundary region
     int m_bcRegion;
-    /// Offset
-    int m_offset;
+
+    /// Index of field
+    int m_index;
+
+    int m_nEdgePts;
+    
     /// Expansion of boundary adjacent elements
     MultiRegions::ExpListSharedPtr m_bndElmtExp;
     /// Expansion of boundary
@@ -79,7 +83,7 @@ protected:
     TokamakBndCond(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-                   const int pSpaceDim, const int bcRegion, const int cnt);
+                   const int pSpaceDim, const int bcRegion, const int index);
 
     virtual void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                          const NekDouble &time) = 0;

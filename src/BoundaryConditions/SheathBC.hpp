@@ -15,11 +15,11 @@ public:
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion, const int cnt)
+        const int pSpaceDim, const int bcRegion, const int index)
 
     {
         TokamakBndCondSharedPtr p = MemoryManager<SheathBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, cnt);
+            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, index);
         return p;
     }
 
@@ -33,7 +33,7 @@ private:
     SheathBC(const LU::SessionReaderSharedPtr &pSession,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-              const int pSpaceDim, const int bcRegion, const int cnt);
+              const int pSpaceDim, const int bcRegion, const int index);
     ~SheathBC(void) override {};
 
     // Hardcoded for now

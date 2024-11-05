@@ -15,11 +15,11 @@ public:
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion, const int cnt)
+        const int pSpaceDim, const int bcRegion, const int index)
 
     {
         TokamakBndCondSharedPtr p = MemoryManager<ObliqueBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, cnt);
+            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, index);
         return p;
     }
 
@@ -33,12 +33,16 @@ private:
     ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-              const int pSpaceDim, const int bcRegion, const int cnt);
+              const int pSpaceDim, const int bcRegion, const int index);
     ~ObliqueBC(void) override {};
 
-    Array<OneD, NekDouble> m_diffusivity[3][3];
-    Array<OneD, NekDouble> m_kpar;
-    Array<OneD, NekDouble> m_kperp;
+    void CalcKPar();
+    void CalcKPerp();
+    void CalcDTensor();
+    void AddRHS();
+    Array<OneD, NekDouble> m_D[3][3];
+    Array<OneD, NekDouble> kpar;
+    Array<OneD, NekDouble> kperp;
 };
 
 } // namespace NESO::Solvers::tokamak
