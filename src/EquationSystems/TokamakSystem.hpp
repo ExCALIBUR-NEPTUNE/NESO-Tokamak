@@ -63,8 +63,16 @@ protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
                   const SD::MeshGraphSharedPtr &graph);
 
-    /// Simulate in mean fluid or turbulent mode
-    std::string m_mode;
+    /// Magnetic field vector
+    Array<OneD, MR::DisContFieldSharedPtr> B;
+    /// Normalised magnetic field vector
+    Array<OneD, Array<OneD, NekDouble>> b_unit;
+    // B in cylindrical polar (r, z, theta)
+    Array<OneD, Array<OneD, NekDouble>> B_pol;
+    /// Magnitude of the magnetic field
+    Array<OneD, NekDouble> mag_B;
+    /// Trace of magnetic field
+    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
     /// Advection object used in the electron density equation
     SU::AdvectionSharedPtr m_advection;
@@ -75,29 +83,8 @@ protected:
     /// Diffusion object used in anisotropic diffusion
     SU::DiffusionSharedPtr m_diffusion;
 
-    /// Hasegawa-Wakatani α
-    NekDouble alpha;
-    /// Hasegawa-Wakatani κ
-    NekDouble kappa;
-
     /// Sheath potential
     NekDouble lambda;
-
-    /// Potential Gradient/-E
-    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
-
-    /// Magnetic field vector
-    Array<OneD, MR::DisContFieldSharedPtr> B;
-    /// Normalised magnetic field vector
-    Array<OneD, Array<OneD, NekDouble>> b_unit;
-    // B in cylindrical polar (r, z, theta)
-    Array<OneD, Array<OneD, NekDouble>> B_pol;
-
-    /// Magnitude of the magnetic field
-    Array<OneD, NekDouble> mag_B;
-
-    /// Trace of magnetic field
-    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
     /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
      * particle evaluation/projection methods
@@ -106,55 +93,13 @@ protected:
 
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
-    /// Storage for ExB drift velocity
-    Array<OneD, Array<OneD, NekDouble>> ExB_vel;
 
     /// Boundary Conditions
     std::vector<TokamakBndCondSharedPtr> m_bndConds;
 
-    virtual void load_params() override;
-    void ReadMagneticField();
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcDiffTensor();
-    void CalcKappaPar();
-    void CalcKappaPerp();
-    void CalcKappaTensor();
-    void CalcInitPhi();
-    void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
-    void ComputeGradPhi();
+    /// Forcing terms
+    std::vector<SolverUtils::ForcingSharedPtr> m_forcing;
 
-    void DoOdeRhsMF(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-                    Array<OneD, Array<OneD, NekDouble>> &out_arr,
-                    const NekDouble time);
-    void DoOdeRhsET(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-                    Array<OneD, Array<OneD, NekDouble>> &out_arr,
-                    const NekDouble time);
-
-    void DoOdeProjection(
-        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
-
-    Array<OneD, NekDouble> &GetAdvVelNorm(
-        Array<OneD, NekDouble> &trace_vel_norm,
-        const Array<OneD, Array<OneD, NekDouble>> &adv_vel);
-
-    void GetFluxVector(const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
-                       const Array<OneD, Array<OneD, NekDouble>> &adv_vel,
-                       Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);
-
-    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                               NekDouble time);
-    void SetBoundaryConditionsBwdWeight();
-
-    virtual void v_GenerateSummary(SU::SummaryList &s) override;
-    virtual void v_InitObject(bool DeclareField) override;
-    virtual bool v_PostIntegrate(int step) override;
-    virtual bool v_PreIntegrate(int step) override;
-    virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
-                                        const int domain) override;
-
-private:
     // Convenience key for varcoeffmaps
     static constexpr StdRegions::VarCoeffType vc[3][3] = {
         {StdRegions::eVarCoeffD00, StdRegions::eVarCoeffD01,
@@ -163,22 +108,6 @@ private:
          StdRegions::eVarCoeffD12},
         {StdRegions::eVarCoeffD02, StdRegions::eVarCoeffD12,
          StdRegions::eVarCoeffD22}};
-
-    StdRegions::VarCoeffMap m_phi_varcoeff;
-
-    // For Diffusion
-    StdRegions::ConstFactorMap m_factors;
-
-    Array<OneD, NekDouble> m_kperp;
-    Array<OneD, NekDouble> m_kpar;
-    StdRegions::VarCoeffMap m_D;
-
-    Array<OneD, NekDouble> m_kappaperp;
-    Array<OneD, NekDouble> m_kappapar;
-    StdRegions::VarCoeffMap m_kappa;
-
-    /// Storage for component of ne advection velocity normal to trace elements
-    Array<OneD, NekDouble> norm_vel_elec;
 
     /// Number of particle timesteps per fluid timestep.
     int num_part_substeps;
@@ -194,21 +123,27 @@ private:
 
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
-    /// Forcing terms
-    std::vector<SolverUtils::ForcingSharedPtr> m_forcing;
+    virtual void load_params() override;
+    void ReadMagneticField();
 
-    Array<OneD, NekDouble> &GetAdvVelNormElec();
+    void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                  Array<OneD, Array<OneD, NekDouble>> &out_arr,
+                  const NekDouble time);
 
-    // Diffusive Flux vector
-    void GetFluxVectorDiff(
-        const Array<OneD, Array<OneD, NekDouble>> &in_arr,
-        const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+    void DoOdeProjection(
+        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
-    // Advective Flux vector
-    void GetFluxVectorElec(
-        const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
+                               NekDouble time);
+    void SetBoundaryConditionsBwdWeight();
+
+    virtual void v_GenerateSummary(SU::SummaryList &s) override;
+    virtual void v_InitObject(bool DeclareField) override;
+    virtual bool v_PostIntegrate(int step) override;
+    virtual bool v_PreIntegrate(int step) override;
+    virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
+                                        const int domain) override;
 };
 
 } // namespace NESO::Solvers::tokamak
