@@ -31,7 +31,7 @@ SingleDiffusiveField::SingleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names.push_back("n_src");
+        this->required_fld_names = {"n_src"};
     }
 }
 
@@ -103,19 +103,10 @@ void SingleDiffusiveField::DoOdeRhs(
 
     Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nvariables);
     Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
-    for (int i = 0; i < nvariables; ++i)
-    {
-        outarrayDiff[i] = Array<OneD, NekDouble>(out_arr[i].size(), 0.0);
-        diff_fields[i]  = m_fields[i];
-    }
-    CalcDiffTensor();
-    m_diffusion->Diffuse(nvariables, diff_fields, in_arr, outarrayDiff);
 
-    for (int i = 0; i < nvariables; ++i)
-    {
-        Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
-                    out_arr[i], 1);
-    }
+    CalcDiffTensor();
+    m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
+
     // Add forcing terms
     for (auto &x : m_forcing)
     {

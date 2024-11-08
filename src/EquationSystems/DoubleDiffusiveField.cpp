@@ -27,12 +27,11 @@ DoubleDiffusiveField::DoubleDiffusiveField(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->required_fld_names = {"n", "p"};
+    this->required_fld_names = {"n", "p", "T"};
 
     if (this->particles_enabled)
     {
-        this->required_fld_names.push_back("n_src");
-        this->required_fld_names.push_back("E_src");
+        this->required_fld_names={"n_src", "E_src"};
     }
 }
 
@@ -47,7 +46,6 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     m_diffusion->SetFluxVector(&DoubleDiffusiveField::GetFluxVectorDiff, this);
     m_diffusion->InitObject(m_session, m_fields);
     m_ode.DefineOdeRhs(&DoubleDiffusiveField::DoOdeRhs, this);
-
 }
 
 void DoubleDiffusiveField::CalcKPar()
@@ -147,25 +145,21 @@ void DoubleDiffusiveField::DoOdeRhs(
 
     Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nvariables);
     Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
-    for (int i = 0; i < nvariables; ++i)
-    {
-        outarrayDiff[i] = Array<OneD, NekDouble>(out_arr[i].size(), 0.0);
-        diff_fields[i]  = m_fields[i];
-    }
+
     CalcDiffTensor();
     CalcKappaTensor();
-    m_diffusion->Diffuse(nvariables, diff_fields, in_arr, outarrayDiff);
+    m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
 
-    for (int i = 0; i < nvariables; ++i)
-    {
-        Vmath::Vadd(out_arr[i].size(), outarrayDiff[i], 1, out_arr[i], 1,
-                    out_arr[i], 1);
-    }
     // Add forcing terms
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, in_arr, out_arr, time);
     }
+    // Recalculate T from p and n
+    int T_idx = this->field_to_index["T"];
+    int n_idx = this->field_to_index["n"];
+    int p_idx = this->field_to_index["p"];
+    Vmath::Vdiv(npts, out_arr[p_idx], 1, out_arr[n_idx], 1, out_arr[T_idx], 1);
 }
 
 /**
@@ -181,21 +175,22 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
 
     int T_idx = this->field_to_index["T"];
     int n_idx = this->field_to_index["n"];
+    int p_idx = this->field_to_index["p"];
     for (unsigned int j = 0; j < nDim; ++j)
     {
-        // Calc diffusion of n with D tensor
+        // Calc diffusion of n with D tensor and n field
         Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][n_idx], 1,
                     fluxes[j][n_idx], 1);
-        // Calc diffusion of T with kappa tensor
+        // Calc diffusion of p with kappa tensor and T field
         Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1, qfield[0][T_idx], 1,
-                    fluxes[j][T_idx], 1);
+                    fluxes[j][p_idx], 1);
         for (unsigned int k = 1; k < nDim; ++k)
         {
             Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][n_idx], 1,
                          fluxes[j][n_idx], 1, fluxes[j][n_idx], 1);
             Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1,
-                         qfield[k][T_idx], 1, fluxes[j][T_idx], 1,
-                         fluxes[j][T_idx], 1);
+                         qfield[k][T_idx], 1, fluxes[j][p_idx], 1,
+                         fluxes[j][p_idx], 1);
         }
     }
 }

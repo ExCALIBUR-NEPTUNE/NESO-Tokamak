@@ -4,7 +4,7 @@
 # Helper functions
 echo_usage() {
     echo "Usage:"
-    echo "    $0 [example_name] <-n num_MPI> <-b build_dir>"
+    echo "    $0 [example_name] [2/3D] <-n num_MPI> <-b build_dir>"
 }
 
 execute() {
@@ -21,7 +21,8 @@ execute() {
 generate_run_dir() {
     local eg_dir="$1"
     local run_dir="$2"
-    run_dir="$REPO_ROOT/runs/$eg_name"
+    
+    run_dir="$REPO_ROOT/runs/$eg_name/$dim"
     if [ -e "$run_dir" ]; then
         read -p "Overwrite existing run directory at $run_dir? (Y/N): " choice && [[ $choice == [yY] || $choice == [yY][eE][sS] ]] || exit 5
         \rm -rf "$run_dir"
@@ -31,11 +32,11 @@ generate_run_dir() {
 }
 
 set_default_build_dir() {
-    build_dir=$(find "$REPO_ROOT" -maxdepth 1 -type d -name "spack-build*" -printf "%TY-%Tm-%Td %TT %p\n" | sort -n|tail -1|cut -d " " -f 3)
+    build_dir=$(find -L "$REPO_ROOT" -maxdepth 2 -type d -name "spack-build*" -printf "%TY-%Tm-%Td %TT %p\n" | sort -n|tail -1|cut -d " " -f 3)
 }
 
 parse_args() {
-    if [ $# -lt 1 ]; then
+    if [ $# -lt 2 ]; then
         echo_usage
         exit 1
     fi
@@ -69,6 +70,7 @@ parse_args() {
     # Restore and extract positional args
     set -- "${POSITIONAL_ARGS[@]}"
     eg_name=$1
+    dim=$2
 }
 
 report_options() {
@@ -100,7 +102,7 @@ validate_paths() {
 
     if [ -z "$build_dir" ]; then
         # default build dir wasn't found and none was supplied
-        echo "No build directory at ./spack-build*"
+        echo "No build directory at ./build-*/spack-build-*"
         echo "Set solver location with '-b <build_dir>'"
         exit 4
     fi
@@ -114,6 +116,7 @@ validate_paths() {
         echo
         echo "Valid example names are:"
         echo "$(find $REPO_ROOT/examples -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
+        echo "Valid example dimensions are: 2D, 3D"
         exit 4
     fi
 }
@@ -124,6 +127,7 @@ REPO_ROOT=$( cd -- "$(realpath $( dirname -- "${BASH_SOURCE[0]}" )/..)" &> /dev/
 # Default options
 solver_name="tokamak"
 eg_name='Not set'
+dim='Not set'
 nmpi='4'
 build_dir='Not set'
 set_default_build_dir
@@ -134,12 +138,12 @@ report_options
 
 # Set paths to the solver executable and example directory
 solver_exec="$build_dir/$solver_name"
-eg_dir="$REPO_ROOT/examples/$eg_name"
+eg_dir="$REPO_ROOT/examples/$eg_name/$dim"
 # Validate exec, examples paths
 validate_paths "$build_dir" "$solver_exec" "$eg_dir"
 
 # Set up run directory, confirming overwrite if it already exists
-run_dir="$REPO_ROOT/runs/$eg_name"
+run_dir="$REPO_ROOT/runs/$eg_name/$dim"
 generate_run_dir "$eg_dir" "$run_dir"
 
 # Read run command template and populate it
