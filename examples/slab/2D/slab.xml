@@ -20,7 +20,6 @@
             <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"                 />
             <I PROPERTY="UpwindType"                   VALUE="Upwind"                />
             <I PROPERTY="DiffusionAdvancement"         VALUE="Implicit"              />
-            <I PROPERTY="Mode"                         VALUE="ElectrostaticTurbulent"/>
         </SOLVERINFO>
 
         <PARAMETERS>

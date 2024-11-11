@@ -15,11 +15,10 @@ public:
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion, const int index)
-
+        const int pSpaceDim, const int bcRegion)
     {
         TokamakBndCondSharedPtr p = MemoryManager<ObliqueBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, index);
+            pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
         return p;
     }
 
@@ -33,8 +32,8 @@ private:
     ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-              const int pSpaceDim, const int bcRegion, const int index);
-    ~ObliqueBC(void) override {};
+              const int pSpaceDim, const int bcRegion);
+    ~ObliqueBC() override {};
 
     void CalcKPar();
     void CalcKPerp();

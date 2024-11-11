@@ -7,7 +7,7 @@ namespace NESO::Solvers::tokamak
 static std::string class_name;
 std::string SingleDiffusiveField::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
-        "Single Diffusive Field", SingleDiffusiveField::create,
+        "SingleDiffusiveField", SingleDiffusiveField::create,
         "Solves for a single diffusive field (n) with anisotropy");
 /**
  * @brief Creates an instance of this class.
@@ -98,11 +98,7 @@ void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
-    int npts          = GetNpoints();
     size_t nvariables = in_arr.size();
-
-    Array<OneD, MultiRegions::ExpListSharedPtr> diff_fields(nvariables);
-    Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
 
     CalcDiffTensor();
     m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);

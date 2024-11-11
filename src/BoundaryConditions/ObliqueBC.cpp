@@ -12,9 +12,8 @@ std::string ObliqueBC::className =
 ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
                      const Array<OneD, MR::ExpListSharedPtr> &pFields,
                      const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
-                     const int pSpaceDim, const int bcRegion, const int index)
-    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion,
-                     index)
+                     const int pSpaceDim, const int bcRegion)
+    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion)
 {
     for (int i = 0; i < 3; ++i)
     {
@@ -28,34 +27,37 @@ ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
 void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                         [[maybe_unused]] const NekDouble &time)
 {
-    // Obtain field on boundary elmts
-    Array<OneD, NekDouble> Fwd;
-    m_fields[m_index]->ExtractPhysToBndElmt(m_bcRegion, physarray[m_index],
-                                            Fwd);
+    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> bndGrad(m_fields.size());
+    for (int i = 0; i < m_fields.size(); ++i)
+    {
+        // Obtain field on boundary elmts
+        Array<OneD, NekDouble> Fwd;
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[i], Fwd);
 
-    // Obtain field derivative
-    Array<OneD, Array<OneD, NekDouble>> grad(m_spacedim);
-    for (int k = 0; k < m_spacedim; k++)
-    {
-        grad[k] = Array<OneD, NekDouble>(Fwd.size(), 0.0);
-    }
-    if (m_spacedim == 2)
-    {
-        m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1]);
-    }
-    else if (m_spacedim == 3)
-    {
-        m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
-    }
-    // Obtain gradient on boundary of elements
-    Array<OneD, Array<OneD, NekDouble>> bndGrad(m_spacedim);
-    for (int k = 0; k < m_spacedim; k++)
-    {
-        bndGrad[k] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
-        m_fields[m_index]->ExtractElmtToBndPhys(m_bcRegion, grad[k],
-                                                bndGrad[k]);
-    }
+        // Obtain field derivative
+        Array<OneD, Array<OneD, NekDouble>> grad(m_spacedim);
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            grad[k] = Array<OneD, NekDouble>(Fwd.size(), 0.0);
+        }
+        if (m_spacedim == 2)
+        {
+            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1]);
+        }
+        else if (m_spacedim == 3)
+        {
+            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
+        }
+        // Obtain gradient on boundary of elements
+        bndGrad[i] = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
 
+        for (int k = 0; k < m_spacedim; k++)
+        {
+            bndGrad[i][k] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
+            m_fields[i]->ExtractElmtToBndPhys(m_bcRegion, grad[k],
+                                              bndGrad[i][k]);
+        }
+    }
     CalcDTensor();
     // Obtain Flux and normal flux
     Array<OneD, Array<OneD, NekDouble>> Flux(m_spacedim);
@@ -66,15 +68,14 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
 
         for (int j = 0; j < m_spacedim; j++)
         {
-            Vmath::Vvtvp(m_nEdgePts, m_D[k][j], 1, bndGrad[j], 1, Flux[k], 1,
+            Vmath::Vvtvp(m_nEdgePts, m_D[k][j], 1, bndGrad[0][j], 1, Flux[k], 1,
                          Flux[k], 1);
         }
         Vmath::Vvtvp(m_nEdgePts, Flux[k], 1, m_normals[k], 1, Flux_n, 1, Flux_n,
                      1);
     }
 
-    m_bndExp[m_index]->IProductWRTBase(Flux_n,
-                                       m_bndExp[m_index]->UpdateCoeffs());
+    m_bndExp[0]->IProductWRTBase(Flux_n, m_bndExp[0]->UpdateCoeffs());
 }
 
 void ObliqueBC::CalcKPar()

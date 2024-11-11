@@ -7,7 +7,7 @@ namespace NESO::Solvers::tokamak
 static std::string class_name;
 std::string DoubleDiffusiveField::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
-        "Double Diffusive Field", DoubleDiffusiveField::create,
+        "DoubleDiffusiveField", DoubleDiffusiveField::create,
         "Solves for two diffusive fields (n, p) with anisotropy");
 /**
  * @brief Creates an instance of this class.
@@ -31,7 +31,7 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names={"n_src", "E_src"};
+        this->required_fld_names = {"n_src", "E_src"};
     }
 }
 
@@ -95,7 +95,7 @@ void DoubleDiffusiveField::CalcKappaPar()
     int npoints = m_fields[0]->GetNpoints();
     NekDouble kappa_par;
     m_session->LoadParameter("kappa_par", kappa_par, 100.0);
-    m_kappapar = Array<OneD, NekDouble>(npoints, kappa_par);
+    m_kappapar = Array<OneD, NekDouble>(npoints, 2 * kappa_par / 3);
 }
 
 void DoubleDiffusiveField::CalcKappaPerp()
@@ -104,7 +104,7 @@ void DoubleDiffusiveField::CalcKappaPerp()
     int npoints = m_fields[0]->GetNpoints();
     NekDouble kappa_perp;
     m_session->LoadParameter("kappa_perp", kappa_perp, 1.0);
-    m_kappaperp = Array<OneD, NekDouble>(npoints, kappa_perp);
+    m_kappaperp = Array<OneD, NekDouble>(npoints, 2 * kappa_perp / 3);
 }
 
 void DoubleDiffusiveField::CalcKappaTensor()
@@ -193,6 +193,13 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
                          fluxes[j][p_idx], 1);
         }
     }
+}
+
+void DoubleDiffusiveField::load_params()
+{
+    TokamakSystem::load_params();
+    // Adiabatic gamma
+    m_session->LoadParameter("gamma", this->m_gamma);
 }
 
 } // namespace NESO::Solvers::tokamak

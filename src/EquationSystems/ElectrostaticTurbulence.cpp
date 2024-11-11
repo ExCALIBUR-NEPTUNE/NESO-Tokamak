@@ -7,7 +7,7 @@ namespace NESO::Solvers::tokamak
 static std::string class_name;
 std::string ElectrostaticTurbulence::class_name =
     SU::GetEquationSystemFactory().RegisterCreatorFunction(
-        "Electrostatic Turbulence", ElectrostaticTurbulence::create,
+        "ElectrostaticTurbulence", ElectrostaticTurbulence::create,
         "Solves electrostatic turbulence with anisotropic diffusion");
 /**
  * @brief Creates an instance of this class.

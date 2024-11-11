@@ -15,11 +15,11 @@ public:
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion, const int index)
+        const int pSpaceDim, const int bcRegion)
 
     {
         TokamakBndCondSharedPtr p = MemoryManager<SheathBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion, index);
+            pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
         return p;
     }
 
@@ -33,8 +33,8 @@ private:
     SheathBC(const LU::SessionReaderSharedPtr &pSession,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
               const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-              const int pSpaceDim, const int bcRegion, const int index);
-    ~SheathBC(void) override {};
+              const int pSpaceDim, const int bcRegion);
+    ~SheathBC() override {};
 
     // Hardcoded for now
     NekDouble adiabatic = 5/3;

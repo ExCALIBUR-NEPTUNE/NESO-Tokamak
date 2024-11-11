@@ -1,1 +1,1 @@
-mpirun -np <NMPI> <SOLVER_EXEC> tokamak.xml mastu.xml
+mpirun -np <NMPI> <SOLVER_EXEC> double_field.xml mastu.xml

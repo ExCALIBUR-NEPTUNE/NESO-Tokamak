@@ -206,8 +206,6 @@ void TokamakSystem::load_params()
     ReadMagneticField();
     nSpecies = 2;
 
-    m_session->LoadParameter("lambda", this->lambda);
-
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
                               "Upwind");
@@ -246,7 +244,6 @@ void TokamakSystem::DoOdeProjection(
     SetBoundaryConditions(out_arr, time);
 }
 
-
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 {
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
@@ -284,61 +281,59 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
-    int nConvectiveFields = 1 + 2 * nSpecies;
-    if (!m_explicitAdvection)
-    {
-        m_implHelper = std::make_shared<ImplicitHelper>(
-            m_session, m_fields, m_ode, nConvectiveFields);
-        m_implHelper->InitialiseNonlinSysSolver();
-        m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
-                                  m_implHelper);
-    }
+    int nConvectiveFields = m_fields.size();
+
+    m_implHelper = std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode,
+                                                    nConvectiveFields);
+    m_implHelper->InitialiseNonlinSysSolver();
+    m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt, m_implHelper);
 
     // Forcing terms for coupling to Reactions
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_fields,
                                   m_fields.size());
 
-    // Setup boundary conditions
-    for (size_t i = 0; i < m_fields.size(); ++i)
+    Array<OneD, const SD::BoundaryConditionShPtr> BndConds =
+        m_fields[0]->GetBndConditions();
+
+    for (size_t n = 0; n < BndConds.size(); ++n)
     {
-        Array<OneD, const SD::BoundaryConditionShPtr> BndConds;
-        Array<OneD, MR::ExpListSharedPtr> BndExp;
-        BndConds = m_fields[i]->GetBndConditions();
-        BndExp   = m_fields[i]->GetBndCondExpansions();
-
-        for (size_t n = 0; n < BndConds.size(); ++n)
+        std::string type = BndConds[n]->GetUserDefined();
+        if (type.rfind("ObliqueOutflow", 0) == 0)
         {
-            std::string type = BndConds[n]->GetUserDefined();
-            if (type.rfind("Oblique", 0) == 0)
-            {
-                ASSERTL0(
-                    BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
-                    "Oblique boundary condition must be of type Robin <R>");
-            }
-            if (type.rfind("Sheath", 0) == 0)
-            {
-                ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eRobin,
-                         "Sheath boundary condition must be of type Robin <R>");
-            }
-            if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
-            {
-                continue;
-            }
+            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
+                     "Oblique outflow boundary condition must be of type "
+                     "Dirichlet <D>");
+        }
 
-            if (!type.empty())
+        else if (type.rfind("Oblique", 0) == 0)
+        {
+            ASSERTL0(
+                BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
+                "Oblique boundary condition must be of type Dirichlet <D>");
+        }
+        else if (type.rfind("Sheath", 0) == 0)
+        {
+            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
+                     "Sheath boundary condition must be of type Dirichlet <D>");
+        }
+        if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
+        {
+            continue;
+        }
+
+        if (!type.empty())
+        {
+            Array<OneD, Array<OneD, NekDouble>> magneticFieldBndElmt(3);
+            for (int d = 0; d < 3; d++)
             {
-                Array<OneD, Array<OneD, NekDouble>> magneticFieldBndElmt(3);
-                for (int d = 0; d < 3; d++)
-                {
-                    m_fields[0]->ExtractPhysToBndElmt(n, b_unit[d],
-                                                      magneticFieldBndElmt[d]);
-                }
-                m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
-                    type, m_session, m_fields, magneticFieldBndElmt, m_spacedim,
-                    n, i));
+                m_fields[0]->ExtractPhysToBndElmt(n, b_unit[d],
+                                                  magneticFieldBndElmt[d]);
             }
+            m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
+                type, m_session, m_fields, magneticFieldBndElmt, m_spacedim, n));
         }
     }
+
     SetBoundaryConditionsBwdWeight();
 }
 

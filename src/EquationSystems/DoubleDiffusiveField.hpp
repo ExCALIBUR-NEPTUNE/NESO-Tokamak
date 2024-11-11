@@ -47,6 +47,8 @@ protected:
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
+    void load_params() override;
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
 
@@ -57,6 +59,8 @@ protected:
     Array<OneD, NekDouble> m_kappaperp;
     Array<OneD, NekDouble> m_kappapar;
     StdRegions::VarCoeffMap m_kappa;
+
+    NekDouble m_gamma;
 };
 
 } // namespace NESO::Solvers::tokamak

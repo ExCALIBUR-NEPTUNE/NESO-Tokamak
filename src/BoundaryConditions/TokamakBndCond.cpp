@@ -14,12 +14,14 @@ TokamakBndCond::TokamakBndCond(
     const LU::SessionReaderSharedPtr &pSession,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
     const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-    const int pSpaceDim, const int bcRegion, const int index)
+    const int pSpaceDim, const int bcRegion)
     : m_session(pSession), m_fields(pFields), m_spacedim(pSpaceDim),
-      m_bcRegion(bcRegion), m_index(index)
+      m_bcRegion(bcRegion)
 {
     int m_nEdgePts =
-        m_fields[m_index]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
+        m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
+    int m_nEdgeCoeffs =
+        m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetNcoeffs();
     m_bndExp = Array<OneD, MultiRegions::ExpListSharedPtr>(m_fields.size());
     for (int v = 0; v < m_fields.size(); ++v)
     {
@@ -31,8 +33,8 @@ TokamakBndCond::TokamakBndCond(
     for (int i = 0; i < 3; ++i)
     {
         m_b[i] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
-        m_fields[m_index]->ExtractElmtToBndPhys(m_bcRegion, pMagneticField[i],
-                                                m_b[i]);
+        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, pMagneticField[i],
+                                          m_b[i]);
     }
     m_diffusionAveWeight = 1.0;
 }
@@ -59,7 +61,7 @@ void TokamakBndCond::Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
  */
 void TokamakBndCond::v_ApplyBwdWeight()
 {
-    m_fields[m_index]->SetBndCondBwdWeight(m_bcRegion, m_diffusionAveWeight);
+    m_fields[0]->SetBndCondBwdWeight(m_bcRegion, m_diffusionAveWeight);
 }
 
 } // namespace NESO::Solvers::tokamak

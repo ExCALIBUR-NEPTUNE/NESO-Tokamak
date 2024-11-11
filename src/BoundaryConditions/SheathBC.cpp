@@ -12,9 +12,8 @@ std::string SheathBC::className =
 SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
-                   const int pSpaceDim, const int bcRegion, const int index)
-    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion,
-                     index)
+                   const int pSpaceDim, const int bcRegion)
+    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion)
 {
     m_session->LoadParameter("Ge", Ge, 0.0);
     m_session->LoadParameter("lambda", lambda, 0.0);

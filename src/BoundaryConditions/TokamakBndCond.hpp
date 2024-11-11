@@ -24,7 +24,7 @@ typedef LU::NekFactory<std::string, TokamakBndCond,
                        const LU::SessionReaderSharedPtr &,
                        const Array<OneD, MR::ExpListSharedPtr> &,
                        const Array<OneD, Array<OneD, NekDouble>> &, const int,
-                       const int, const int>
+                       const int>
     TokamakBndCondFactory;
 
 /// Declaration of the boundary condition factory singleton
@@ -69,10 +69,8 @@ protected:
     /// Id of the boundary region
     int m_bcRegion;
 
-    /// Index of field
-    int m_index;
-
     int m_nEdgePts;
+    int m_nEdgeCoeffs;
     
     /// Expansion of boundary adjacent elements
     MultiRegions::ExpListSharedPtr m_bndElmtExp;
@@ -83,7 +81,7 @@ protected:
     TokamakBndCond(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-                   const int pSpaceDim, const int bcRegion, const int index);
+                   const int pSpaceDim, const int bcRegion);
 
     virtual void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                          const NekDouble &time) = 0;
