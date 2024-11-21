@@ -40,6 +40,7 @@ src/EquationSystems/AnomalousDiffusion.cpp
 src/EquationSystems/ElectrostaticTurbulence.cpp
 src/BoundaryConditions/TokamakBndCond.cpp
 src/BoundaryConditions/ObliqueBC.cpp
+src/BoundaryConditions/ObliqueOutflowBC.cpp
 src/BoundaryConditions/SheathBC.cpp
 src/Forcing/ReactionsCoupling.cpp
 )

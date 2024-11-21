@@ -15,6 +15,9 @@ ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
                      const int pSpaceDim, const int bcRegion)
     : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion)
 {
+    m_session->LoadParameter("T_bnd", T_bnd);
+    m_session->LoadParameter("m_i", m_i);
+    m_session->LoadParameter("k_B", k_B);
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
@@ -76,6 +79,7 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
     }
 
     m_bndExp[0]->IProductWRTBase(Flux_n, m_bndExp[0]->UpdateCoeffs());
+    AddRHS();
 }
 
 void ObliqueBC::CalcKPar()
@@ -114,6 +118,19 @@ void ObliqueBC::CalcDTensor()
 
 void ObliqueBC::AddRHS()
 {
+    Array<OneD, NekDouble> n = m_bndExp[0]->GetPhys();
+    NekDouble cs             = std::sqrt(k_B * T_bnd / m_i);
+
+    Array<OneD, NekDouble> rhs(m_fields.size());
+    for (int p = 0; p < m_nEdgePts; ++p)
+    {
+        rhs[p] = n[p] * cs;
+    }
+    Array<OneD, NekDouble> wk(m_nEdgeCoeffs);
+    m_bndExp[0]->FwdTrans(rhs, wk);
+
+    Vmath::Vsub(m_nEdgeCoeffs, m_bndExp[0]->GetCoeffs(), 1, wk, 1,
+                m_bndExp[0]->UpdateCoeffs(), 1);
 }
 
 } // namespace NESO::Solvers::tokamak

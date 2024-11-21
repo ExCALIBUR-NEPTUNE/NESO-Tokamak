@@ -16,27 +16,26 @@ TokamakBndCond::TokamakBndCond(
     const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
     const int pSpaceDim, const int bcRegion)
     : m_session(pSession), m_fields(pFields), m_spacedim(pSpaceDim),
-      m_bcRegion(bcRegion)
+      m_bcRegion(bcRegion), m_b(pMagneticField)
 {
-    int m_nEdgePts =
+    m_nEdgePts =
         m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
-    int m_nEdgeCoeffs =
+    m_nEdgeCoeffs =
         m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetNcoeffs();
+        
     m_bndExp = Array<OneD, MultiRegions::ExpListSharedPtr>(m_fields.size());
+
     for (int v = 0; v < m_fields.size(); ++v)
     {
         m_bndExp[v] = m_fields[0]->GetBndCondExpansions()[m_bcRegion];
     }
+
     m_fields[0]->GetBndElmtExpansion(m_bcRegion, m_bndElmtExp, false);
 
     m_fields[0]->GetBoundaryNormals(m_bcRegion, m_normals);
-    for (int i = 0; i < 3; ++i)
-    {
-        m_b[i] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
-        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, pMagneticField[i],
-                                          m_b[i]);
-    }
+
     m_diffusionAveWeight = 1.0;
+
 }
 
 /**

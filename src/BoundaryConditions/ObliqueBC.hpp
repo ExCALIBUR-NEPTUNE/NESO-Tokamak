@@ -42,6 +42,9 @@ private:
     Array<OneD, NekDouble> m_D[3][3];
     Array<OneD, NekDouble> kpar;
     Array<OneD, NekDouble> kperp;
+    NekDouble T_bnd;
+    NekDouble m_i;
+    NekDouble k_B;
 };
 
 } // namespace NESO::Solvers::tokamak

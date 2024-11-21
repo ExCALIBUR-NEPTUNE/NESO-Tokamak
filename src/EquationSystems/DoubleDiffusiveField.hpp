@@ -41,6 +41,10 @@ protected:
     void CalcKappaPerp();
     void CalcKappaTensor();
 
+    void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                      Array<OneD, Array<OneD, NekDouble>> &outarray,
+                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
     // Diffusive Flux vector
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -48,6 +52,7 @@ protected:
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
     void load_params() override;
+    bool v_PostIntegrate(int step) override;
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;

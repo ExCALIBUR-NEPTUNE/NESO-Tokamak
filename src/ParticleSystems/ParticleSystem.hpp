@@ -28,8 +28,8 @@ class ParticleSystem : public PartSysBase
     static inline ParticleSpec particle_spec{
         ParticleProp(Sym<INT>("CELL_ID"), 1, true),
         ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-        ParticleProp(Sym<REAL>("POSITION"), 3, true),
-        ParticleProp(Sym<REAL>("VELOCITY"), 3),
+        ParticleProp(Sym<REAL>("POSITION"), 2, true),
+        ParticleProp(Sym<REAL>("VELOCITY"), 2),
         ParticleProp(Sym<REAL>("M"), 1),
         ParticleProp(Sym<REAL>("Q"), 1),
         ParticleProp(Sym<REAL>("E0"), 1),
@@ -53,8 +53,22 @@ public:
                    SD::MeshGraphSharedPtr graph, MPI_Comm comm = MPI_COMM_WORLD)
         : PartSysBase(session, graph, particle_spec, comm), simulation_time(0.0)
     {
-        this->pbc = std::make_shared<NektarCartesianPeriodic>(
-            this->sycl_target, this->graph, this->particle_group->position_dat);
+        // this->pbc = std::make_shared<NektarCartesianPeriodic>(
+        //     this->sycl_target, this->graph,
+        //     this->particle_group->position_dat);
+        auto config = std::make_shared<ParameterStore>();
+        config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
+        config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
+        config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
+        config->set<REAL>("CompositeIntersection/line_intersection_tol",
+                          1.0e-10);
+        config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
+                          1.0e-6);
+        auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
+        std::vector<int> reflection_composites = {100};
+        this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
+            Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
+            reflection_composites, config);
 
         // V initial velocity
         // P uniform sample?
@@ -106,8 +120,14 @@ public:
         {
             ParticleSet initial_distribution(
                 N, this->particle_group->get_particle_spec());
-            auto positions = uniform_within_extents(
-                N, ndim, this->pbc->global_extent, rng_phasespace);
+            // auto positions = uniform_within_extents(
+            //     N, ndim, this->pbc->global_extent, rng_phasespace);
+            const int npart_per_cell = 10;
+            std::mt19937 rng(534234 + rank);
+            std::vector<std::vector<double>> positions;
+            std::vector<int> cells;
+            rng = uniform_within_elements(graph, npart_per_cell, positions,
+                                          cells, 1.0e-10, rng);
 
             for (int px = 0; px < N; px++)
             {
@@ -115,8 +135,8 @@ public:
                      dimx++)
                 {
                     // Create the position in dimx
-                    const REAL pos_shift = this->pbc->global_origin[dimx];
-                    const REAL pos_tmp   = pos_shift + positions[dimx][px];
+                    // const REAL pos_shift = this->pbc->global_origin[dimx];
+                    const REAL pos_tmp = /*pos_shift + */ positions[dimx][px];
                     initial_distribution[Sym<REAL>("POSITION")][px][dimx] =
                         pos_tmp;
                     // Create the velocity in dimx
@@ -311,12 +331,17 @@ public:
             this->particle_remove_key);
     }
 
+    inline void pre_integration()
+    {
+        reflection->pre_advection(particle_sub_group(this->particle_group));
+    }
     /**
      * Apply boundary conditions.
      */
     inline void boundary_conditions()
     {
-        this->pbc->execute();
+        // this->pbc->execute();
+        this->reflection->execute(particle_sub_group(this->particle_group));
     }
 
     /**
@@ -442,7 +467,9 @@ protected:
     double simulation_time;
 
     /// Periodic Boundary Conditions
-    std::shared_ptr<NektarCartesianPeriodic> pbc;
+    // std::shared_ptr<NektarCartesianPeriodic> pbc;
+    /// Reflective Boundary Conditions
+    std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
@@ -451,6 +478,7 @@ protected:
     inline void transfer_particles()
     {
         auto t0 = profile_timestamp();
+        this->pre_integration();
         this->boundary_conditions();
         this->particle_group->hybrid_move();
         this->cell_id_translation->execute();

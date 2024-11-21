@@ -326,15 +326,34 @@ void TokamakSystem::v_InitObject(bool create_field)
             Array<OneD, Array<OneD, NekDouble>> magneticFieldBndElmt(3);
             for (int d = 0; d < 3; d++)
             {
-                m_fields[0]->ExtractPhysToBndElmt(n, b_unit[d],
-                                                  magneticFieldBndElmt[d]);
+                m_fields[0]->ExtractPhysToBnd(n, b_unit[d],
+                                              magneticFieldBndElmt[d]);
             }
             m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
-                type, m_session, m_fields, magneticFieldBndElmt, m_spacedim, n));
+                type, m_session, m_fields, magneticFieldBndElmt, m_spacedim,
+                n));
         }
     }
 
     SetBoundaryConditionsBwdWeight();
+
+    if (this->particles_enabled)
+    {
+        // Set up object to evaluate density field
+        this->particle_sys->setup_evaluate_grad_phi(
+            m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
+        this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
+
+        // Create src fields for coupling to reactions
+        this->discont_fields["ni_src"] =
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->discont_fields["E_src"] =
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->particle_sys->setup_project(this->discont_fields["ni_src"],
+                                          this->discont_fields["E_src"]);
+    }
 }
 
 /**

@@ -36,6 +36,7 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
                                [[maybe_unused]] const NekDouble &time)
 {
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> bndGrad(m_fields.size());
+    
     for (int i = 0; i < m_fields.size(); ++i)
     {
         // Obtain field on boundary elmts
@@ -133,7 +134,7 @@ void ObliqueOutflowBC::CalcDTensor()
 
 void ObliqueOutflowBC::CalcKappaPar()
 {
-    NekDouble k_par;
+    NekDouble kappa_par;
     m_session->LoadParameter("k_par", kappa_par, 100.0);
     kpar = Array<OneD, NekDouble>(m_nEdgePts, kappa_par);
 }
@@ -168,15 +169,15 @@ void ObliqueOutflowBC::CalcKappaTensor()
 
 void ObliqueOutflowBC::AddRHS()
 {
-    Array<OneD, NekDouble>& n = m_bndExp[0]->GetPhys();
-    Array<OneD, NekDouble>& T = m_bndExp[2]->GetPhys();
+    Array<OneD, NekDouble> n = m_bndExp[0]->GetPhys();
+    Array<OneD, NekDouble> T = m_bndExp[2]->GetPhys();
 
     Array<OneD, Array<OneD, NekDouble>> rhs(m_fields.size());
-    for (int p = 0; p < m_nEdgePts, ++p)
+    for (int p = 0; p < m_nEdgePts; ++p)
     {
-        NekDouble cs = std::sqrt(k_B * T[k] / m_i);
-        rhs[0][p]    = n[k] * cs;
-        rhs[1][p]    = gamma * n[k] * k_B * T[k] * cs;
+        NekDouble cs = std::sqrt(k_B * T[p] / m_i);
+        rhs[0][p]    = n[p] * cs;
+        rhs[1][p]    = gamma * n[p] * k_B * T[p] * cs;
     }
     Array<OneD, Array<OneD, NekDouble>> wk(m_fields.size());
     wk[0] = Array<OneD, NekDouble>(m_nEdgeCoeffs);

@@ -30,8 +30,8 @@ void ReactionsCoupling::v_Apply(
 {
     int npoints = pFields[0]->GetTotPoints();
 
-    int ni_field_idx = this->field_to_index.get_idx("ni");
-    int ni_src_idx   = this->field_to_index.get_idx("ni_src");
+    int ni_field_idx = this->field_to_index.get_idx("n");
+    int ni_src_idx   = this->field_to_index.get_idx("n_src");
     Vmath::Vadd(npoints, inarray[ni_src_idx], 1, outarray[ni_field_idx], 1,
                 outarray[ni_field_idx], 1);
 

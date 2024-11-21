@@ -31,7 +31,7 @@ SingleDiffusiveField::SingleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names = {"n_src"};
+        //this->required_fld_names = {"n_src"};
     }
 }
 
