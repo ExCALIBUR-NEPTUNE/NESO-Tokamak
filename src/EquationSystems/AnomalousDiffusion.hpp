@@ -41,7 +41,7 @@ protected:
     void CalcKappaPerp();
     void CalcKappaTensor();
 
-    void ComputeGradPhi();
+    void ComputeE();
 
     Array<OneD, NekDouble> &GetAdvVelNorm(
         Array<OneD, NekDouble> &trace_vel_norm,
@@ -65,8 +65,6 @@ protected:
     void load_params() override;
 
 private:
-    /// Potential Gradient/-E
-    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
     /// Storage for ExB drift velocity
     Array<OneD, Array<OneD, NekDouble>> ExB_vel;
     StdRegions::VarCoeffMap m_phi_varcoeff;

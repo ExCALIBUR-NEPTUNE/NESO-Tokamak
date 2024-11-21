@@ -45,7 +45,7 @@ protected:
 
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
-    void ComputeGradPhi();
+    void ComputeE();
 
     Array<OneD, NekDouble> &GetAdvVelNorm(
         Array<OneD, NekDouble> &trace_vel_norm,
@@ -74,8 +74,7 @@ private:
     NekDouble alpha;
     /// Hasegawa-Wakatani κ
     NekDouble kappa;
-    /// Potential Gradient/-E
-    Array<OneD, MR::DisContFieldSharedPtr> m_grad_phi;
+
     /// Storage for ExB drift velocity
     Array<OneD, Array<OneD, NekDouble>> ExB_vel;
     StdRegions::VarCoeffMap m_phi_varcoeff;

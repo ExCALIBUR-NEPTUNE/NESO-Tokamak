@@ -279,6 +279,13 @@ void TokamakSystem::v_InitObject(bool create_field)
         idx++;
     }
 
+    E = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    for (int d = 0; d < 3; ++d)
+    {
+        E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+    }
+
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
     int nConvectiveFields = m_fields.size();
@@ -340,8 +347,8 @@ void TokamakSystem::v_InitObject(bool create_field)
     if (this->particles_enabled)
     {
         // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_grad_phi(
-            m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
+        this->particle_sys->setup_evaluate_E(
+            E[0], E[1], E[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
 
         // Create src fields for coupling to reactions

@@ -74,6 +74,9 @@ protected:
     /// Trace of magnetic field
     Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
+    /// Electric Field
+    Array<OneD, MR::DisContFieldSharedPtr> E;
+
     /// Advection object used in the electron density equation
     SU::AdvectionSharedPtr m_advection;
     /// Advection type

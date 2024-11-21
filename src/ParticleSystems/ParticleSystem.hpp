@@ -247,38 +247,38 @@ public:
     }
 
     /**
-     * Set up the evaluation of grad(phi).
+     * Set up the evaluation of E.
      *
-     * @param gradphi0 Nektar++ field storing grad(phi) in direction 0.
-     * @param gradphi1 Nektar++ field storing grad(phi) in direction 1.
-     * @param gradphi2 Nektar++ field storing grad(phi) in direction 2.
+     * @param E0 Nektar++ field storing E in direction 0.
+     * @param E1 Nektar++ field storing E in direction 1.
+     * @param E2 Nektar++ field storing E in direction 2.
      */
-    inline void setup_evaluate_grad_phi(std::shared_ptr<DisContField> gradphi0,
-                                        std::shared_ptr<DisContField> gradphi1,
-                                        std::shared_ptr<DisContField> gradphi2)
+    inline void setup_evaluate_E(std::shared_ptr<DisContField> E0,
+                                        std::shared_ptr<DisContField> E1,
+                                        std::shared_ptr<DisContField> E2)
     {
         // TODO redo with redone Bary Evaluate.
-        this->field_evaluate_gradphi0 =
+        this->field_evaluate_E0 =
             std::make_shared<FieldEvaluate<DisContField>>(
-                gradphi0, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_gradphi1 =
+                E0, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E1 =
             std::make_shared<FieldEvaluate<DisContField>>(
-                gradphi1, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_gradphi2 =
+                E1, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E2 =
             std::make_shared<FieldEvaluate<DisContField>>(
-                gradphi2, this->particle_group, this->cell_id_translation);
+                E2, this->particle_group, this->cell_id_translation);
 
-        this->fields["gradphi0"] = gradphi0;
-        this->fields["gradphi1"] = gradphi1;
-        this->fields["gradphi2"] = gradphi2;
+        this->fields["E0"] = E0;
+        this->fields["E1"] = E1;
+        this->fields["E2"] = E2;
     }
 
     /**
      * Set up the evaluation of B.
      *
-     * @param gradphi0 Nektar++ field storing B in direction 0.
-     * @param gradphi1 Nektar++ field storing B in direction 1.
-     * @param gradphi2 Nektar++ field storing B in direction 2.
+     * @param B0 Nektar++ field storing B in direction 0.
+     * @param B1 Nektar++ field storing B in direction 1.
+     * @param B2 Nektar++ field storing B in direction 2.
      */
     inline void setup_evaluate_B(std::shared_ptr<DisContField> B0,
                                  std::shared_ptr<DisContField> B1,
@@ -298,19 +298,19 @@ public:
     }
 
     /**
-     * Evaluate grad(phi) and B at the particle locations.
+     * Evaluate E and B at the particle locations.
      */
     inline void evaluate_fields()
     {
-        NESOASSERT(this->field_evaluate_gradphi0 != nullptr,
+        NESOASSERT(this->field_evaluate_E0 != nullptr,
                    "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_gradphi1 != nullptr,
+        NESOASSERT(this->field_evaluate_E1 != nullptr,
                    "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_gradphi2 != nullptr,
+        NESOASSERT(this->field_evaluate_E2 != nullptr,
                    "FieldEvaluate not setup.");
-        this->field_evaluate_gradphi0->evaluate(Sym<REAL>("E0"));
-        this->field_evaluate_gradphi1->evaluate(Sym<REAL>("E1"));
-        this->field_evaluate_gradphi2->evaluate(Sym<REAL>("E2"));
+        this->field_evaluate_E0->evaluate(Sym<REAL>("E0"));
+        this->field_evaluate_E1->evaluate(Sym<REAL>("E1"));
+        this->field_evaluate_E2->evaluate(Sym<REAL>("E2"));
 
         NESOASSERT(this->field_evaluate_B0 != nullptr,
                    "FieldEvaluate not setup.");
@@ -345,7 +345,7 @@ public:
     }
 
     /**
-     * Adds a velocity drift of \alpha * V_drift where V_drift = -grad(phi) X B
+     * Adds a velocity drift of \alpha * V_drift where V_drift = E X B
      * evaluation to the velocity of each particle. The coefficient \alpha is
      * the read from the session file key `particle_v_drift_scaling`.
      */
@@ -363,9 +363,9 @@ public:
                 auto B2)
             {
                 // Ei contains d(phi)/dx_i.
-                const auto mE0 = -1.0 * E0.at(0);
-                const auto mE1 = -1.0 * E1.at(0);
-                const auto mE2 = -1.0 * E2.at(0);
+                const auto mE0 = E0.at(0);
+                const auto mE1 = E1.at(0);
+                const auto mE2 = E2.at(0);
                 REAL exb0, exb1, exb2;
                 MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, B0.at(0), B1.at(0),
                                          B2.at(0), exb0, exb1, exb2);
@@ -410,9 +410,9 @@ protected:
                 const REAL V_2 = V.at(2);
 
                 // The E dat contains d(phi)/dx not E -> multiply by -1.
-                const REAL v_minus_0 = V_0 + (-1.0 * E0.at(0)) * scaling_t;
-                const REAL v_minus_1 = V_1 + (-1.0 * E1.at(0)) * scaling_t;
-                const REAL v_minus_2 = V_2 + (-1.0 * E2.at(0)) * scaling_t;
+                const REAL v_minus_0 = V_0 + (E0.at(0)) * scaling_t;
+                const REAL v_minus_1 = V_1 + (E1.at(0)) * scaling_t;
+                const REAL v_minus_2 = V_2 + (E2.at(0)) * scaling_t;
 
                 REAL v_prime_0, v_prime_1, v_prime_2;
                 MAPPING_CROSS_PRODUCT_3D(v_minus_0, v_minus_1, v_minus_2, t_0,
@@ -432,9 +432,9 @@ protected:
                 v_plus_2 += v_minus_2;
 
                 // The E dat contains d(phi)/dx not E -> multiply by -1.
-                V.at(0) = v_plus_0 + scaling_t * (-1.0 * E0.at(0));
-                V.at(1) = v_plus_1 + scaling_t * (-1.0 * E1.at(0));
-                V.at(2) = v_plus_2 + scaling_t * (-1.0 * E2.at(0));
+                V.at(0) = v_plus_0 + scaling_t * (E0.at(0));
+                V.at(1) = v_plus_1 + scaling_t * (E1.at(0));
+                V.at(2) = v_plus_2 + scaling_t * (E2.at(0));
 
                 // update of position to next time step
                 P.at(0) += k_dt * V.at(0);
@@ -454,9 +454,9 @@ protected:
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
     /// Object used to evaluate Nektar electric field
-    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi0;
-    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi1;
-    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_gradphi2;
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E0;
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E1;
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E2;
     /// Object used to evaluate Nektar magnetic field
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B0;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B1;

@@ -40,12 +40,6 @@ AnomalousDiffusion::AnomalousDiffusion(
 void AnomalousDiffusion::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
-    m_grad_phi = Array<OneD, MR::DisContFieldSharedPtr>(3);
-    for (int d = 0; d < 3; ++d)
-    {
-        m_grad_phi[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-    }
 
     // Since we are starting from a setup where each field is defined to be a
     // discontinuous field (and thus support DG), the first thing we do is to
@@ -60,8 +54,7 @@ void AnomalousDiffusion::v_InitObject(bool DeclareFields)
     if (this->particles_enabled)
     {
         // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_grad_phi(
-            m_grad_phi[0], m_grad_phi[1], m_grad_phi[2]);
+        this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
 
         // Create src fields for coupling to reactions
@@ -281,18 +274,20 @@ void AnomalousDiffusion::DoOdeRhs(
  * @brief Compute the gradient of phi for evaluation at the particle positions.
  * (Stop-gap until NP's gradient-evaluate can be extended to 3D).
  */
-void AnomalousDiffusion::ComputeGradPhi()
+void AnomalousDiffusion::ComputeE()
 {
     int phi_idx = this->field_to_index["phi"];
-    m_fields[phi_idx]->PhysDeriv(
-        m_fields[phi_idx]->GetPhys(), m_grad_phi[0]->UpdatePhys(),
-        m_grad_phi[1]->UpdatePhys(), m_grad_phi[2]->UpdatePhys());
-    m_grad_phi[0]->FwdTrans(m_grad_phi[0]->GetPhys(),
-                            m_grad_phi[0]->UpdateCoeffs());
-    m_grad_phi[1]->FwdTrans(m_grad_phi[1]->GetPhys(),
-                            m_grad_phi[1]->UpdateCoeffs());
-    m_grad_phi[2]->FwdTrans(m_grad_phi[2]->GetPhys(),
-                            m_grad_phi[2]->UpdateCoeffs());
+    m_fields[phi_idx]->PhysDeriv(m_fields[phi_idx]->GetPhys(),
+                                 E[0]->UpdatePhys(), E[1]->UpdatePhys(),
+                                 E[2]->UpdatePhys());
+    int npoints = m_fields[phi_idx]->GetTotPoints();
+    Vmath::Smul(npoints, 1.0, E[0]->GetPhys(), 1, E[0]->UpdatePhys(), 1);
+    Vmath::Smul(npoints, 1.0, E[1]->GetPhys(), 1, E[1]->UpdatePhys(), 1);
+    Vmath::Smul(npoints, 1.0, E[2]->GetPhys(), 1, E[2]->UpdatePhys(), 1);
+
+    E[0]->FwdTrans(E[0]->GetPhys(), E[0]->UpdateCoeffs());
+    E[1]->FwdTrans(E[1]->GetPhys(), E[1]->UpdateCoeffs());
+    E[2]->FwdTrans(E[2]->GetPhys(), E[2]->UpdateCoeffs());
 }
 
 /**
