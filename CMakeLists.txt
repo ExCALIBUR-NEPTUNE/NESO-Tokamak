@@ -12,24 +12,8 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 # ##############################################################################
 # Find dependencies
 # ##############################################################################
-find_package(SYCL REQUIRED)
-if(SYCL_FOUND)
-  message(STATUS "Using SYCL implementation ${SYCL_IMPLEMENTATION}")
-  if(hipSYCL_FOUND)
-    set(HIPSYCL_TARGETS "omp")
-    set(SYCL_FLAG NESO_HIPSYCL)
-  elseif(SYCL_IMPLEMENTATION STREQUAL "IntelDPCPP")
-    set(SYCL_FLAG NESO_DPCPP)
-  endif()
-endif()
-find_package(NESO REQUIRED)
 
-# Use a custom FindNektar++ script to provide an interface target
-find_package(Nektar++ REQUIRED)
-# find MPI
-find_package(MPI REQUIRED)
-# Add the NESO-Particles dependencies
-find_package(NESO-Particles REQUIRED)
+find_package(NESO REQUIRED)
 
 # Identify source files
 set(SRC_FILES
