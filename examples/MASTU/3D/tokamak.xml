@@ -2,13 +2,13 @@
 <NEKTAR>
     <COLLECTIONS DEFAULT="auto" />
     <EXPANSIONS>
-        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
-        <E COMPOSITE="C[3]" NUMMODES="4" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
+        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
+        <E COMPOSITE="C[3]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
     <CONDITIONS>
         <SOLVERINFO>      
-            <I PROPERTY="EQTYPE"                        VALUE="Tokamak" />
+            <I PROPERTY="EQTYPE"                        VALUE="SingleDiffusiveField" />
             <I PROPERTY="AdvectionType"                 VALUE="WeakDG"/>
             <I PROPERTY="Projection"                    VALUE="DisContinuous" />
             <I PROPERTY="TimeIntegrationMethod"         VALUE="DIRKOrder2" />
@@ -16,12 +16,11 @@
             <I PROPERTY="LinSysIterSolverTypeInNonlin"  VALUE="GMRES"/>
             <I PROPERTY="UpwindType"                    VALUE="Upwind"/>
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
-            <I PROPERTY="Mode"                          VALUE="MeanFluid"/>
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 1e3               </P>
-            <P> FinalTime      = 100000            </P>
+            <P> TimeStep       = 1e-3               </P>
+            <P> FinalTime      = 10            </P>
             <P> NumSteps       = FinalTime/TimeStep</P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -47,8 +46,8 @@
             <P> HW_alpha        = 2   </P>
             <P> HW_kappa        = 1   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e4   </P>
-            <P> k_perp          = 1   </P>
+            <P> k_par           = 1   </P>
+            <P> k_perp          = 0   </P>
             <P> TCore           = 300.0 </P>
             <!-- Scaling factor for ICs -->
             <P> s        = 0.5 </P>
@@ -76,12 +75,7 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> phi </V>
-            <V ID="1"> w   </V>
-            <V ID="2"> Te </V>
-            <V ID="3"> ne  </V>
-            <V ID="4"> Ti </V>
-            <V ID="5"> ni  </V>
+            <V ID="0"> n </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -90,28 +84,19 @@
         <BOUNDARYCONDITIONS>
             <!--Wall -->
             <REGION REF="1">
-                <R VAR="phi" USERDEFINEDTYPE="Sheath" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="w" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="Te" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="ne" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="Ti" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
-                <R VAR="ni" USERDEFINEDTYPE="Oblique" VALUE="0.0" PRIMCOEFF="0.0"/>
+                <D VAR="n" VALUE="0.0"/>
+                <!-- <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0"/> -->
             </REGION>
             
         </BOUNDARYCONDITIONS>
         
         <FUNCTION NAME="InitialConditions">
-            <E VAR="phi" DOMAIN="0" VALUE="0" />
-            <E VAR="w"   DOMAIN="0" VALUE="0" />
-            <E VAR="Te"  DOMAIN="0" VALUE="TCore" />
-            <E VAR="ne"  DOMAIN="0" VALUE="0" />
-            <E VAR="Ti"  DOMAIN="0" VALUE="TCore" />
-            <E VAR="ni"  DOMAIN="0" VALUE="0" />
+            <E VAR="n" DOMAIN="1" VALUE="1" />
         </FUNCTION>
         
-        <FUNCTION NAME="MagneticMeanField">
+        <!-- <FUNCTION NAME="MagneticMeanField">
             <F VAR="Bx,By,Bz"  FILE="B.pts"  />
-        </FUNCTION>
+        </FUNCTION> -->
 
     </CONDITIONS>
 </NEKTAR>

@@ -244,6 +244,48 @@ void TokamakSystem::DoOdeProjection(
     SetBoundaryConditions(out_arr, time);
 }
 
+void TokamakSystem::v_ExtraFldOutput(
+        std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+        std::vector<std::string> &variables)
+{
+    const int nPhys   = m_fields[0]->GetNpoints();
+    const int nCoeffs = m_fields[0]->GetNcoeffs();
+
+    variables.push_back("Bx");
+    Array<OneD, NekDouble> BxFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
+    fieldcoeffs.push_back(BxFwd);
+    
+    variables.push_back("By");
+    Array<OneD, NekDouble> ByFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
+    fieldcoeffs.push_back(ByFwd);
+
+    variables.push_back("Bz");
+    Array<OneD, NekDouble> BzFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(B[2]->GetPhys(), BzFwd);
+    fieldcoeffs.push_back(BzFwd);
+
+    variables.push_back("Ex");
+    Array<OneD, NekDouble> ExFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(E[0]->GetPhys(), ExFwd);
+    fieldcoeffs.push_back(ExFwd);
+
+    variables.push_back("Ey");
+    Array<OneD, NekDouble> EyFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
+    fieldcoeffs.push_back(EyFwd);
+
+    if(m_spacedim == 3)
+    {
+        variables.push_back("Ez");
+        Array<OneD, NekDouble> EzFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
+        fieldcoeffs.push_back(EzFwd);
+    }
+}
+
+
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 {
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
@@ -259,13 +301,6 @@ void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 void TokamakSystem::v_InitObject(bool create_field)
 {
     TimeEvoEqnSysBase::v_InitObject(create_field);
-
-    // Type of advection class to be used. By default, we only support the
-    // discontinuous projection, since this is the only approach we're
-    // considering for this solver.
-    ASSERTL0(m_projectionType == MR::eDiscontinuous,
-             "Unsupported projection type: only discontinuous"
-             " projection supported.");
 
     // Turn off forward-transform of initial conditions.
     m_homoInitialFwd = false;

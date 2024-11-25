@@ -140,7 +140,9 @@ protected:
     void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
                                NekDouble time);
     void SetBoundaryConditionsBwdWeight();
-
+    virtual void v_ExtraFldOutput(
+        std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+        std::vector<std::string> &variables) override;
     virtual void v_GenerateSummary(SU::SummaryList &s) override;
     virtual void v_InitObject(bool DeclareField) override;
     virtual bool v_PostIntegrate(int step) override;

@@ -55,7 +55,7 @@
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
             <!-- Particle system params -->
             <!-- Total number of particles - set = 0 to turn particles off -->
-            <P> num_particles_total = 1 </P>
+            <P> num_particles_total = 0 </P>
             <!-- Mass of each particle -->
             <P> particle_mass = 0.5 </P>
             <!-- Charge of each particle -->
@@ -73,7 +73,8 @@
         <BOUNDARYCONDITIONS>
             <!--Wall -->
             <REGION REF="1">
-                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0"/>
+                <D VAR="n" VALUE="0"/>
+                <!-- <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0"/> -->
             </REGION>
             
         </BOUNDARYCONDITIONS>

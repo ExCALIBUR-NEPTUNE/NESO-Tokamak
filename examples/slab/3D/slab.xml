@@ -7,12 +7,12 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="2" TYPE="MODIFIED" FIELDS="phi,w,Te,ne,Ti,ni" />
+       <E COMPOSITE="C[0]" NUMMODES="2" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
     <CONDITIONS>
         <SOLVERINFO>
-            <I PROPERTY="EQTYPE"                       VALUE="Tokamak"          />
+            <I PROPERTY="EQTYPE"                       VALUE="SingleDiffusiveField"/>
             <I PROPERTY="AdvectionType"                VALUE="WeakDG"        />
             <I PROPERTY="Projection"                   VALUE="DisContinuous" />
             <I PROPERTY="TimeIntegrationMethod"        VALUE="DIRKOrder2"    />
@@ -33,8 +33,8 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e4   </P>
-            <P> k_perp          = 1e0   </P>
+            <P> k_par           = 1   </P>
+            <P> k_perp          = 1e-6   </P>
             <P> TCore           = 300.0 </P>
             <!-- d22 Coeff for Helmholtz solve -->
             <P> phi_d22      = 0.0 </P> 
@@ -58,13 +58,7 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> T  </V>
-            <V ID="1"> ne  </V>
-            <V ID="2"> w   </V>
-            <V ID="3"> phi </V>
-            <V ID="4"> gradphi0 </V>
-            <V ID="5"> gradphi1 </V>
-            <V ID="6"> gradphi2 </V>
+            <V ID="0"> n  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -79,72 +73,30 @@
         <!-- Periodic conditions for all fields on all boundaries -->
         <BOUNDARYCONDITIONS>
             <REGION REF="0">
-                <P VAR="T"  VALUE="[1]" />
-                <P VAR="ne"  VALUE="[1]" />
-                <P VAR="w"   VALUE="[1]" />
-                <P VAR="phi" VALUE="[1]" />
-                <P VAR="gradphi0" VALUE="[1]" />
-                <P VAR="gradphi1" VALUE="[1]" />
-                <P VAR="gradphi2" VALUE="[1]" />
+                <P VAR="n"  VALUE="[1]" />
             </REGION>
             <REGION REF="1">
-                <P VAR="T"  VALUE="[0]" />
-                <P VAR="ne"  VALUE="[0]" />
-                <P VAR="w"   VALUE="[0]" />
-                <P VAR="phi" VALUE="[0]" />
-                <P VAR="gradphi0" VALUE="[0]" />
-                <P VAR="gradphi1" VALUE="[0]" />
-                <P VAR="gradphi2" VALUE="[0]" />
+                <P VAR="n"  VALUE="[0]" />
             </REGION>
 	        <REGION REF="2">
-                <P VAR="T"  VALUE="[3]" />
-                <P VAR="ne"  VALUE="[3]" />
-                <P VAR="w"   VALUE="[3]" />
-                <P VAR="phi" VALUE="[3]" />
-                <P VAR="gradphi0" VALUE="[3]" />
-                <P VAR="gradphi1" VALUE="[3]" />
-                <P VAR="gradphi2" VALUE="[3]" />
+                <P VAR="n"  VALUE="[3]" />
             </REGION>
             <REGION REF="3">
-                <P VAR="T"  VALUE="[2]" />
-                <P VAR="ne"  VALUE="[2]" />
-                <P VAR="w"   VALUE="[2]" />
-                <P VAR="phi" VALUE="[2]" />
-                <P VAR="gradphi0" VALUE="[2]" />
-                <P VAR="gradphi1" VALUE="[2]" />
-                <P VAR="gradphi2" VALUE="[2]" />
+                <P VAR="n"  VALUE="[2]" />
             </REGION>
             <REGION REF="4">
-                <P VAR="T"  VALUE="[5]" />
-                <P VAR="ne"  VALUE="[5]" />
-                <P VAR="w"   VALUE="[5]" />
-                <P VAR="phi" VALUE="[5]" />
-                <P VAR="gradphi0" VALUE="[5]" />
-                <P VAR="gradphi1" VALUE="[5]" />
-                <P VAR="gradphi2" VALUE="[5]" />
+                <P VAR="n"  VALUE="[5]" />
             </REGION>
             <REGION REF="5">
-                <P VAR="T"  VALUE="[4]" />
-                <P VAR="ne"  VALUE="[4]" />
-                <P VAR="w"   VALUE="[4]" />
-                <P VAR="phi" VALUE="[4]" />
-                <P VAR="gradphi0" VALUE="[4]" />
-                <P VAR="gradphi1" VALUE="[4]" />
-                <P VAR="gradphi2" VALUE="[4]" />
+                <P VAR="n"  VALUE="[4]" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="T"  DOMAIN="0" VALUE="6*exp((-x*x-y*y)/(s*s))*sin(4*PI*z/10)" />
-            <E VAR="ne"  DOMAIN="0" VALUE="6*exp((-x*x-y*y)/(s*s))*sin(4*PI*z/10)" />
-            <E VAR="w"   DOMAIN="0" VALUE="(4*exp((-x*x-y*y)/(s*s))*(-s*s+x*x+y*y)/s^4)*sin(4*PI*z/10)" />
-            <E VAR="phi" DOMAIN="0" VALUE="exp(-(x*x+y*y)/(s*s))*sin(4*PI*z/10)" />
-            <E VAR="gradphi0" DOMAIN="0" VALUE="0" />
-            <E VAR="gradphi1" DOMAIN="0" VALUE="0" />
-            <E VAR="gradphi2" DOMAIN="0" VALUE="0" />
+            <E VAR="n"  DOMAIN="0" VALUE="exp((-x*x-y*y)/(s*s))" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
-            <E VAR="Bx"  DOMAIN="0" VALUE="1"  />
-            <E VAR="By"  DOMAIN="0" VALUE="1"  />
+            <E VAR="Bx"  DOMAIN="0" VALUE="0"  />
+            <E VAR="By"  DOMAIN="0" VALUE="0"  />
             <E VAR="Bz"  DOMAIN="0" VALUE="1"  />
         </FUNCTION>
     </CONDITIONS>
