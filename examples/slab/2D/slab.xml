@@ -7,7 +7,7 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
+       <E COMPOSITE="C[5]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
     <CONDITIONS>
@@ -22,8 +22,8 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.05                 </P>
-            <P> NumSteps      = 6000                 </P>
+            <P> TimeStep      = 0.01                 </P>
+            <P> NumSteps      = 1000                 </P>
             <P> TFinal        = NumSteps*TimeStep    </P>
             <P> IO_InfoSteps  = 5                   </P>
             <P> IO_CheckSteps = 5                   </P>
@@ -33,9 +33,11 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e6   </P>
-            <P> k_perp          = 1e0   </P>
+            <P> k_par           = 1   </P>
+            <P> k_perp          = 1e-6   </P>
             <P> TCore           = 300.0 </P>
+
+
 
             <!-- HW params -->
             <P> HW_alpha = 2.0 </P>
@@ -43,7 +45,7 @@
             <!-- Scaling factor for ICs -->
             <P> ics_scale        = 2.0 </P>
             <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 100 </P>
+            <P> num_particles_total = 0 </P>
             <!-- Mass of each particle -->
             <P> particle_mass = 1.0 </P>
             <!-- Charge of each particle -->
@@ -95,12 +97,12 @@
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="n" DOMAIN="0" VALUE="exp(-(x*x+y*y)/(ics_scale*ics_scale))" />
+            <E VAR="n"  DOMAIN="0" VALUE="exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys))/(s*s))" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
-            <E VAR="Bx"  DOMAIN="0" VALUE="0"  />
-            <E VAR="By"  DOMAIN="0" VALUE="0"  />
-            <E VAR="Bz"  DOMAIN="0" VALUE="10"  />
+            <E VAR="Bx" VALUE="(y-yc)/sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc))" />
+            <E VAR="By" VALUE="-(x-xc)/sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc))" />
+            <E VAR="Bz" VALUE="10.0" />
         </FUNCTION>
     </CONDITIONS>
 </NEKTAR>
