@@ -82,11 +82,10 @@ void TokamakSystem::ReadMagneticField()
                 // B2D is [x,y,Bx,By,Bz]
                 Array<OneD, Array<OneD, NekDouble>> B2D;
                 inPts2D->GetPts(B2D);
-                int npoints_2d = B2D[0].size();
-
+                unsigned int npoints_2d = inPts2D->GetNpoints();
                 // B2D is [x,y,z,Bx,By,Bz]
                 Array<OneD, Array<OneD, NekDouble>> B3D(6);
-                int increments = 64;
+                unsigned int increments = 64;
 
                 for (d = 0; d < 6; ++d)
                 {
@@ -94,29 +93,29 @@ void TokamakSystem::ReadMagneticField()
                     // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
                 }
                 Array<OneD, NekDouble> Bx(npoints_2d);
+                Array<OneD, NekDouble> By(npoints_2d);
                 Array<OneD, NekDouble> Bz(npoints_2d);
                 Array<OneD, NekDouble> x(npoints_2d);
+                Array<OneD, NekDouble> y(npoints_2d);
                 Array<OneD, NekDouble> z(npoints_2d);
                 for (int i = 0; i < increments; ++i)
                 {
-                    // Straight copy y and By
-                    Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B3D[1][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &B2D[3][0], 1, &B3D[3][i * npoints_2d],
-                                 1);
-
                     NekDouble theta = i * 2 * M_PI / increments;
                     for (int j = 0; j < npoints_2d; ++j)
                     {
                         x[j]  = cos(theta) * B2D[0][j];
+                        y[j]  = B2D[1][j];
                         z[j]  = sin(theta) * B2D[0][j];
                         Bx[j] = cos(theta) * B2D[2][j] - sin(theta) * B2D[4][j];
+                        By[j] = B2D[3][j];
                         Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
                     }
 
                     Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &y[0], 1, &B3D[1][i * npoints_2d], 1);
                     Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d], 1);
                     Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &By[0], 1, &B3D[4][i * npoints_2d], 1);
                     Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d], 1);
 
                     // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
@@ -126,9 +125,8 @@ void TokamakSystem::ReadMagneticField()
                     // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
                     //              &B_pol[2][i * npoints_2d], 1);
                 }
-                LU::PtsFieldSharedPtr inPts;
-
-                inPts = MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
+                LU::PtsFieldSharedPtr inPts = 
+                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
 
                 Array<OneD, Array<OneD, NekDouble>> pts(6);
                 for (int i = 0; i < 6; ++i)
@@ -136,8 +134,7 @@ void TokamakSystem::ReadMagneticField()
                     pts[i] = Array<OneD, NekDouble>(npoints);
                 }
                 m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
-                LU::PtsFieldSharedPtr outPts;
-                outPts =
+                LU::PtsFieldSharedPtr outPts =
                     MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring, pts);
                 FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
 
@@ -157,7 +154,8 @@ void TokamakSystem::ReadMagneticField()
                 interp.Interpolate(inPts, outPts);
                 for (d = 0; d < 3; ++d)
                 {
-                    outPts->SetPts(d + 3, B_in[d]);
+                    //outPts->SetPts(d + 3, B_in[d]);
+                    B_in[d] = outPts->GetPts(d+3);
                 }
             }
             else if (vType == LU::eFunctionTypeExpression)

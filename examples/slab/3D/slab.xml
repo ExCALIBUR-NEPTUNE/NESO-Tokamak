@@ -72,7 +72,6 @@
             <B ID="3"> C[4] </B> <!-- High y -->
         </BOUNDARYREGIONS>
 
-        <!-- Periodic conditions for all fields on all boundaries -->
         <BOUNDARYCONDITIONS>
             <REGION REF="0">
                 <D VAR="n"  VALUE="0.0" />
