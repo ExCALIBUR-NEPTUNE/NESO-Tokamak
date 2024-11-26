@@ -70,91 +70,134 @@ void TokamakSystem::ReadMagneticField()
         }
         else if (this->m_graph->GetMeshDimension() == 3)
         {
-
-            LU::PtsIO ptsIO(m_session->GetComm());
-            std::string filename =
-                m_session->GetFunctionFilename("MagneticMeanField", "Bx");
-            LU::PtsFieldSharedPtr inPts2D;
-            ptsIO.Import(filename, inPts2D);
-            // B2D is [x,y,Bx,By,Bz]
-            Array<OneD, Array<OneD, NekDouble>> B2D;
-            inPts2D->GetPts(B2D);
-            int npoints_2d = B2D[0].size();
-
-            // B2D is [x,y,z,Bx,By,Bz]
-            Array<OneD, Array<OneD, NekDouble>> B3D(6);
-            int increments = 12;
-
-            for (d = 0; d < 6; ++d)
+            LU::FunctionType vType =
+                m_session->GetFunctionType("MagneticMeanField", "Bx");
+            if (vType == LU::eFunctionTypeFile)
             {
-                B3D[d] = Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
-                // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
-            }
-            Array<OneD, NekDouble> Bx(npoints_2d);
-            Array<OneD, NekDouble> Bz(npoints_2d);
-            Array<OneD, NekDouble> x(npoints_2d);
-            Array<OneD, NekDouble> z(npoints_2d);
-            for (int i = 0; i < increments; ++i)
-            {
-                // Straight copy y and By
-                Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B3D[1][i * npoints_2d],
-                             1);
-                Vmath::Vcopy(npoints_2d, &B2D[3][0], 1, &B3D[3][i * npoints_2d],
-                             1);
+                LU::PtsIO ptsIO(m_session->GetComm());
+                std::string filename =
+                    m_session->GetFunctionFilename("MagneticMeanField", "Bx");
+                LU::PtsFieldSharedPtr inPts2D;
+                ptsIO.Import(filename, inPts2D);
+                // B2D is [x,y,Bx,By,Bz]
+                Array<OneD, Array<OneD, NekDouble>> B2D;
+                inPts2D->GetPts(B2D);
+                int npoints_2d = B2D[0].size();
 
-                NekDouble theta = i * 2 * M_PI / increments;
-                for (int j = 0; j < npoints_2d; ++j)
+                // B2D is [x,y,z,Bx,By,Bz]
+                Array<OneD, Array<OneD, NekDouble>> B3D(6);
+                int increments = 64;
+
+                for (d = 0; d < 6; ++d)
                 {
-                    x[j]  = cos(theta) * B2D[0][j];
-                    z[j]  = sin(theta) * B2D[0][j];
-                    Bx[j] = cos(theta) * B2D[2][j] - sin(theta) * B2D[4][j];
-                    Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
+                    B3D[d] = Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
+                    // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
+                }
+                Array<OneD, NekDouble> Bx(npoints_2d);
+                Array<OneD, NekDouble> Bz(npoints_2d);
+                Array<OneD, NekDouble> x(npoints_2d);
+                Array<OneD, NekDouble> z(npoints_2d);
+                for (int i = 0; i < increments; ++i)
+                {
+                    // Straight copy y and By
+                    Vmath::Vcopy(npoints_2d, &B2D[1][0], 1, &B3D[1][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &B2D[3][0], 1, &B3D[3][i * npoints_2d],
+                                 1);
+
+                    NekDouble theta = i * 2 * M_PI / increments;
+                    for (int j = 0; j < npoints_2d; ++j)
+                    {
+                        x[j]  = cos(theta) * B2D[0][j];
+                        z[j]  = sin(theta) * B2D[0][j];
+                        Bx[j] = cos(theta) * B2D[2][j] - sin(theta) * B2D[4][j];
+                        Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
+                    }
+
+                    Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d], 1);
+
+                    // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
+                    //              &B_pol[1][i * npoints_2d], 1);
+                    // Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
+                    //              &B_pol[0][i * npoints_2d], 1);
+                    // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
+                    //              &B_pol[2][i * npoints_2d], 1);
+                }
+                LU::PtsFieldSharedPtr inPts;
+
+                inPts = MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
+
+                Array<OneD, Array<OneD, NekDouble>> pts(6);
+                for (int i = 0; i < 6; ++i)
+                {
+                    pts[i] = Array<OneD, NekDouble>(npoints);
+                }
+                m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
+                LU::PtsFieldSharedPtr outPts;
+                outPts =
+                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring, pts);
+                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
+
+                interp =
+                    FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
+                        LU::eShepard);
+                interp.CalcWeights(inPts, outPts);
+                if (m_session->GetComm()->GetRank() == 0)
+                {
+                    std::cout << std::endl;
+                    if (m_session->DefinesCmdLineArgument("verbose"))
+                    {
+                        interp.PrintStatistics();
+                    }
                 }
 
-                Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d], 1);
-                Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d], 1);
-
-                // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
-                //              &B_pol[1][i * npoints_2d], 1);
-                // Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
-                //              &B_pol[0][i * npoints_2d], 1);
-                // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
-                //              &B_pol[2][i * npoints_2d], 1);
-            }
-            LU::PtsFieldSharedPtr inPts;
-
-            inPts = MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
-
-            Array<OneD, Array<OneD, NekDouble>> pts(6);
-            for (int i = 0; i < 6; ++i)
-            {
-                pts[i] = Array<OneD, NekDouble>(npoints);
-            }
-            m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
-            LU::PtsFieldSharedPtr outPts;
-            outPts =
-                MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring, pts);
-            FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
-
-            interp =
-                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
-                    LU::eShepard);
-            interp.CalcWeights(inPts, outPts);
-            if (m_session->GetComm()->GetRank() == 0)
-            {
-                std::cout << std::endl;
-                if (m_session->DefinesCmdLineArgument("verbose"))
+                interp.Interpolate(inPts, outPts);
+                for (d = 0; d < 3; ++d)
                 {
-                    interp.PrintStatistics();
+                    outPts->SetPts(d + 3, B_in[d]);
                 }
             }
-
-            interp.Interpolate(inPts, outPts);
-            for (d = 0; d < 3; ++d)
+            else if (vType == LU::eFunctionTypeExpression)
             {
-                outPts->SetPts(d + 3, B_in[d]);
+                unsigned int nq = m_fields[0]->GetNpoints();
+
+                Array<OneD, NekDouble> x0(nq);
+                Array<OneD, NekDouble> x1(nq);
+                Array<OneD, NekDouble> x2(nq);
+
+                // Get the coordinates (assuming all fields have the same
+                // discretisation)
+                m_fields[0]->GetCoords(x0, x1, x2);
+
+                Array<OneD, NekDouble> r(nq);
+                Array<OneD, NekDouble> phi(nq);
+                for(int q = 0; q < nq; ++q)
+                {
+                    r[q] = std::sqrt(x0[q] * x0[q] + x2[q] * x2[q]);
+                    phi[q] = std::atan2(x2[q], x0[q]);
+                }
+                LibUtilities::EquationSharedPtr Bxfunc =
+                    m_session->GetFunction("MagneticMeanField", "Bx");
+                LibUtilities::EquationSharedPtr Byfunc =
+                    m_session->GetFunction("MagneticMeanField", "By");
+                LibUtilities::EquationSharedPtr Bzfunc =
+                    m_session->GetFunction("MagneticMeanField", "Bz");
+                Array<OneD, NekDouble> Br(nq);
+                Array<OneD, NekDouble> Bphi(nq);
+                
+                Bxfunc->Evaluate(r, x1, phi, /*time=*/0, Br);
+                Byfunc->Evaluate(r, x1, phi, /*time=*/0, B_in[1]);
+                Bzfunc->Evaluate(r, x1, phi, /*time=*/0, Bphi);
+
+                for(int q = 0; q < nq; ++q)
+                {
+                    B_in[0][q] = cos(phi[q]) * Br[q] - sin(phi[q]) * Bphi[q];
+                    B_in[2][q] = cos(phi[q]) * Bphi[q] + sin(phi[q]) * Br[q];
+                }
+
             }
         }
     }

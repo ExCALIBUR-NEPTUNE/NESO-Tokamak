@@ -90,10 +90,10 @@
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys)-(z-zc-zs)*(z-zc-zs))/(s*s))" />
         </FUNCTION>
-        <FUNCTION NAME="MagneticField">
-            <E VAR="Bx" VALUE="-10*z/sqrt(x*x+z*z)" />
-            <E VAR="By" VALUE="0" />
-            <E VAR="Bz" VALUE="10*x/sqrt(x*x+z*z)" />
+        <FUNCTION NAME="MagneticMeanField">
+            <E VAR="Bx" VALUE="(y-yc)/sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc))" />
+            <E VAR="By" VALUE="-(x-xc)/sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc))" />
+            <E VAR="Bz" VALUE="10.0" />
         </FUNCTION>
     </CONDITIONS>
 </NEKTAR>
