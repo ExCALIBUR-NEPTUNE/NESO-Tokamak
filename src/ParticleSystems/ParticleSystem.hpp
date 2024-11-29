@@ -69,7 +69,6 @@ public:
         this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
             Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
             reflection_composites, config);
-        std::cout<<"R\n";
         // V initial velocity
         // P uniform sample?
 
@@ -120,8 +119,7 @@ public:
         {
             ParticleSet initial_distribution(
                 N, this->particle_group->get_particle_spec());
-            // auto positions = uniform_within_extents(
-            //     N, ndim, this->pbc->global_extent, rng_phasespace);
+
             const int npart_per_cell = 10;
             std::mt19937 rng(534234 + rank);
             std::vector<std::vector<double>> positions;
@@ -335,7 +333,6 @@ public:
      */
     inline void boundary_conditions()
     {
-        // this->pbc->execute();
         this->reflection->execute(particle_sub_group(this->particle_group));
     }
 
@@ -459,8 +456,6 @@ protected:
     /// Simulation time
     double simulation_time;
 
-    /// Periodic Boundary Conditions
-    // std::shared_ptr<NektarCartesianPeriodic> pbc;
     /// Reflective Boundary Conditions
     std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 
