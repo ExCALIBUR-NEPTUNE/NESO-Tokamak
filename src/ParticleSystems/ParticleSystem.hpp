@@ -28,10 +28,12 @@ class ParticleSystem : public PartSysBase
     static inline ParticleSpec particle_spec{
         ParticleProp(Sym<INT>("CELL_ID"), 1, true),
         ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-        ParticleProp(Sym<REAL>("POSITION"), 2, true),
-        ParticleProp(Sym<REAL>("VELOCITY"), 2),
+        ParticleProp(Sym<REAL>("POSITION"), 3, true),
+        ParticleProp(Sym<REAL>("VELOCITY"), 3),
         ParticleProp(Sym<REAL>("M"), 1),
         ParticleProp(Sym<REAL>("Q"), 1),
+        ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
+        ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
         ParticleProp(Sym<REAL>("E0"), 1),
         ParticleProp(Sym<REAL>("E1"), 1),
         ParticleProp(Sym<REAL>("E2"), 1),
@@ -53,9 +55,7 @@ public:
                    SD::MeshGraphSharedPtr graph, MPI_Comm comm = MPI_COMM_WORLD)
         : PartSysBase(session, graph, particle_spec, comm), simulation_time(0.0)
     {
-        // this->pbc = std::make_shared<NektarCartesianPeriodic>(
-        //     this->sycl_target, this->graph,
-        //     this->particle_group->position_dat);
+
         auto config = std::make_shared<ParameterStore>();
         config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
         config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
@@ -65,11 +65,11 @@ public:
         config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
                           1.0e-6);
         auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-        std::vector<int> reflection_composites = {100};
+        std::vector<int> reflection_composites = {1,2,3,4};
         this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
             Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
             reflection_composites, config);
-
+        std::cout<<"R\n";
         // V initial velocity
         // P uniform sample?
 
@@ -128,7 +128,6 @@ public:
             std::vector<int> cells;
             rng = uniform_within_elements(graph, npart_per_cell, positions,
                                           cells, 1.0e-10, rng);
-
             for (int px = 0; px < N; px++)
             {
                 for (int dimx = 0; dimx < this->graph->GetMeshDimension();
@@ -236,10 +235,9 @@ public:
         NESOASSERT(this->field_project != nullptr,
                    "Field project object is null. Was setup_project called?");
 
-        std::vector<Sym<REAL>> syms = {
-            Sym<REAL>("SOURCE_DENSITY"), Sym<REAL>("SOURCE_MOMENTUM"),
-            Sym<REAL>("SOURCE_MOMENTUM"), Sym<REAL>("SOURCE_ENERGY")};
-        std::vector<int> components = {0, 0, 1, 0};
+        std::vector<Sym<REAL>> syms = {Sym<REAL>("SOURCE_DENSITY"),
+                                       Sym<REAL>("SOURCE_ENERGY")};
+        std::vector<int> components = {0, 0};
         this->field_project->project(syms, components);
 
         // remove fully ionised particles from the simulation
@@ -254,19 +252,16 @@ public:
      * @param E2 Nektar++ field storing E in direction 2.
      */
     inline void setup_evaluate_E(std::shared_ptr<DisContField> E0,
-                                        std::shared_ptr<DisContField> E1,
-                                        std::shared_ptr<DisContField> E2)
+                                 std::shared_ptr<DisContField> E1,
+                                 std::shared_ptr<DisContField> E2)
     {
         // TODO redo with redone Bary Evaluate.
-        this->field_evaluate_E0 =
-            std::make_shared<FieldEvaluate<DisContField>>(
-                E0, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_E1 =
-            std::make_shared<FieldEvaluate<DisContField>>(
-                E1, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_E2 =
-            std::make_shared<FieldEvaluate<DisContField>>(
-                E2, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E0 = std::make_shared<FieldEvaluate<DisContField>>(
+            E0, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E1 = std::make_shared<FieldEvaluate<DisContField>>(
+            E1, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E2 = std::make_shared<FieldEvaluate<DisContField>>(
+            E2, this->particle_group, this->cell_id_translation);
 
         this->fields["E0"] = E0;
         this->fields["E1"] = E1;
@@ -409,7 +404,6 @@ protected:
                 const REAL V_1 = V.at(1);
                 const REAL V_2 = V.at(2);
 
-                // The E dat contains d(phi)/dx not E -> multiply by -1.
                 const REAL v_minus_0 = V_0 + (E0.at(0)) * scaling_t;
                 const REAL v_minus_1 = V_1 + (E1.at(0)) * scaling_t;
                 const REAL v_minus_2 = V_2 + (E2.at(0)) * scaling_t;
@@ -431,7 +425,6 @@ protected:
                 v_plus_1 += v_minus_1;
                 v_plus_2 += v_minus_2;
 
-                // The E dat contains d(phi)/dx not E -> multiply by -1.
                 V.at(0) = v_plus_0 + scaling_t * (E0.at(0));
                 V.at(1) = v_plus_1 + scaling_t * (E1.at(0));
                 V.at(2) = v_plus_2 + scaling_t * (E2.at(0));

@@ -89,7 +89,8 @@ void TokamakSystem::ReadMagneticField()
 
                 for (d = 0; d < 6; ++d)
                 {
-                    B3D[d] = Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
+                    B3D[d] =
+                        Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
                     // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
                 }
                 Array<OneD, NekDouble> Bx(npoints_2d);
@@ -111,12 +112,18 @@ void TokamakSystem::ReadMagneticField()
                         Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
                     }
 
-                    Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d], 1);
-                    Vmath::Vcopy(npoints_2d, &y[0], 1, &B3D[1][i * npoints_2d], 1);
-                    Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d], 1);
-                    Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d], 1);
-                    Vmath::Vcopy(npoints_2d, &By[0], 1, &B3D[4][i * npoints_2d], 1);
-                    Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d], 1);
+                    Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &y[0], 1, &B3D[1][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &By[0], 1, &B3D[4][i * npoints_2d],
+                                 1);
+                    Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d],
+                                 1);
 
                     // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
                     //              &B_pol[1][i * npoints_2d], 1);
@@ -125,7 +132,7 @@ void TokamakSystem::ReadMagneticField()
                     // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
                     //              &B_pol[2][i * npoints_2d], 1);
                 }
-                LU::PtsFieldSharedPtr inPts = 
+                LU::PtsFieldSharedPtr inPts =
                     MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
 
                 Array<OneD, Array<OneD, NekDouble>> pts(6);
@@ -135,8 +142,10 @@ void TokamakSystem::ReadMagneticField()
                 }
                 m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
                 LU::PtsFieldSharedPtr outPts =
-                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring, pts);
-                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
+                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring,
+                                                                   pts);
+                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>
+                    interp;
 
                 interp =
                     FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
@@ -154,8 +163,8 @@ void TokamakSystem::ReadMagneticField()
                 interp.Interpolate(inPts, outPts);
                 for (d = 0; d < 3; ++d)
                 {
-                    //outPts->SetPts(d + 3, B_in[d]);
-                    B_in[d] = outPts->GetPts(d+3);
+                    // outPts->SetPts(d + 3, B_in[d]);
+                    B_in[d] = outPts->GetPts(d + 3);
                 }
             }
             else if (vType == LU::eFunctionTypeExpression)
@@ -172,9 +181,9 @@ void TokamakSystem::ReadMagneticField()
 
                 Array<OneD, NekDouble> r(nq);
                 Array<OneD, NekDouble> phi(nq);
-                for(int q = 0; q < nq; ++q)
+                for (int q = 0; q < nq; ++q)
                 {
-                    r[q] = std::sqrt(x0[q] * x0[q] + x2[q] * x2[q]);
+                    r[q]   = std::sqrt(x0[q] * x0[q] + x2[q] * x2[q]);
                     phi[q] = std::atan2(x2[q], x0[q]);
                 }
                 LibUtilities::EquationSharedPtr Bxfunc =
@@ -185,17 +194,16 @@ void TokamakSystem::ReadMagneticField()
                     m_session->GetFunction("MagneticMeanField", "Bz");
                 Array<OneD, NekDouble> Br(nq);
                 Array<OneD, NekDouble> Bphi(nq);
-                
+
                 Bxfunc->Evaluate(r, x1, phi, /*time=*/0, Br);
                 Byfunc->Evaluate(r, x1, phi, /*time=*/0, B_in[1]);
                 Bzfunc->Evaluate(r, x1, phi, /*time=*/0, Bphi);
 
-                for(int q = 0; q < nq; ++q)
+                for (int q = 0; q < nq; ++q)
                 {
                     B_in[0][q] = cos(phi[q]) * Br[q] - sin(phi[q]) * Bphi[q];
                     B_in[2][q] = cos(phi[q]) * Bphi[q] + sin(phi[q]) * Br[q];
                 }
-
             }
         }
     }
@@ -286,8 +294,8 @@ void TokamakSystem::DoOdeProjection(
 }
 
 void TokamakSystem::v_ExtraFldOutput(
-        std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
-        std::vector<std::string> &variables)
+    std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+    std::vector<std::string> &variables)
 {
     const int nPhys   = m_fields[0]->GetNpoints();
     const int nCoeffs = m_fields[0]->GetNcoeffs();
@@ -296,7 +304,7 @@ void TokamakSystem::v_ExtraFldOutput(
     Array<OneD, NekDouble> BxFwd(nCoeffs);
     m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
     fieldcoeffs.push_back(BxFwd);
-    
+
     variables.push_back("By");
     Array<OneD, NekDouble> ByFwd(nCoeffs);
     m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
@@ -317,15 +325,11 @@ void TokamakSystem::v_ExtraFldOutput(
     m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
     fieldcoeffs.push_back(EyFwd);
 
-    if(m_spacedim == 3)
-    {
-        variables.push_back("Ez");
-        Array<OneD, NekDouble> EzFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
-        fieldcoeffs.push_back(EzFwd);
-    }
+    variables.push_back("Ez");
+    Array<OneD, NekDouble> EzFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
+    fieldcoeffs.push_back(EzFwd);
 }
-
 
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
 {
@@ -423,8 +427,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     if (this->particles_enabled)
     {
         // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(
-            E[0], E[1], E[2]);
+        this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
 
         // Create src fields for coupling to reactions
