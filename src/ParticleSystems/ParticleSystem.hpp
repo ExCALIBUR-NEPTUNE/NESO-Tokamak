@@ -11,10 +11,13 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
+#include <reactions.hpp>
+
 #include <LibUtilities/BasicUtils/SessionReader.h>
 
 // namespace LU = Nektar::LibUtilities;
 // namespace NP = NESO::Particles;
+using namespace Reactions;
 
 namespace NESO::Solvers::tokamak
 {
@@ -200,6 +203,7 @@ public:
         {
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->integrate_inner(dt_inner);
+            this->reaction->apply_reactions(this->particle_group, dt_inner);
             time_tmp += dt_inner;
         }
 
@@ -458,6 +462,9 @@ protected:
 
     /// Reflective Boundary Conditions
     std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
+
+    /// Reaction Controller
+    std::shared_ptr<ReactionController> reaction;
 
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
