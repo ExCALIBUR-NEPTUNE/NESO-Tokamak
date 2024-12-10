@@ -27,6 +27,7 @@ src/BoundaryConditions/TokamakBndCond.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/ObliqueOutflowBC.cpp
 src/BoundaryConditions/SheathBC.cpp
+src/ParticleSystems/ReactionSystem.cpp
 src/Forcing/ReactionsCoupling.cpp
 )
 

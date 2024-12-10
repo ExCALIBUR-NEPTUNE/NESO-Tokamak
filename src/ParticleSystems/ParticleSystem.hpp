@@ -11,40 +11,40 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
-#include <reactions.hpp>
-
+#include <LibUtilities/BasicUtils/NekFactory.hpp>
 #include <LibUtilities/BasicUtils/SessionReader.h>
 
 // namespace LU = Nektar::LibUtilities;
 // namespace NP = NESO::Particles;
-using namespace Reactions;
 
 namespace NESO::Solvers::tokamak
 {
+class ParticleSystem;
 
+typedef ParticleSystemSharedPtr std::shared_ptr<ParticleSystem>;
+typedef ParticleSystemFactory LU::NekFactory<std::string, ParticleSystem,
+                                             const LU::SessionReaderSharedPtr,
+                                             const SD::MeshGraphSharedPtr>;
+ParticleSystemFactory &GetParticleSystemFactory();
 /**
  * @brief
  */
 class ParticleSystem : public PartSysBase
 {
 
-    static inline ParticleSpec particle_spec{
-        ParticleProp(Sym<INT>("CELL_ID"), 1, true),
-        ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-        ParticleProp(Sym<REAL>("POSITION"), 3, true),
-        ParticleProp(Sym<REAL>("VELOCITY"), 3),
-        ParticleProp(Sym<REAL>("M"), 1),
-        ParticleProp(Sym<REAL>("Q"), 1),
-        ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
-        ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
-        ParticleProp(Sym<REAL>("E0"), 1),
-        ParticleProp(Sym<REAL>("E1"), 1),
-        ParticleProp(Sym<REAL>("E2"), 1),
-        ParticleProp(Sym<REAL>("B0"), 1),
-        ParticleProp(Sym<REAL>("B1"), 1),
-        ParticleProp(Sym<REAL>("B2"), 1)};
-
 public:
+    /**
+     * @brief Create an instance of this class and initialise it.
+     */
+    static ParticleSystemSharedPtr create(
+        const LU::SessionReaderSharedPtr &session,
+        const SD::MeshGraphSharedPtr &graph)
+    {
+        ParticleSystemSharedPtr p =
+            MemoryManager<ParticleSystem>::AllocateSharedPtr(session, graph);
+        return p;
+    }
+
     /**
      *  Create a new instance.
      *
@@ -55,130 +55,17 @@ public:
      *
      */
     ParticleSystem(LU::SessionReaderSharedPtr session,
-                   SD::MeshGraphSharedPtr graph, MPI_Comm comm = MPI_COMM_WORLD)
-        : PartSysBase(session, graph, particle_spec, comm), simulation_time(0.0)
-    {
+                   SD::MeshGraphSharedPtr graph,
+                   MPI_Comm comm = MPI_COMM_WORLD);
 
-        auto config = std::make_shared<ParameterStore>();
-        config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-        config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-        config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-        config->set<REAL>("CompositeIntersection/line_intersection_tol",
-                          1.0e-10);
-        config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
-                          1.0e-6);
-        auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-        std::vector<int> reflection_composites = {1,2,3,4};
-        this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
-            Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
-            reflection_composites, config);
-        // V initial velocity
-        // P uniform sample?
-
-        long rstart, rend;
-        const long size = this->sycl_target->comm_pair.size_parent;
-        const long rank = this->sycl_target->comm_pair.rank_parent;
-        get_decomp_1d(size, (long)this->num_parts_tot, rank, &rstart, &rend);
-        const long N = rend - rstart;
-
-        // get seed from file
-        std::srand(std::time(nullptr));
-        int seed;
-        this->session->LoadParameter("particle_position_seed", seed,
-                                     std::rand());
-        std::mt19937 rng_phasespace(seed + rank);
-
-        // get particle mass from file
-        double particle_mass;
-        this->session->LoadParameter("particle_mass", particle_mass, 1.0);
-        // get particle charge from file
-        double particle_charge;
-        this->session->LoadParameter("particle_charge", particle_charge, 1.0);
-
-        double particle_B_scaling;
-        this->session->LoadParameter("particle_B_scaling", particle_B_scaling,
-                                     1.0);
-
-        double particle_thermal_velocity;
-        this->session->LoadParameter("particle_thermal_velocity",
-                                     particle_thermal_velocity, 0.0);
-        double particle_velocity_B_scaling;
-        this->session->LoadParameter("particle_velocity_B_scaling",
-                                     particle_velocity_B_scaling, 0.0);
-
-        this->particle_remover =
-            std::make_shared<ParticleRemover>(this->sycl_target);
-        // Report param values (later in the initialisation)
-        report_param("Random seed", seed);
-        report_param("Mass", particle_mass);
-        report_param("Charge", particle_charge);
-        report_param("Thermal velocity", particle_thermal_velocity);
-        report_param("B scaling", particle_B_scaling);
-        report_param("Velocity scaling", particle_velocity_B_scaling);
-
-        std::normal_distribution d{0.0, particle_thermal_velocity};
-
-        if (N > 0)
-        {
-            ParticleSet initial_distribution(
-                N, this->particle_group->get_particle_spec());
-
-            const int npart_per_cell = 10;
-            std::mt19937 rng(534234 + rank);
-            std::vector<std::vector<double>> positions;
-            std::vector<int> cells;
-            rng = uniform_within_elements(graph, npart_per_cell, positions,
-                                          cells, 1.0e-10, rng);
-            for (int px = 0; px < N; px++)
-            {
-                for (int dimx = 0; dimx < this->graph->GetMeshDimension();
-                     dimx++)
-                {
-                    // Create the position in dimx
-                    // const REAL pos_shift = this->pbc->global_origin[dimx];
-                    const REAL pos_tmp = /*pos_shift + */ positions[dimx][px];
-                    initial_distribution[Sym<REAL>("POSITION")][px][dimx] =
-                        pos_tmp;
-                    // Create the velocity in dimx
-                    REAL vtmp = 0.0;
-
-                    if (particle_thermal_velocity > 0.0)
-                    {
-                        vtmp += d(rng_phasespace);
-                    }
-                    initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
-                        vtmp;
-                }
-                initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
-                initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
-                initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] =
-                    px + rstart;
-            }
-
-            this->particle_group->add_particles_local(initial_distribution);
-        }
-
-        parallel_advection_initialisation(this->particle_group);
-        parallel_advection_store(this->particle_group);
-        const int num_steps = 20;
-        for (int stepx = 0; stepx < num_steps; stepx++)
-        {
-            parallel_advection_step(this->particle_group, num_steps, stepx);
-            this->transfer_particles();
-        }
-        parallel_advection_restore(this->particle_group);
-        // Move particles to the owning ranks and correct cells.
-        this->transfer_particles();
-
-        init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
-                    Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
-                    Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
-    };
+    virtual ~ParticleSystem() = 0;
 
     /// Disable (implicit) copies.
     ParticleSystem(const ParticleSystem &st) = delete;
     /// Disable (implicit) copies.
     ParticleSystem &operator=(ParticleSystem const &a) = delete;
+
+    virtual void InitSpec();
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -187,45 +74,19 @@ public:
      *  @param time_end Target time to integrate to.
      *  @param dt Time step size.
      */
-    inline void integrate(const double time_end, const double dt)
-    {
-
-        // Get the current simulation time.
-        NESOASSERT(time_end >= this->simulation_time,
-                   "Cannot integrate backwards in time.");
-        if (time_end == this->simulation_time || this->num_parts_tot == 0)
-        {
-            return;
-        }
-
-        double time_tmp = this->simulation_time;
-        while (time_tmp < time_end)
-        {
-            const double dt_inner = std::min(dt, time_end - time_tmp);
-            this->integrate_inner(dt_inner);
-            this->reaction->apply_reactions(this->particle_group, dt_inner);
-            time_tmp += dt_inner;
-        }
-
-        this->simulation_time = time_end;
-        this->transfer_particles();
-    }
+    inline void integrate(const double time_end, const double dt);
 
     /**
      * Setup the projection object to use the following fields.
      *
      * @param rho_src Nektar++ fields to project ionised particle data onto.
      */
-    inline void setup_project(std::shared_ptr<DisContField> ni_src,
-                              std::shared_ptr<DisContField> E_src)
+    inline void setup_project(
+        std::vector<std::shared_ptr<DisContField>> &src_fields)
     {
-        std::vector<std::shared_ptr<DisContField>> fields = {ni_src, E_src};
-        this->field_project = std::make_shared<FieldProject<DisContField>>(
-            fields, this->particle_group, this->cell_id_translation);
 
-        // Setup debugging output for each field
-        this->fields["ni_src"] = ni_src;
-        this->fields["E_src"]  = E_src;
+        this->field_project = std::make_shared<FieldProject<DisContField>>(
+            src_fields, this->particle_group, this->cell_id_translation);
     }
 
     /**
@@ -240,8 +101,12 @@ public:
         std::vector<Sym<REAL>> syms = {Sym<REAL>("SOURCE_DENSITY"),
                                        Sym<REAL>("SOURCE_ENERGY")};
         std::vector<int> components = {0, 0};
-        this->field_project->project(syms, components);
 
+        for (Species &s : species_list)
+        {
+            // Uncomment when sub_group projection enabled
+            // this->field_project->project(s.sub_group, vsyms, components);
+        }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
     }
@@ -255,20 +120,7 @@ public:
      */
     inline void setup_evaluate_E(std::shared_ptr<DisContField> E0,
                                  std::shared_ptr<DisContField> E1,
-                                 std::shared_ptr<DisContField> E2)
-    {
-        // TODO redo with redone Bary Evaluate.
-        this->field_evaluate_E0 = std::make_shared<FieldEvaluate<DisContField>>(
-            E0, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_E1 = std::make_shared<FieldEvaluate<DisContField>>(
-            E1, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_E2 = std::make_shared<FieldEvaluate<DisContField>>(
-            E2, this->particle_group, this->cell_id_translation);
-
-        this->fields["E0"] = E0;
-        this->fields["E1"] = E1;
-        this->fields["E2"] = E2;
-    }
+                                 std::shared_ptr<DisContField> E2);
 
     /**
      * Set up the evaluation of B.
@@ -279,46 +131,12 @@ public:
      */
     inline void setup_evaluate_B(std::shared_ptr<DisContField> B0,
                                  std::shared_ptr<DisContField> B1,
-                                 std::shared_ptr<DisContField> B2)
-    {
-        // TODO redo with redone Bary Evaluate.
-        this->field_evaluate_B0 = std::make_shared<FieldEvaluate<DisContField>>(
-            B0, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_B1 = std::make_shared<FieldEvaluate<DisContField>>(
-            B1, this->particle_group, this->cell_id_translation);
-        this->field_evaluate_B2 = std::make_shared<FieldEvaluate<DisContField>>(
-            B2, this->particle_group, this->cell_id_translation);
-
-        this->fields["B0"] = B0;
-        this->fields["B1"] = B1;
-        this->fields["B2"] = B2;
-    }
+                                 std::shared_ptr<DisContField> B2);
 
     /**
      * Evaluate E and B at the particle locations.
      */
-    inline void evaluate_fields()
-    {
-        NESOASSERT(this->field_evaluate_E0 != nullptr,
-                   "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_E1 != nullptr,
-                   "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_E2 != nullptr,
-                   "FieldEvaluate not setup.");
-        this->field_evaluate_E0->evaluate(Sym<REAL>("E0"));
-        this->field_evaluate_E1->evaluate(Sym<REAL>("E1"));
-        this->field_evaluate_E2->evaluate(Sym<REAL>("E2"));
-
-        NESOASSERT(this->field_evaluate_B0 != nullptr,
-                   "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_B1 != nullptr,
-                   "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_B2 != nullptr,
-                   "FieldEvaluate not setup.");
-        this->field_evaluate_B0->evaluate(Sym<REAL>("B0"));
-        this->field_evaluate_B1->evaluate(Sym<REAL>("B1"));
-        this->field_evaluate_B2->evaluate(Sym<REAL>("B2"));
-    }
+    inline void evaluate_fields();
 
     inline void remove_marked_particles()
     {
@@ -377,7 +195,7 @@ public:
     }
 
 protected:
-    inline void integrate_inner(const double dt_inner)
+    virtual inline void integrate_inner(const double dt_inner)
     {
         const auto k_dt  = dt_inner;
         const auto k_dht = dt_inner * 0.5;
@@ -443,10 +261,24 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")))
             ->execute();
     };
+    ParticleSpec particle_spec;
+
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
+    struct Species
+    {
+        std::string name;
+        double mass;
+        double charge;
+
+        std::shared_ptr<ParticleSubGroup> sub_group;
+    };
+
+    std::vector<Species> species_list;
+
     std::shared_ptr<FieldProject<DisContField>> field_project;
+
     /// Object used to evaluate Nektar electric field
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E0;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E1;
@@ -463,9 +295,6 @@ protected:
     /// Reflective Boundary Conditions
     std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 
-    /// Reaction Controller
-    std::shared_ptr<ReactionController> reaction;
-
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
      * // Move some of this to PartSysBase / make it a pure-virtual func?
@@ -481,6 +310,109 @@ protected:
         this->sycl_target->profile_map.inc(
             "ParticleSystem", "transfer_particles", 1,
             profile_elapsed(t0, profile_timestamp()));
+    }
+
+    // To be moved into NESO
+
+    virtual void ReadParticles()
+    {
+        // Check we actually have a document loaded.
+        ASSERTL0(&session->GetDocument(), "No XML document loaded.");
+
+        TiXmlHandle docHandle(&session->GetDocument());
+        TiXmlElement *particles;
+
+        // Look for all data in PARTICLES block.
+        particles = docHandle.FirstChildElement("NEKTAR")
+                        .FirstChildElement("PARTICLES")
+                        .Element();
+
+        if (!particles)
+        {
+            return;
+        }
+
+        TiXmlElement *species = particles->FirstChildElement("SPECIES");
+        TiXmlElement *specie  = species->FirstChildElement("S");
+
+        while (specie)
+        {
+            nSpecies++;
+            std::stringstream tagcontent;
+            tagcontent << *specie;
+
+            ASSERTL0(specie->Attribute("ID"),
+                     "Missing ID attribute in Species XML "
+                     "element: \n\t'" +
+                         tagcontent.str() + "'");
+            std::string name = species->Attribute("NAME");
+            ASSERTL0(!name.empty(),
+                     "NAME attribute must be non-empty in XML element:\n\t'" +
+                         tagcontent.str() + "'");
+
+            // generate a list of species.
+            std::vector<std::string> species;
+            bool valid = ParseUtils::GenerateVector(species, varStrings);
+
+            ASSERTL0(valid, "Unable to process list of variable in XML "
+                            "element \n\t'" +
+                                tagcontent.str() + "'");
+
+            if (varStrings.size())
+            {
+                TiXmlElement *info = specie->FirstChildElement("P");
+
+                while (info)
+                {
+                    tagcontent.clear();
+                    tagcontent << *info;
+                    // read the property name
+                    ASSERTL0(info->Attribute("PROPERTY"),
+                             "Missing PROPERTY attribute in "
+                             "Species  '" +
+                                 name + "' in XML element: \n\t'" +
+                                 tagcontent.str() + "'");
+                    std::string property = info->Attribute("PROPERTY");
+                    ASSERTL0(!property.empty(),
+                             "Species properties must have a "
+                             "non-empty name for Species '" +
+                                 name + "' in XML element: \n\t'" +
+                                 tagcontent.str() + "'");
+
+                    // make sure that solver property is capitalised
+                    std::string propertyUpper = boost::to_upper_copy(property);
+
+                    // read the value
+                    ASSERTL0(info->Attribute("VALUE"),
+                             "Missing VALUE attribute in Species '" + name +
+                                 "' in XML element: \n\t" + tagcontent.str() +
+                                 "'");
+                    std::string value = info->Attribute("VALUE");
+                    ASSERTL0(!value.empty(), "Species properties must have a "
+                                             "non-empty value for Species '" +
+                                                 name +
+                                                 "' in XML element: \n\t'" +
+                                                 tagcontent.str() + "'");
+
+                    // Store values under variable map.
+                    for (int i = 0; i < varStrings.size(); ++i)
+                    {
+                        auto x = GetGloSysSolnList().find(varStrings[i]);
+                        if (x == GetGloSysSolnList().end())
+                        {
+                            (GetGloSysSolnList()[varStrings[i]])
+                                [propertyUpper] = value;
+                        }
+                        else
+                        {
+                            x->second[propertyUpper] = value;
+                        }
+                    }
+                    info = info->NextSiblingElement("P");
+                }
+                specie = specie->NextSiblingElement("S");
+            }
+        }
     }
 };
 } // namespace NESO::Solvers::tokamak
