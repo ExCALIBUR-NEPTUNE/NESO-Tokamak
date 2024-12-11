@@ -2,13 +2,14 @@
 
 // enable multi-core processing
 General.NumThreads = 6;
+
 // open brep geometry
-Merge "Face001_Geometry.brep";
+Merge "Revolution_Geometry.brep";
 
 // Characteristic Length
 // no boundary layer settings for this mesh
 // min, max Characteristic Length
-Mesh.CharacteristicLengthMax = 50.0;
+Mesh.CharacteristicLengthMax = 100.0;
 Mesh.CharacteristicLengthMin = 0.0;
 Mesh.MeshSizeFromCurvature = 12; // number of elements per 2*pi radians, 0 to deactivate
 
@@ -30,18 +31,13 @@ Mesh.Algorithm3D = 1;
 
 // meshing
 Geometry.Tolerance = 1e-06; // set geometrical tolerance (also used for merging nodes)
-Mesh  2;
+Mesh  3;
 Coherence Mesh; // Remove duplicate vertices
-
-Curve Loop(1) = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79};
-Physical Surface(1) = {1};
-Physical Curve(100) = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79};
 
 // save
 // Ignore Physical definitions and save all elements;
 // Mesh.SaveAll = 1;
-// Save "Face001_Mesh.unv";
-
+// Save "Revolution_Mesh.unv";
 
 
 // **********************************************************************
@@ -51,7 +47,15 @@ Physical Curve(100) = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
 // We do not check if something went wrong, like negative jacobians etc. You can run Gmsh manually yourself: 
 //
 // to see full Gmsh log, run in bash:
-// C:/Program Files/FreeCAD 0.21/bin/gmsh.exe - C:\Users\jedge\AppData\Local\Temp\fcfem_9mex2f_3\shape2mesh.geo
+// C:/Program Files/FreeCAD 0.21/bin/gmsh.exe - C:\Users\jedge\AppData\Local\Temp\fcfem_ptt_chyr\shape2mesh.geo
 //
 // to run Gmsh and keep file in Gmsh GUI (with log), run in bash:
-// C:/Program Files/FreeCAD 0.21/bin/gmsh.exe C:\Users\jedge\AppData\Local\Temp\fcfem_9mex2f_3\shape2mesh.geo
+// C:/Program Files/FreeCAD 0.21/bin/gmsh.exe C:\Users\jedge\AppData\Local\Temp\fcfem_ptt_chyr\shape2mesh.geo
+//+
+Physical Volume(153) = {1};
+//+
+Physical Surface(154) = {21, 20};
+//+
+Physical Surface(155) = {20, 19, 18, 21, 17, 31, 32, 30, 33, 29, 34, 35, 28, 36, 37, 16, 27, 38, 39, 40, 26, 41, 42, 22, 15, 25, 14, 24, 43, 23, 46, 44, 13, 45, 47, 48, 12, 49, 51, 50, 11, 10, 53, 52, 55, 9, 54, 59, 8, 56, 57, 60, 61, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 7, 74, 75, 76, 77, 78, 79, 1, 6, 2, 3, 5, 4};
+//+
+Physical Volume(156) = {1};
