@@ -11,21 +11,12 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
-#include <LibUtilities/BasicUtils/NekFactory.hpp>
-#include <LibUtilities/BasicUtils/SessionReader.h>
-
 // namespace LU = Nektar::LibUtilities;
 // namespace NP = NESO::Particles;
 
 namespace NESO::Solvers::tokamak
 {
-class ParticleSystem;
 
-typedef ParticleSystemSharedPtr std::shared_ptr<ParticleSystem>;
-typedef ParticleSystemFactory LU::NekFactory<std::string, ParticleSystem,
-                                             const LU::SessionReaderSharedPtr,
-                                             const SD::MeshGraphSharedPtr>;
-ParticleSystemFactory &GetParticleSystemFactory();
 /**
  * @brief
  */
@@ -33,11 +24,12 @@ class ParticleSystem : public PartSysBase
 {
 
 public:
+    static std::string className;
     /**
      * @brief Create an instance of this class and initialise it.
      */
     static ParticleSystemSharedPtr create(
-        const LU::SessionReaderSharedPtr &session,
+        const ParticleReaderSharedPtr &session,
         const SD::MeshGraphSharedPtr &graph)
     {
         ParticleSystemSharedPtr p =
@@ -48,13 +40,13 @@ public:
     /**
      *  Create a new instance.
      *
-     *  @param session Nektar++ session to use for parameters and simulation
+     *  @param session Particle reader to use for parameters and simulation
      * specification.
      *  @param graph Nektar++ MeshGraph on which particles exist.
      *  @param comm (optional) MPI communicator to use - default MPI_COMM_WORLD.
      *
      */
-    ParticleSystem(LU::SessionReaderSharedPtr session,
+    ParticleSystem(ParticleReaderSharedPtr session,
                    SD::MeshGraphSharedPtr graph,
                    MPI_Comm comm = MPI_COMM_WORLD);
 
@@ -65,7 +57,12 @@ public:
     /// Disable (implicit) copies.
     ParticleSystem &operator=(ParticleSystem const &a) = delete;
 
-    virtual void InitSpec();
+    virtual void InitSpec() override;
+
+    virtual void ReadParticles() override
+    {
+        PartSysBase::ReadParticles();
+    }
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -310,109 +307,6 @@ protected:
         this->sycl_target->profile_map.inc(
             "ParticleSystem", "transfer_particles", 1,
             profile_elapsed(t0, profile_timestamp()));
-    }
-
-    // To be moved into NESO
-
-    virtual void ReadParticles()
-    {
-        // Check we actually have a document loaded.
-        ASSERTL0(&session->GetDocument(), "No XML document loaded.");
-
-        TiXmlHandle docHandle(&session->GetDocument());
-        TiXmlElement *particles;
-
-        // Look for all data in PARTICLES block.
-        particles = docHandle.FirstChildElement("NEKTAR")
-                        .FirstChildElement("PARTICLES")
-                        .Element();
-
-        if (!particles)
-        {
-            return;
-        }
-
-        TiXmlElement *species = particles->FirstChildElement("SPECIES");
-        TiXmlElement *specie  = species->FirstChildElement("S");
-
-        while (specie)
-        {
-            nSpecies++;
-            std::stringstream tagcontent;
-            tagcontent << *specie;
-
-            ASSERTL0(specie->Attribute("ID"),
-                     "Missing ID attribute in Species XML "
-                     "element: \n\t'" +
-                         tagcontent.str() + "'");
-            std::string name = species->Attribute("NAME");
-            ASSERTL0(!name.empty(),
-                     "NAME attribute must be non-empty in XML element:\n\t'" +
-                         tagcontent.str() + "'");
-
-            // generate a list of species.
-            std::vector<std::string> species;
-            bool valid = ParseUtils::GenerateVector(species, varStrings);
-
-            ASSERTL0(valid, "Unable to process list of variable in XML "
-                            "element \n\t'" +
-                                tagcontent.str() + "'");
-
-            if (varStrings.size())
-            {
-                TiXmlElement *info = specie->FirstChildElement("P");
-
-                while (info)
-                {
-                    tagcontent.clear();
-                    tagcontent << *info;
-                    // read the property name
-                    ASSERTL0(info->Attribute("PROPERTY"),
-                             "Missing PROPERTY attribute in "
-                             "Species  '" +
-                                 name + "' in XML element: \n\t'" +
-                                 tagcontent.str() + "'");
-                    std::string property = info->Attribute("PROPERTY");
-                    ASSERTL0(!property.empty(),
-                             "Species properties must have a "
-                             "non-empty name for Species '" +
-                                 name + "' in XML element: \n\t'" +
-                                 tagcontent.str() + "'");
-
-                    // make sure that solver property is capitalised
-                    std::string propertyUpper = boost::to_upper_copy(property);
-
-                    // read the value
-                    ASSERTL0(info->Attribute("VALUE"),
-                             "Missing VALUE attribute in Species '" + name +
-                                 "' in XML element: \n\t" + tagcontent.str() +
-                                 "'");
-                    std::string value = info->Attribute("VALUE");
-                    ASSERTL0(!value.empty(), "Species properties must have a "
-                                             "non-empty value for Species '" +
-                                                 name +
-                                                 "' in XML element: \n\t'" +
-                                                 tagcontent.str() + "'");
-
-                    // Store values under variable map.
-                    for (int i = 0; i < varStrings.size(); ++i)
-                    {
-                        auto x = GetGloSysSolnList().find(varStrings[i]);
-                        if (x == GetGloSysSolnList().end())
-                        {
-                            (GetGloSysSolnList()[varStrings[i]])
-                                [propertyUpper] = value;
-                        }
-                        else
-                        {
-                            x->second[propertyUpper] = value;
-                        }
-                    }
-                    info = info->NextSiblingElement("P");
-                }
-                specie = specie->NextSiblingElement("S");
-            }
-        }
     }
 };
 } // namespace NESO::Solvers::tokamak

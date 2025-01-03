@@ -4,9 +4,9 @@ namespace NESO::Solvers::tokamak
 {
 std::string ReactionSystem::className =
     GetParticleSystemFactory().RegisterCreatorFunction(
-        "Reaction", ReactionSystem::create, "Reaction System");
+        "ReactionSystem", ReactionSystem::create, "Reaction System");
 
-ReactionSystem::ReactionSystem(LU::SessionReaderSharedPtr session,
+ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph)
     : ParticleSystem(session, graph)
 {

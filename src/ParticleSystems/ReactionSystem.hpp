@@ -12,34 +12,38 @@ class ReactionSystem : public ParticleSystem
 {
 
 public:
-    static ParticleSystemSharedPtr create(
-        const LU::SessionReaderSharedPtr session,
-        const SD::MeshGraphSharedPtr graph)
+    static std::string className;
+    static ParticleSystemSharedPtr create(const ParticleReaderSharedPtr session,
+                                          const SD::MeshGraphSharedPtr graph)
     {
         return MemoryManager<ReactionSystem>(session, graph);
     }
-
-    static std::string className;
 
     ReactionSystem(LU::SessionReaderSharedPtr session,
                    SD::MeshGraphSharedPtr graph);
 
     ~ReactionSystem() override;
 
+    void InitSpec() override
+    {
+        ParticleSystem::InitSpec();
+        particle_spec.push(ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
+        particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
+    }
+
     inline void setup_reaction()
     {
         for (auto r : reactions)
         {
             auto reaction =
-                LinearReactionBase<num_products_per_parent,
-                                   decltype(r.data),
+                LinearReactionBase<num_products_per_parent, decltype(r.data),
                                    decltype(r.reaction_kernel),
                                    decltype(r.data_calc_obj)>(
                     particle_group->sycl_target, Sym<REAL>("TOT_REACTION_RATE"),
-                    Sym<REAL>("WEIGHT"), species_null.get_id(),
-                    r.out_states, r.data, r.reaction_kernel,
-                    particle_spec, r.data_calc_obj);
-            reaction_controller.add_reaction(std::make_shared<decltype(reaction)>(reaction));
+                    Sym<REAL>("WEIGHT"), species_null.get_id(), r.out_states,
+                    r.data, r.reaction_kernel, particle_spec, r.data_calc_obj);
+            reaction_controller.add_reaction(
+                std::make_shared<decltype(reaction)>(reaction));
         }
     }
 
@@ -173,21 +177,6 @@ protected:
                                          "non-empty value for Species '" +
                                              name + "' in XML element: \n\t'" +
                                              tagcontent.str() + "'");
-
-                // Store values under variable map.
-                for (int i = 0; i < varStrings.size(); ++i)
-                {
-                    auto x = GetGloSysSolnList().find(varStrings[i]);
-                    if (x == GetGloSysSolnList().end())
-                    {
-                        (GetGloSysSolnList()[varStrings[i]])[propertyUpper] =
-                            value;
-                    }
-                    else
-                    {
-                        x->second[propertyUpper] = value;
-                    }
-                }
                 info = info->NextSiblingElement("P");
             }
         }

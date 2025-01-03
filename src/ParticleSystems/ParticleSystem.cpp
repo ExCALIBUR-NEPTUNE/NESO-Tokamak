@@ -2,11 +2,6 @@
 
 namespace NESO::Solvers::tokamak
 {
-ParticleSystemFactory &GetParticleSystemFactory()
-{
-    static ParticleSystemFactory instance;
-    return instance;
-}
 
 void ParticleSystem::InitSpec()
 {
@@ -26,11 +21,14 @@ void ParticleSystem::InitSpec()
                      ParticleProp(Sym<REAL>("B2"), 1)};
 }
 
-ParticleSystem::ParticleSystem(LU::SessionReaderSharedPtr session,
+std::string ParticleSystem::className =
+    GetParticleSystemFactory().RegisterCreatorFunction(
+        "ParticleSystem", ParticleSystem::create, "Particle System");
+
+ParticleSystem::ParticleSystem(ParticleReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph, MPI_Comm comm)
-    : PartSysBase(session, graph, particle_spec, comm), simulation_time(0.0)
+    : PartSysBase(session, graph, comm), simulation_time(0.0)
 {
-    InitSpec();
     auto config = std::make_shared<ParameterStore>();
     config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
     config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
