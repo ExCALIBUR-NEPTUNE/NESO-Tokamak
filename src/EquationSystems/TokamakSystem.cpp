@@ -38,6 +38,11 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
         session->DefinesParameter("growth_rates_recording_step");
 }
 
+std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
+{
+    return this->particle_sys;
+}
+
 /**
  * @brief Read the magnetic field from file.
  */

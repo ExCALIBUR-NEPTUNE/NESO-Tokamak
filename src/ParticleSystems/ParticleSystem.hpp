@@ -50,18 +50,68 @@ public:
                    SD::MeshGraphSharedPtr graph,
                    MPI_Comm comm = MPI_COMM_WORLD);
 
-    virtual ~ParticleSystem() = 0;
+    virtual ~ParticleSystem() override = default;
 
     /// Disable (implicit) copies.
     ParticleSystem(const ParticleSystem &st) = delete;
     /// Disable (implicit) copies.
     ParticleSystem &operator=(ParticleSystem const &a) = delete;
 
-    virtual void InitSpec() override;
-
-    virtual void ReadParticles() override
+    inline virtual void InitSpec() override
     {
-        PartSysBase::ReadParticles();
+    particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
+                     ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
+                     ParticleProp(Sym<REAL>("POSITION"), 3, true),
+                     ParticleProp(Sym<REAL>("VELOCITY"), 3),
+                     ParticleProp(Sym<REAL>("M"), 1),
+                     ParticleProp(Sym<REAL>("Q"), 1),
+                     ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
+                     ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
+                     ParticleProp(Sym<REAL>("E0"), 1),
+                     ParticleProp(Sym<REAL>("E1"), 1),
+                     ParticleProp(Sym<REAL>("E2"), 1),
+                     ParticleProp(Sym<REAL>("B0"), 1),
+                     ParticleProp(Sym<REAL>("B1"), 1),
+                     ParticleProp(Sym<REAL>("B2"), 1)};
+}
+
+    virtual void InitObject() override
+    {
+        PartSysBase::InitObject();
+
+        parallel_advection_initialisation(this->particle_group);
+        parallel_advection_store(this->particle_group);
+        const int num_steps = 20;
+        for (int stepx = 0; stepx < num_steps; stepx++)
+        {
+            parallel_advection_step(this->particle_group, num_steps, stepx);
+            this->transfer_particles();
+        }
+        parallel_advection_restore(this->particle_group);
+        // Move particles to the owning ranks and correct cells.
+        this->transfer_particles();
+
+        init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
+                    Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
+                    Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
+    }
+    virtual void SetUpParticles() override
+    {
+        PartSysBase::SetUpParticles();
+    }
+
+    virtual void SetUpSpecies() override;
+    struct SpeciesInfo
+    {
+        std::string name;
+        double mass;
+        double charge;
+
+        std::shared_ptr<ParticleSubGroup> sub_group;
+    };
+    virtual std::map<int, SpeciesInfo> &GetSpecies()
+    {
+        return species_map;
     }
 
     /**
@@ -71,7 +121,28 @@ public:
      *  @param time_end Target time to integrate to.
      *  @param dt Time step size.
      */
-    inline void integrate(const double time_end, const double dt);
+    inline void integrate(const double time_end, const double dt)
+    {
+
+        // Get the current simulation time.
+        NESOASSERT(time_end >= this->simulation_time,
+                   "Cannot integrate backwards in time.");
+        if (time_end == this->simulation_time || this->num_parts_tot == 0)
+        {
+            return;
+        }
+
+        double time_tmp = this->simulation_time;
+        while (time_tmp < time_end)
+        {
+            const double dt_inner = std::min(dt, time_end - time_tmp);
+            this->integrate_inner(dt_inner);
+            time_tmp += dt_inner;
+        }
+
+        this->simulation_time = time_end;
+        this->transfer_particles();
+    }
 
     /**
      * Setup the projection object to use the following fields.
@@ -99,10 +170,9 @@ public:
                                        Sym<REAL>("SOURCE_ENERGY")};
         std::vector<int> components = {0, 0};
 
-        for (Species &s : species_list)
+        for (auto &s : species_map)
         {
-            // Uncomment when sub_group projection enabled
-            // this->field_project->project(s.sub_group, vsyms, components);
+            this->field_project->project(s.second.sub_group, syms, components);
         }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
@@ -117,7 +187,20 @@ public:
      */
     inline void setup_evaluate_E(std::shared_ptr<DisContField> E0,
                                  std::shared_ptr<DisContField> E1,
-                                 std::shared_ptr<DisContField> E2);
+                                 std::shared_ptr<DisContField> E2)
+    {
+        // TODO redo with redone Bary Evaluate.
+        this->field_evaluate_E0 = std::make_shared<FieldEvaluate<DisContField>>(
+            E0, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E1 = std::make_shared<FieldEvaluate<DisContField>>(
+            E1, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_E2 = std::make_shared<FieldEvaluate<DisContField>>(
+            E2, this->particle_group, this->cell_id_translation);
+
+        this->fields["E0"] = E0;
+        this->fields["E1"] = E1;
+        this->fields["E2"] = E2;
+    }
 
     /**
      * Set up the evaluation of B.
@@ -128,12 +211,46 @@ public:
      */
     inline void setup_evaluate_B(std::shared_ptr<DisContField> B0,
                                  std::shared_ptr<DisContField> B1,
-                                 std::shared_ptr<DisContField> B2);
+                                 std::shared_ptr<DisContField> B2)
+    {
+        // TODO redo with redone Bary Evaluate.
+        this->field_evaluate_B0 = std::make_shared<FieldEvaluate<DisContField>>(
+            B0, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_B1 = std::make_shared<FieldEvaluate<DisContField>>(
+            B1, this->particle_group, this->cell_id_translation);
+        this->field_evaluate_B2 = std::make_shared<FieldEvaluate<DisContField>>(
+            B2, this->particle_group, this->cell_id_translation);
+
+        this->fields["B0"] = B0;
+        this->fields["B1"] = B1;
+        this->fields["B2"] = B2;
+    }
 
     /**
      * Evaluate E and B at the particle locations.
      */
-    inline void evaluate_fields();
+    inline void evaluate_fields()
+    {
+        NESOASSERT(this->field_evaluate_E0 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_E1 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_E2 != nullptr,
+                   "FieldEvaluate not setup.");
+        this->field_evaluate_E0->evaluate(Sym<REAL>("E0"));
+        this->field_evaluate_E1->evaluate(Sym<REAL>("E1"));
+        this->field_evaluate_E2->evaluate(Sym<REAL>("E2"));
+
+        NESOASSERT(this->field_evaluate_B0 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_B1 != nullptr,
+                   "FieldEvaluate not setup.");
+        NESOASSERT(this->field_evaluate_B2 != nullptr,
+                   "FieldEvaluate not setup.");
+        this->field_evaluate_B0->evaluate(Sym<REAL>("B0"));
+        this->field_evaluate_B1->evaluate(Sym<REAL>("B1"));
+        this->field_evaluate_B2->evaluate(Sym<REAL>("B2"));
+    }
 
     inline void remove_marked_particles()
     {
@@ -258,21 +375,11 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")))
             ->execute();
     };
-    ParticleSpec particle_spec;
 
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
-    struct Species
-    {
-        std::string name;
-        double mass;
-        double charge;
-
-        std::shared_ptr<ParticleSubGroup> sub_group;
-    };
-
-    std::vector<Species> species_list;
+    std::map<int, SpeciesInfo> species_map;
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 

@@ -16,34 +16,123 @@ public:
     static ParticleSystemSharedPtr create(const ParticleReaderSharedPtr session,
                                           const SD::MeshGraphSharedPtr graph)
     {
-        return MemoryManager<ReactionSystem>(session, graph);
+        ParticleSystemSharedPtr p =
+            MemoryManager<ReactionSystem>::AllocateSharedPtr(session, graph);
+        return p;
     }
 
-    ReactionSystem(LU::SessionReaderSharedPtr session,
+    ReactionSystem(ParticleReaderSharedPtr session,
                    SD::MeshGraphSharedPtr graph);
 
-    ~ReactionSystem() override;
+    ~ReactionSystem() override = default;
 
-    void InitSpec() override
+    inline void InitSpec() override
     {
         ParticleSystem::InitSpec();
         particle_spec.push(ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
         particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
 
-    inline void setup_reaction()
+    inline void SetUpReactions()
     {
-        for (auto r : reactions)
+        auto prop_map = default_map;
+
+        for (const auto &[k, v] : session->GetReactions())
         {
-            auto reaction =
-                LinearReactionBase<num_products_per_parent, decltype(r.data),
-                                   decltype(r.reaction_kernel),
-                                   decltype(r.data_calc_obj)>(
-                    particle_group->sycl_target, Sym<REAL>("TOT_REACTION_RATE"),
-                    Sym<REAL>("WEIGHT"), species_null.get_id(), r.out_states,
-                    r.data, r.reaction_kernel, particle_spec, r.data_calc_obj);
-            reaction_controller.add_reaction(
-                std::make_shared<decltype(reaction)>(reaction));
+            if (std::get<0>(v) == "Ionisation")
+            {
+
+                auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
+                auto target_species =
+                    Species(species_map[std::stoi(std::get<1>(v)[0])].name,
+                            std::stoi(std::get<1>(v)[0]),
+                            species_map[std::stoi(std::get<1>(v)[0])].mass,
+                            species_map[std::stoi(std::get<1>(v)[0])].charge);
+
+                auto test_data = FixedRateData(1.0);
+                auto reaction =
+                    ElectronImpactIonisation<FixedRateData, FixedRateData>(
+                        particle_group->sycl_target,
+                        Sym<REAL>(
+                            prop_map[default_properties.tot_reaction_rate]),
+                        Sym<REAL>(prop_map[default_properties.weight]),
+                        test_data, test_data, target_species, electron_species,
+                        particle_spec);
+
+                reaction_controller->add_reaction(
+                    std::make_shared<decltype(reaction)>(reaction));
+            }
+            else if (std::get<0>(v) == "Recombination")
+            {
+                NESOASSERT(false, "Recombination kernels not yet implemented");
+                /*
+                auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
+                auto species_null     = Species("", 1.0, 0.0, -1);
+                auto target_species =
+                Species(species_map[std::stoi(std::get<1>(v)[0])].name,
+                            std::stoi(std::get<1>(v)[0]),
+                            species_map[std::stoi(std::get<1>(v)[0])].mass,
+                            species_map[std::stoi(std::get<1>(v)[0])].charge);
+                auto recomb_reaction_kernel = RecombReactionKernels<>(
+                    target_species, electron_species, prop_map);
+                std::array<int, 1> recomb_out_states = {0};
+                auto recomb_data                     = FixedRateData(1.0);
+
+                auto vx_beam_data = FixedRateData(1.0);
+                auto vy_beam_data = FixedRateData(-1.0);
+
+                auto data_calculator =
+                    DataCalculator<FixedRateData, FixedRateData>(
+                        particle_spec, vx_beam_data, vy_beam_data);
+                auto reaction = LinearReactionBase<
+                    1, decltype(recomb_data), decltype(recomb_reaction_kernel),
+                    decltype(data_calculator)>(
+                    particle_group->sycl_target,
+                    Sym<REAL>(prop_map[default_properties.tot_reaction_rate]),
+                    Sym<REAL>(prop_map[default_properties.weight]),
+                    species_null.get_id(), recomb_out_states, recomb_data,
+                    recomb_reaction_kernel, particle_spec, data_calculator);
+
+                reaction_controller->add_reaction(
+                    std::make_shared<decltype(reaction)>(reaction));
+                    */
+            }
+
+            else if (std::get<0>(v) == "ChargeExchange")
+            {
+                auto projectile_species =
+                    Species(species_map[std::stoi(std::get<1>(v)[0])].name,
+                            std::stoi(std::get<1>(v)[0]),
+                            species_map[std::stoi(std::get<1>(v)[0])].mass,
+                            species_map[std::stoi(std::get<1>(v)[0])].charge);
+                auto target_species =
+                    Species(species_map[std::stoi(std::get<1>(v)[1])].name,
+                            std::stoi(std::get<1>(v)[1]),
+                            species_map[std::stoi(std::get<1>(v)[1])].mass,
+                            species_map[std::stoi(std::get<1>(v)[1])].charge);
+
+                auto cx_kernel = CXReactionKernels<2>(
+                    target_species, projectile_species, prop_map);
+                auto rate_data    = FixedRateData(1.0);
+                auto vx_beam_data = FixedRateData(1.0);
+                auto vy_beam_data = FixedRateData(-1.0);
+
+                auto data_calculator =
+                    DataCalculator<FixedRateData, FixedRateData>(
+                        particle_spec, vx_beam_data, vy_beam_data);
+                auto reaction = LinearReactionBase<
+                    1, FixedRateData, CXReactionKernels<2>,
+                    DataCalculator<FixedRateData, FixedRateData>>(
+                    particle_group->sycl_target,
+                    Sym<REAL>(prop_map[default_properties.tot_reaction_rate]),
+                    Sym<REAL>(prop_map[default_properties.weight]),
+                    projectile_species.get_id(),
+                    std::array<int, 1>{target_species.get_id()}, rate_data,
+                    cx_kernel, particle_spec, data_calculator);
+
+                reaction_controller->add_reaction(
+                    std::make_shared<decltype(reaction)>(reaction));
+            }
         }
     }
 
@@ -53,14 +142,14 @@ public:
         reaction_controller->apply_reactions(this->particle_group, dt_inner);
     }
 
-    void ReadParticles() override
+    void SetUpParticles() override
     {
-        ParticleSystem::ReadParticles();
-        ReadReactions();
+        ParticleSystem::SetUpParticles();
+        SetUpReactions();
     }
 
 protected:
-    class ProjectTransformation : TransformationStrategy
+    class ProjectTransformation : public TransformationStrategy
     {
 
     public:
@@ -94,93 +183,6 @@ protected:
     std::shared_ptr<ReactionController> reaction_controller;
 
     std::vector<DisContFieldSharedPtr> src_fields;
-
-    void ReadReactions()
-    {
-        // Check we actually have a document loaded.
-        ASSERTL0(&session->GetDocument(), "No XML document loaded.");
-
-        TiXmlHandle docHandle(&session->GetDocument());
-        TiXmlElement *particles;
-
-        // Look for all data in PARTICLES block.
-        particles = docHandle.FirstChildElement("NEKTAR")
-                        .FirstChildElement("PARTICLES")
-                        .Element();
-
-        TiXmlElement *reactions = particles->FirstChildElement("REACTION");
-        if (reactions)
-        {
-            TiXmlElement *reaction = reactions->FirstChildElement("R");
-
-            while (reaction)
-            {
-                ReadReaction(reaction);
-                reaction = reaction->NextSiblingElement("R");
-            }
-        }
-    }
-
-    void ReadReaction(TiXmlElement *reaction)
-    {
-        nReactions++;
-        std::stringstream tagcontent;
-        tagcontent << *reaction;
-
-        ASSERTL0(reaction->Attribute("ID"),
-                 "Missing ID attribute in Reaction XML "
-                 "element: \n\t'" +
-                     tagcontent.str() + "'");
-        std::string name = reaction->Attribute("NAME");
-        ASSERTL0(!name.empty(),
-                 "NAME attribute must be non-empty in XML element:\n\t'" +
-                     tagcontent.str() + "'");
-
-        // generate a list of species.
-        std::vector<std::string> species;
-        bool valid = ParseUtils::GenerateVector(species, varStrings);
-
-        ASSERTL0(valid, "Unable to process list of variable in XML "
-                        "element \n\t'" +
-                            tagcontent.str() + "'");
-
-        if (varStrings.size())
-        {
-            TiXmlElement *info = reaction->FirstChildElement("P");
-
-            while (info)
-            {
-                tagcontent.clear();
-                tagcontent << *info;
-                // read the property name
-                ASSERTL0(info->Attribute("PROPERTY"),
-                         "Missing PROPERTY attribute in "
-                         "Species  '" +
-                             name + "' in XML element: \n\t'" +
-                             tagcontent.str() + "'");
-                std::string property = info->Attribute("PROPERTY");
-                ASSERTL0(!property.empty(), "Species properties must have a "
-                                            "non-empty name for Species '" +
-                                                name +
-                                                "' in XML element: \n\t'" +
-                                                tagcontent.str() + "'");
-
-                // make sure that solver property is capitalised
-                std::string propertyUpper = boost::to_upper_copy(property);
-
-                // read the value
-                ASSERTL0(info->Attribute("VALUE"),
-                         "Missing VALUE attribute in Species '" + name +
-                             "' in XML element: \n\t" + tagcontent.str() + "'");
-                std::string value = info->Attribute("VALUE");
-                ASSERTL0(!value.empty(), "Species properties must have a "
-                                         "non-empty value for Species '" +
-                                             name + "' in XML element: \n\t'" +
-                                             tagcontent.str() + "'");
-                info = info->NextSiblingElement("P");
-            }
-        }
-    }
 };
 
 } // namespace NESO::Solvers::tokamak

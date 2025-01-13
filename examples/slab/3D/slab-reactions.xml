@@ -113,17 +113,17 @@
 
         <SPECIES>
             <S ID="0" NAME="Ar">
-                <P PROPERTY="Mass" VALUE="1.0"/>
-                <P PROPERTY="Charge" VALUE="1.0"/>
-                <P PROPERTY="Number" VALUE="1000"/>
+                <P> Mass = 1.0 </P>
+                <P> Charge = 1.0 </P>
+                <P> Number = 1000 </P>
                 <FUNCTION NAME = "InitialDistribution">
                     <E VAR="n" VALUE="sin(x)"/>
                 </FUNCTION>
             </S>
             <S ID="1" NAME="Ne">
-                <P PROPERTY="Mass" VALUE="1.0"/>
-                <P PROPERTY="Charge" VALUE="1.0"/>
-                <P PROPERTY="Number" VALUE="1000"/>
+                <P> Mass = 1.0 </P>
+                <P> Charge = 1.0 </P>
+                <P> Number = 1000 </P>
                 <FUNCTION NAME = "InitialDistribution">
                     <E VAR="n" VALUE="sin(x)"/>
                 </FUNCTION>
@@ -132,20 +132,20 @@
 
         <BOUNDARYINTERACTION>
             <REGION REF="0">
-                <C SPECIES="Ar"  VALUE="0.0" />
-                <C SPECIES="Ne"  VALUE="0.0" />
+                <C SPECIES="0"  VALUE="0.0" />
+                <C SPECIES="1"  VALUE="0.0" />
             </REGION>
             <REGION REF="1">
-                <C SPECIES="Ar"  VALUE="0.0" />
-                <C SPECIES="Ne"  VALUE="0.0" />
+                <C SPECIES="0"  VALUE="0.0" />
+                <C SPECIES="1"  VALUE="0.0" />
             </REGION>
 	        <REGION REF="2">
-                <P SPECIES="Ar"  VALUE="[3]" />
-                <P SPECIES="Ne"  VALUE="[3]" />
+                <P SPECIES="0"  VALUE="[3]" />
+                <P SPECIES="1"  VALUE="[3]" />
             </REGION>
             <REGION REF="3">
-                <P SPECIES="Ar"  VALUE="[2]" />
-                <P SPECIES="Ne"  VALUE="[2]" />
+                <P SPECIES="0"  VALUE="[2]" />
+                <P SPECIES="1"  VALUE="[2]" />
             </REGION>
         </BOUNDARYINTERACTION>
 

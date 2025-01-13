@@ -1,4 +1,6 @@
 #include "ReactionsCoupling.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
+
 using namespace std;
 
 namespace NESO::Solvers::tokamak
@@ -30,10 +32,15 @@ void ReactionsCoupling::v_Apply(
 {
     int npoints = pFields[0]->GetTotPoints();
 
-    int ni_field_idx = this->field_to_index.get_idx("n");
-    int ni_src_idx   = this->field_to_index.get_idx("n_src");
-    Vmath::Vadd(npoints, inarray[ni_src_idx], 1, outarray[ni_field_idx], 1,
-                outarray[ni_field_idx], 1);
+    for (auto &[k, v] : std::static_pointer_cast<TokamakSystem>(m_equ.lock())
+                            ->GetParticleSystem()
+                            ->GetSpecies())
+    {
+        int ni_field_idx = this->field_to_index.get_idx("n");
+        int ni_src_idx   = this->field_to_index.get_idx(v.name + "_src");
+        Vmath::Vadd(npoints, inarray[ni_src_idx], 1, outarray[ni_field_idx], 1,
+                    outarray[ni_field_idx], 1);
+    }
 
     int p_field_idx = this->field_to_index.get_idx("p");
     int E_src_idx   = this->field_to_index.get_idx("E_src");

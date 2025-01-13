@@ -42,6 +42,4 @@ ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
         Sym<INT>("INTERNAL_STATE"), Sym<REAL>("TOT_REACTION_RATE"));
 }
 
-ReactionSystem::~ReactionSystem() {};
-
 } // namespace NESO::Solvers::tokamak

@@ -31,7 +31,11 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names = {"n_src", "E_src"};
+        this->required_fld_names.push_back("E_src");
+        for (auto &[k, v] : particle_sys->GetSpecies())
+        {
+            this->required_fld_names.push_back(v.name + "_src");
+        }
     }
 }
 
@@ -274,8 +278,7 @@ bool DoubleDiffusiveField::v_PostIntegrate(int step)
     int n_idx         = this->field_to_index["n"];
     int p_idx         = this->field_to_index["p"];
     int T_idx         = this->field_to_index["T"];
-    Vmath::Vdiv(nPts, m_fields[p_idx]->GetPhys(), 1,
-    m_fields[n_idx]->GetPhys(),
+    Vmath::Vdiv(nPts, m_fields[p_idx]->GetPhys(), 1, m_fields[n_idx]->GetPhys(),
                 1, m_fields[T_idx]->UpdatePhys(), 1);
     m_fields[T_idx]->FwdTrans(m_fields[T_idx]->GetPhys(),
                               m_fields[T_idx]->UpdateCoeffs());

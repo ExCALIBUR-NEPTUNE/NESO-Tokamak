@@ -7,8 +7,8 @@ spack:
   specs:
   - neso-tokamak%gcc
   view:
-    gcc-hipsycl:
-      root: views/gcc-hipsycl
+    gcc-adaptivecpp:
+      root: views/gcc-adaptivecpp
       select: ['%gcc']
       link_type: symlink
   concretizer:

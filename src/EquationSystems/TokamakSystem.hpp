@@ -53,6 +53,9 @@ public:
         return p;
     }
 
+    virtual std::shared_ptr<ParticleSystem> GetParticleSystem();
+
+
     /// Object to facilitate allows optional recording of energy and enstrophy
     std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
         energy_enstrophy_recorder;
