@@ -6,10 +6,15 @@ spack:
   # add package specs to the `specs` list
   specs:
   - neso-tokamak%gcc
+  - neso-tokamak%oneapi
   view:
-    gcc-hipsycl:
-      root: views/gcc-hipsycl
+    gcc-adaptivecpp:
+      root: views/adaptivecpp
       select: ['%gcc']
+      link_type: symlink
+    oneapi:
+      root: views/oneapi
+      select: ['%oneapi']
       link_type: symlink
   concretizer:
     unify: when_possible
