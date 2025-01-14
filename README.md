@@ -21,26 +21,28 @@ source $SPACK_ROOT/share/spack/setup-env.sh
 ```bash
 spack install intel-oneapi-compilers
 ```
-3. Build NESO
+Or if they are already installed elsewhere, add them
 ```bash
-git clone https://github.com/ExCALIBUR-NEPTUNE/NESO.git
-cd NESO
-git submodule update --init
-. activate
-spack install
-deactivate
+spack compiler add `spack location -i intel-oneapi-compilers`/compiler/latest/linux/bin/intel64
+spack compiler add `spack location -i intel-oneapi-compilers`/compiler/latest/linux/bin
 ```
 
-4. Build and clone NESO-Tokamak:
+3. Build and clone NESO-Tokamak:
 ```bash
 cd ..
 git clone https://github.com/ExCALIBUR-NEPTUNE/NESO-Tokamak.git
 cd NESO-Tokamak
+git submodule update --init --recursive
 spack env activate ./spack -p
 spack install
 ```
+N.B.
+```bash
+spack install -j <nproc>
+```
+can be used to speed up compilation
 
-Note that some of the dependencies (particularly nektar++) can take some time to install.
+Note that some of the dependencies (particularly nektar++) can take some time to install and have high memory usage.
 
 ## Running examples
 Configuration files for 2D and 3D examples can be found in the `./examples` directory.
