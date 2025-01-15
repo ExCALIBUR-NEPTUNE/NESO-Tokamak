@@ -101,6 +101,7 @@ public:
     }
 
     virtual void SetUpSpecies() override;
+
     struct SpeciesInfo
     {
         std::string name;
@@ -113,6 +114,8 @@ public:
     {
         return species_map;
     }
+
+    virtual void SetUpBoundaries() override;
 
     /**
      *  Integrate the particle system forward to the requested time using

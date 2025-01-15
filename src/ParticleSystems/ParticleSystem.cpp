@@ -9,23 +9,11 @@ std::string ParticleSystem::className =
 
 ParticleSystem::ParticleSystem(ParticleReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph, MPI_Comm comm)
-    : PartSysBase(session, graph, comm), simulation_time(0.0)
-{
-    auto config = std::make_shared<ParameterStore>();
-    config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-    config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-    config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-    config->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
-    config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
-                      1.0e-6);
-    auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-    std::vector<int> reflection_composites = {1, 2, 3, 4};
-    this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
-        Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
-        reflection_composites, config);
-    // V initial velocity
-    // P uniform sample?
-};
+    : PartSysBase(session, graph, comm), simulation_time(0.0) {
+
+          // V initial velocity
+          // P uniform sample?
+      };
 
 void ParticleSystem::SetUpSpecies()
 {
@@ -113,11 +101,38 @@ void ParticleSystem::SetUpSpecies()
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [k](auto sid) { return sid[0] == k; },
                 Access::read(Sym<INT>("SPECIES")));
-        species_map[k] =
-            SpeciesInfo{std::get<0>(v), particle_mass, particle_charge, sub_group};
+        species_map[k] = SpeciesInfo{std::get<0>(v), particle_mass,
+                                     particle_charge, sub_group};
 
         particle_spec.push(ParticleProp(Sym<REAL>(k + "_src"), 1));
     }
+}
+
+void ParticleSystem::SetUpBoundaries()
+{
+    auto config = std::make_shared<ParameterStore>();
+    config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
+    config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
+    config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
+    config->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
+    config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
+                      1.0e-6);
+    auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
+    std::vector<int> reflection_composites = {1, 2, 3, 4};
+
+    for (auto& [k,v] : this->session->GetBoundaries())
+    {
+        for(auto& [sk, sv] : v)
+        {
+            if (sv == ParticleBoundaryConditionType::eReflective)
+            {
+                reflection_composites.push_back
+            }
+        }
+    }
+    this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
+        Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
+        reflection_composites, config);
 }
 
 } // namespace NESO::Solvers::tokamak
