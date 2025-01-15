@@ -118,15 +118,15 @@ void ParticleSystem::SetUpBoundaries()
     config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
                       1.0e-6);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-    std::vector<int> reflection_composites = {1, 2, 3, 4};
+    std::vector<int> reflection_composites;
 
-    for (auto& [k,v] : this->session->GetBoundaries())
+    for (auto &[k, v] : this->session->GetBoundaries())
     {
-        for(auto& [sk, sv] : v)
+        for (auto &[sk, sv] : v)
         {
             if (sv == ParticleBoundaryConditionType::eReflective)
             {
-                reflection_composites.push_back
+                reflection_composites.push_back(k);
             }
         }
     }
