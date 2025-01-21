@@ -43,11 +43,10 @@ public:
             {
 
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
-                auto target_species =
-                    Species(species_map[std::stoi(std::get<1>(v)[0])].name,
-                            std::stoi(std::get<1>(v)[0]),
-                            species_map[std::stoi(std::get<1>(v)[0])].mass,
-                            species_map[std::stoi(std::get<1>(v)[0])].charge);
+                auto target_species   = Species(
+                    species_map[std::get<1>(v)[0]].name, std::get<1>(v)[0],
+                    species_map[std::get<1>(v)[0]].mass,
+                    species_map[std::get<1>(v)[0]].charge);
 
                 auto test_data = FixedRateData(1.0);
                 auto reaction =
@@ -69,10 +68,10 @@ public:
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto species_null     = Species("", 1.0, 0.0, -1);
                 auto target_species =
-                Species(species_map[std::stoi(std::get<1>(v)[0])].name,
-                            std::stoi(std::get<1>(v)[0]),
-                            species_map[std::stoi(std::get<1>(v)[0])].mass,
-                            species_map[std::stoi(std::get<1>(v)[0])].charge);
+                Species(species_map[std::get<1>(v)[0]].name,
+                            std::get<1>(v)[0],
+                            species_map[std::get<1>(v)[0]].mass,
+                            species_map[std::get<1>(v)[0]].charge);
                 auto recomb_reaction_kernel = RecombReactionKernels<>(
                     target_species, electron_species, prop_map);
                 std::array<int, 1> recomb_out_states = {0};
@@ -100,16 +99,14 @@ public:
 
             else if (std::get<0>(v) == "ChargeExchange")
             {
-                auto projectile_species =
-                    Species(species_map[std::stoi(std::get<1>(v)[0])].name,
-                            std::stoi(std::get<1>(v)[0]),
-                            species_map[std::stoi(std::get<1>(v)[0])].mass,
-                            species_map[std::stoi(std::get<1>(v)[0])].charge);
-                auto target_species =
-                    Species(species_map[std::stoi(std::get<1>(v)[1])].name,
-                            std::stoi(std::get<1>(v)[1]),
-                            species_map[std::stoi(std::get<1>(v)[1])].mass,
-                            species_map[std::stoi(std::get<1>(v)[1])].charge);
+                auto projectile_species = Species(
+                    species_map[std::get<1>(v)[0]].name, std::get<1>(v)[0],
+                    species_map[std::get<1>(v)[0]].mass,
+                    species_map[std::get<1>(v)[0]].charge);
+                auto target_species = Species(
+                    species_map[std::get<1>(v)[1]].name, std::get<1>(v)[1],
+                    species_map[std::get<1>(v)[1]].mass,
+                    species_map[std::get<1>(v)[1]].charge);
 
                 auto cx_kernel = CXReactionKernels<2>(
                     target_species, projectile_species, prop_map);
