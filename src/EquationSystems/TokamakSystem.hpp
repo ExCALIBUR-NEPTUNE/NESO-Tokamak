@@ -53,6 +53,9 @@ public:
         return p;
     }
 
+    virtual std::shared_ptr<ParticleSystem> GetParticleSystem();
+
+
     /// Object to facilitate allows optional recording of energy and enstrophy
     std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
         energy_enstrophy_recorder;
@@ -82,17 +85,18 @@ protected:
     /// Advection type
     std::string adv_type;
 
-    int nSpecies;
     /// Diffusion object used in anisotropic diffusion
     SU::DiffusionSharedPtr m_diffusion;
 
     /// Sheath potential
     NekDouble lambda;
 
-    /** Source fields cast to DisContFieldSharedPtr, indexed by name, for use in
+    int nSpecies;
+
+    /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
      */
-    std::map<std::string, MR::DisContFieldSharedPtr> discont_fields;
+    std::vector<MR::DisContFieldSharedPtr> src_fields;
 
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;

@@ -51,23 +51,6 @@ void AnomalousDiffusion::v_InitObject(bool DeclareFields)
     m_fields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
         m_session, m_graph, m_session->GetVariable(phi_idx), true, true);
 
-    if (this->particles_enabled)
-    {
-        // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
-        this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
-
-        // Create src fields for coupling to reactions
-        this->discont_fields["ni_src"] =
-            MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->discont_fields["E_src"] =
-            MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->particle_sys->setup_project(this->discont_fields["ni_src"],
-                                          this->discont_fields["E_src"]);
-    }
-
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
     m_diffusion =

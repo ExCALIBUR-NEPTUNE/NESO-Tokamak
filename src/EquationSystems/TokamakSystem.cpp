@@ -38,6 +38,11 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
         session->DefinesParameter("growth_rates_recording_step");
 }
 
+std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
+{
+    return this->particle_sys;
+}
+
 /**
  * @brief Read the magnetic field from file.
  */
@@ -350,14 +355,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     // Turn off forward-transform of initial conditions.
     m_homoInitialFwd = false;
 
-    // Store DisContFieldSharedPtr casts of fields in a map, indexed by name
-    int idx = 0;
-    for (auto &field_name : m_session->GetVariables())
-    {
-        this->discont_fields[field_name] =
-            std::dynamic_pointer_cast<MR::DisContField>(m_fields[idx]);
-        idx++;
-    }
+    // Store FieldSharedPtr casts of fields in a map, indexed by name
 
     E = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (int d = 0; d < 3; ++d)
@@ -430,15 +428,14 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
 
-        // Create src fields for coupling to reactions
-        this->discont_fields["ni_src"] =
-            MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->discont_fields["E_src"] =
-            MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->particle_sys->setup_project(this->discont_fields["ni_src"],
-                                          this->discont_fields["E_src"]);
+        for (int i = 0; i < this->nSpecies; ++i)
+        {
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        }
+
+        this->particle_sys->setup_project(this->src_fields);
     }
 }
 

@@ -11,8 +11,6 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
-#include <LibUtilities/BasicUtils/SessionReader.h>
-
 // namespace LU = Nektar::LibUtilities;
 // namespace NP = NESO::Particles;
 
@@ -25,135 +23,61 @@ namespace NESO::Solvers::tokamak
 class ParticleSystem : public PartSysBase
 {
 
-    static inline ParticleSpec particle_spec{
-        ParticleProp(Sym<INT>("CELL_ID"), 1, true),
-        ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-        ParticleProp(Sym<REAL>("POSITION"), 3, true),
-        ParticleProp(Sym<REAL>("VELOCITY"), 3),
-        ParticleProp(Sym<REAL>("M"), 1),
-        ParticleProp(Sym<REAL>("Q"), 1),
-        ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
-        ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
-        ParticleProp(Sym<REAL>("E0"), 1),
-        ParticleProp(Sym<REAL>("E1"), 1),
-        ParticleProp(Sym<REAL>("E2"), 1),
-        ParticleProp(Sym<REAL>("B0"), 1),
-        ParticleProp(Sym<REAL>("B1"), 1),
-        ParticleProp(Sym<REAL>("B2"), 1)};
-
 public:
+    static std::string class_name;
+    /**
+     * @brief Create an instance of this class and initialise it.
+     */
+    static ParticleSystemSharedPtr create(
+        const ParticleReaderSharedPtr &session,
+        const SD::MeshGraphSharedPtr &graph)
+    {
+        ParticleSystemSharedPtr p =
+            MemoryManager<ParticleSystem>::AllocateSharedPtr(session, graph);
+        return p;
+    }
+
     /**
      *  Create a new instance.
      *
-     *  @param session Nektar++ session to use for parameters and simulation
+     *  @param session Particle reader to use for parameters and simulation
      * specification.
      *  @param graph Nektar++ MeshGraph on which particles exist.
      *  @param comm (optional) MPI communicator to use - default MPI_COMM_WORLD.
      *
      */
-    ParticleSystem(LU::SessionReaderSharedPtr session,
-                   SD::MeshGraphSharedPtr graph, MPI_Comm comm = MPI_COMM_WORLD)
-        : PartSysBase(session, graph, particle_spec, comm), simulation_time(0.0)
+    ParticleSystem(ParticleReaderSharedPtr session,
+                   SD::MeshGraphSharedPtr graph,
+                   MPI_Comm comm = MPI_COMM_WORLD);
+
+    virtual ~ParticleSystem() override = default;
+
+    /// Disable (implicit) copies.
+    ParticleSystem(const ParticleSystem &st) = delete;
+    /// Disable (implicit) copies.
+    ParticleSystem &operator=(ParticleSystem const &a) = delete;
+
+    inline virtual void init_spec() override
     {
+        this->particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
+                               ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
+                               ParticleProp(Sym<REAL>("POSITION"), 3, true),
+                               ParticleProp(Sym<REAL>("VELOCITY"), 3),
+                               ParticleProp(Sym<REAL>("M"), 1),
+                               ParticleProp(Sym<REAL>("Q"), 1),
+                               ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
+                               ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
+                               ParticleProp(Sym<REAL>("E0"), 1),
+                               ParticleProp(Sym<REAL>("E1"), 1),
+                               ParticleProp(Sym<REAL>("E2"), 1),
+                               ParticleProp(Sym<REAL>("B0"), 1),
+                               ParticleProp(Sym<REAL>("B1"), 1),
+                               ParticleProp(Sym<REAL>("B2"), 1)};
+    }
 
-        auto config = std::make_shared<ParameterStore>();
-        config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-        config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-        config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-        config->set<REAL>("CompositeIntersection/line_intersection_tol",
-                          1.0e-10);
-        config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
-                          1.0e-6);
-        auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-        std::vector<int> reflection_composites = {1,2,3,4};
-        this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
-            Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
-            reflection_composites, config);
-        // V initial velocity
-        // P uniform sample?
-
-        long rstart, rend;
-        const long size = this->sycl_target->comm_pair.size_parent;
-        const long rank = this->sycl_target->comm_pair.rank_parent;
-        get_decomp_1d(size, (long)this->num_parts_tot, rank, &rstart, &rend);
-        const long N = rend - rstart;
-
-        // get seed from file
-        std::srand(std::time(nullptr));
-        int seed;
-        this->session->LoadParameter("particle_position_seed", seed,
-                                     std::rand());
-        std::mt19937 rng_phasespace(seed + rank);
-
-        // get particle mass from file
-        double particle_mass;
-        this->session->LoadParameter("particle_mass", particle_mass, 1.0);
-        // get particle charge from file
-        double particle_charge;
-        this->session->LoadParameter("particle_charge", particle_charge, 1.0);
-
-        double particle_B_scaling;
-        this->session->LoadParameter("particle_B_scaling", particle_B_scaling,
-                                     1.0);
-
-        double particle_thermal_velocity;
-        this->session->LoadParameter("particle_thermal_velocity",
-                                     particle_thermal_velocity, 0.0);
-        double particle_velocity_B_scaling;
-        this->session->LoadParameter("particle_velocity_B_scaling",
-                                     particle_velocity_B_scaling, 0.0);
-
-        this->particle_remover =
-            std::make_shared<ParticleRemover>(this->sycl_target);
-        // Report param values (later in the initialisation)
-        report_param("Random seed", seed);
-        report_param("Mass", particle_mass);
-        report_param("Charge", particle_charge);
-        report_param("Thermal velocity", particle_thermal_velocity);
-        report_param("B scaling", particle_B_scaling);
-        report_param("Velocity scaling", particle_velocity_B_scaling);
-
-        std::normal_distribution d{0.0, particle_thermal_velocity};
-
-        if (N > 0)
-        {
-            ParticleSet initial_distribution(
-                N, this->particle_group->get_particle_spec());
-
-            const int npart_per_cell = 10;
-            std::mt19937 rng(534234 + rank);
-            std::vector<std::vector<double>> positions;
-            std::vector<int> cells;
-            rng = uniform_within_elements(graph, npart_per_cell, positions,
-                                          cells, 1.0e-10, rng);
-            for (int px = 0; px < N; px++)
-            {
-                for (int dimx = 0; dimx < this->graph->GetMeshDimension();
-                     dimx++)
-                {
-                    // Create the position in dimx
-                    // const REAL pos_shift = this->pbc->global_origin[dimx];
-                    const REAL pos_tmp = /*pos_shift + */ positions[dimx][px];
-                    initial_distribution[Sym<REAL>("POSITION")][px][dimx] =
-                        pos_tmp;
-                    // Create the velocity in dimx
-                    REAL vtmp = 0.0;
-
-                    if (particle_thermal_velocity > 0.0)
-                    {
-                        vtmp += d(rng_phasespace);
-                    }
-                    initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
-                        vtmp;
-                }
-                initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
-                initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
-                initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] =
-                    px + rstart;
-            }
-
-            this->particle_group->add_particles_local(initial_distribution);
-        }
+    virtual void init_object() override
+    {
+        PartSysBase::init_object();
 
         parallel_advection_initialisation(this->particle_group);
         parallel_advection_store(this->particle_group);
@@ -170,12 +94,28 @@ public:
         init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
                     Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
                     Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
-    };
+    }
+    virtual void set_up_particles() override
+    {
+        PartSysBase::set_up_particles();
+    }
 
-    /// Disable (implicit) copies.
-    ParticleSystem(const ParticleSystem &st) = delete;
-    /// Disable (implicit) copies.
-    ParticleSystem &operator=(ParticleSystem const &a) = delete;
+    virtual void set_up_species() override;
+
+    struct SpeciesInfo
+    {
+        std::string name;
+        double mass;
+        double charge;
+
+        std::shared_ptr<ParticleSubGroup> sub_group;
+    };
+    virtual std::map<int, SpeciesInfo> &get_species()
+    {
+        return species_map;
+    }
+
+    virtual void set_up_boundaries() override;
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -212,16 +152,12 @@ public:
      *
      * @param rho_src Nektar++ fields to project ionised particle data onto.
      */
-    inline void setup_project(std::shared_ptr<DisContField> ni_src,
-                              std::shared_ptr<DisContField> E_src)
+    inline void setup_project(
+        std::vector<std::shared_ptr<DisContField>> &src_fields)
     {
-        std::vector<std::shared_ptr<DisContField>> fields = {ni_src, E_src};
-        this->field_project = std::make_shared<FieldProject<DisContField>>(
-            fields, this->particle_group, this->cell_id_translation);
 
-        // Setup debugging output for each field
-        this->fields["ni_src"] = ni_src;
-        this->fields["E_src"]  = E_src;
+        this->field_project = std::make_shared<FieldProject<DisContField>>(
+            src_fields, this->particle_group, this->cell_id_translation);
     }
 
     /**
@@ -236,8 +172,11 @@ public:
         std::vector<Sym<REAL>> syms = {Sym<REAL>("SOURCE_DENSITY"),
                                        Sym<REAL>("SOURCE_ENERGY")};
         std::vector<int> components = {0, 0};
-        this->field_project->project(syms, components);
 
+        for (auto &s : species_map)
+        {
+            this->field_project->project(s.second.sub_group, syms, components);
+        }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
     }
@@ -344,7 +283,7 @@ public:
     inline void initialise_particles_from_fields()
     {
         double h_alpha;
-        this->session->LoadParameter("particle_v_drift_scaling", h_alpha, 1.0);
+        this->config->load_parameter("particle_v_drift_scaling", h_alpha, 1.0);
         const double k_alpha = h_alpha;
 
         this->evaluate_fields();
@@ -373,7 +312,7 @@ public:
     }
 
 protected:
-    inline void integrate_inner(const double dt_inner)
+    virtual inline void integrate_inner(const double dt_inner)
     {
         const auto k_dt  = dt_inner;
         const auto k_dht = dt_inner * 0.5;
@@ -439,10 +378,14 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")))
             ->execute();
     };
+
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
+    std::map<int, SpeciesInfo> species_map;
+
     std::shared_ptr<FieldProject<DisContField>> field_project;
+
     /// Object used to evaluate Nektar electric field
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E0;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_E1;
