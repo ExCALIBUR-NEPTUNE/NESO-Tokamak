@@ -3,7 +3,7 @@
 namespace NESO::Solvers::tokamak
 {
 
-std::string ParticleSystem::className =
+std::string ParticleSystem::class_name =
     GetParticleSystemFactory().RegisterCreatorFunction(
         "ParticleSystem", ParticleSystem::create, "Particle System");
 
@@ -15,28 +15,28 @@ ParticleSystem::ParticleSystem(ParticleReaderSharedPtr session,
           // P uniform sample?
       };
 
-void ParticleSystem::SetUpSpecies()
+void ParticleSystem::set_up_species()
 {
     // get seed from file
     std::srand(std::time(nullptr));
     int seed;
-    this->session->LoadParameter("particle_position_seed", seed, std::rand());
+    this->session->load_parameter("particle_position_seed", seed, std::rand());
     double particle_B_scaling;
-    this->session->LoadParameter("particle_B_scaling", particle_B_scaling, 1.0);
+    this->session->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
 
     double particle_thermal_velocity;
-    this->session->LoadParameter("particle_thermal_velocity",
+    this->session->load_parameter("particle_thermal_velocity",
                                  particle_thermal_velocity, 0.0);
     double particle_velocity_B_scaling;
-    this->session->LoadParameter("particle_velocity_B_scaling",
+    this->session->load_parameter("particle_velocity_B_scaling",
                                  particle_velocity_B_scaling, 0.0);
 
-    for (const auto &[k, v] : this->session->GetSpecies())
+    for (const auto &[k, v] : this->session->get_species())
     {
         double particle_mass, particle_charge;
 
-        this->session->LoadSpeciesParameter(k, "Mass", particle_mass);
-        this->session->LoadSpeciesParameter(k, "Charge", particle_charge);
+        this->session->load_species_parameter(k, "Mass", particle_mass);
+        this->session->load_species_parameter(k, "Charge", particle_charge);
 
         long rstart, rend;
         const long size = this->sycl_target->comm_pair.size_parent;
@@ -104,11 +104,11 @@ void ParticleSystem::SetUpSpecies()
         species_map[k] = SpeciesInfo{std::get<0>(v), particle_mass,
                                      particle_charge, sub_group};
 
-        particle_spec.push(ParticleProp(Sym<REAL>(k + "_src"), 1));
+        this->particle_spec.push(ParticleProp(Sym<REAL>(k + "_src"), 1));
     }
 }
 
-void ParticleSystem::SetUpBoundaries()
+void ParticleSystem::set_up_boundaries()
 {
     auto config = std::make_shared<ParameterStore>();
     config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
@@ -120,7 +120,7 @@ void ParticleSystem::SetUpBoundaries()
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
     std::vector<int> reflection_composites;
 
-    for (auto &[k, v] : this->session->GetBoundaries())
+    for (auto &[k, v] : this->session->get_boundaries())
     {
         for (auto &[sk, sv] : v)
         {

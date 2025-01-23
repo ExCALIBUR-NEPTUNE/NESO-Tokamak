@@ -2,7 +2,7 @@
 
 namespace NESO::Solvers::tokamak
 {
-std::string ReactionSystem::className =
+std::string ReactionSystem::class_name =
     GetParticleSystemFactory().RegisterCreatorFunction(
         "ReactionSystem", ReactionSystem::create, "Reaction System");
 
@@ -28,11 +28,11 @@ ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
         merge_transform);
 
     auto project_transform = std::make_shared<ProjectTransformation>(
-        src_fields, particle_group, cell_id_translation);
+        this->src_fields, this->particle_group, this->cell_id_translation);
     project_transform_wrapper = std::make_shared<TransformationWrapper>(
         std::dynamic_pointer_cast<TransformationStrategy>(project_transform));
 
-    reaction_controller = std::make_shared<ReactionController>(
+    this->reaction_controller = std::make_shared<ReactionController>(
         std::vector<std::shared_ptr<TransformationWrapper>>{
             project_transform_wrapper, remove_transform_wrapper,
             merge_transform_wrapper},

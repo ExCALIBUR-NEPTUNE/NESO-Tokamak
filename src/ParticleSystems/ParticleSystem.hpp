@@ -24,7 +24,7 @@ class ParticleSystem : public PartSysBase
 {
 
 public:
-    static std::string className;
+    static std::string class_name;
     /**
      * @brief Create an instance of this class and initialise it.
      */
@@ -57,27 +57,27 @@ public:
     /// Disable (implicit) copies.
     ParticleSystem &operator=(ParticleSystem const &a) = delete;
 
-    inline virtual void InitSpec() override
+    inline virtual void init_spec() override
     {
-    particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
-                     ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-                     ParticleProp(Sym<REAL>("POSITION"), 3, true),
-                     ParticleProp(Sym<REAL>("VELOCITY"), 3),
-                     ParticleProp(Sym<REAL>("M"), 1),
-                     ParticleProp(Sym<REAL>("Q"), 1),
-                     ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
-                     ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
-                     ParticleProp(Sym<REAL>("E0"), 1),
-                     ParticleProp(Sym<REAL>("E1"), 1),
-                     ParticleProp(Sym<REAL>("E2"), 1),
-                     ParticleProp(Sym<REAL>("B0"), 1),
-                     ParticleProp(Sym<REAL>("B1"), 1),
-                     ParticleProp(Sym<REAL>("B2"), 1)};
-}
+        this->particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
+                               ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
+                               ParticleProp(Sym<REAL>("POSITION"), 3, true),
+                               ParticleProp(Sym<REAL>("VELOCITY"), 3),
+                               ParticleProp(Sym<REAL>("M"), 1),
+                               ParticleProp(Sym<REAL>("Q"), 1),
+                               ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
+                               ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
+                               ParticleProp(Sym<REAL>("E0"), 1),
+                               ParticleProp(Sym<REAL>("E1"), 1),
+                               ParticleProp(Sym<REAL>("E2"), 1),
+                               ParticleProp(Sym<REAL>("B0"), 1),
+                               ParticleProp(Sym<REAL>("B1"), 1),
+                               ParticleProp(Sym<REAL>("B2"), 1)};
+    }
 
-    virtual void InitObject() override
+    virtual void init_object() override
     {
-        PartSysBase::InitObject();
+        PartSysBase::init_object();
 
         parallel_advection_initialisation(this->particle_group);
         parallel_advection_store(this->particle_group);
@@ -95,12 +95,12 @@ public:
                     Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
                     Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
     }
-    virtual void SetUpParticles() override
+    virtual void set_up_particles() override
     {
-        PartSysBase::SetUpParticles();
+        PartSysBase::set_up_particles();
     }
 
-    virtual void SetUpSpecies() override;
+    virtual void set_up_species() override;
 
     struct SpeciesInfo
     {
@@ -110,12 +110,12 @@ public:
 
         std::shared_ptr<ParticleSubGroup> sub_group;
     };
-    virtual std::map<int, SpeciesInfo> &GetSpecies()
+    virtual std::map<int, SpeciesInfo> &get_species()
     {
         return species_map;
     }
 
-    virtual void SetUpBoundaries() override;
+    virtual void set_up_boundaries() override;
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -283,7 +283,7 @@ public:
     inline void initialise_particles_from_fields()
     {
         double h_alpha;
-        this->session->LoadParameter("particle_v_drift_scaling", h_alpha, 1.0);
+        this->session->load_parameter("particle_v_drift_scaling", h_alpha, 1.0);
         const double k_alpha = h_alpha;
 
         this->evaluate_fields();

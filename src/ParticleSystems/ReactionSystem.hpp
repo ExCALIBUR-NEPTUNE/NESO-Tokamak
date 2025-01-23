@@ -12,7 +12,7 @@ class ReactionSystem : public ParticleSystem
 {
 
 public:
-    static std::string className;
+    static std::string class_name;
     static ParticleSystemSharedPtr create(const ParticleReaderSharedPtr session,
                                           const SD::MeshGraphSharedPtr graph)
     {
@@ -26,18 +26,18 @@ public:
 
     ~ReactionSystem() override = default;
 
-    inline void InitSpec() override
+    inline void init_spec() override
     {
-        ParticleSystem::InitSpec();
-        particle_spec.push(ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
-        particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
+        ParticleSystem::init_spec();
+        this->particle_spec.push(ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
+        this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
 
-    inline void SetUpReactions()
+    inline void set_up_reactions()
     {
         auto prop_map = default_map;
 
-        for (const auto &[k, v] : session->GetReactions())
+        for (const auto &[k, v] : session->get_reactions())
         {
             if (std::get<0>(v) == "Ionisation")
             {
@@ -139,10 +139,10 @@ public:
         reaction_controller->apply_reactions(this->particle_group, dt_inner);
     }
 
-    void SetUpParticles() override
+    void set_up_particles() override
     {
-        ParticleSystem::SetUpParticles();
-        SetUpReactions();
+        ParticleSystem::set_up_particles();
+        set_up_reactions();
     }
 
 protected:
@@ -161,7 +161,7 @@ protected:
 
         void transform(ParticleSubGroupSharedPtr sub_group)
         {
-            field_project->project(sub_group, syms, components);
+            this->field_project->project(sub_group, syms, components);
         }
 
     private:

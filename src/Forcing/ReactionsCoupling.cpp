@@ -34,7 +34,7 @@ void ReactionsCoupling::v_Apply(
 
     for (auto &[k, v] : std::static_pointer_cast<TokamakSystem>(m_equ.lock())
                             ->GetParticleSystem()
-                            ->GetSpecies())
+                            ->get_species())
     {
         int ni_field_idx = this->field_to_index.get_idx("n");
         int ni_src_idx   = this->field_to_index.get_idx(v.name + "_src");
