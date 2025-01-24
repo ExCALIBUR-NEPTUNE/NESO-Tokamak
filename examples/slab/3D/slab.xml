@@ -22,8 +22,8 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.01            </P>
-            <P> NumSteps      = 1000              </P>
+            <P> TimeStep      = 0.001            </P>
+            <P> NumSteps      = 10              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
             <P> IO_CheckSteps = 1     </P>
@@ -45,7 +45,7 @@
             <P> s = 0.1 </P>
 
             <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 10 </P>
+            <P> num_particles_total = 50 </P>
             <!-- Mass of each particle -->
             <P> particle_mass = 1.0 </P>
             <!-- Charge of each particle -->
@@ -61,7 +61,7 @@
             <!-- Add to initial particle velocity a contribution: -->
             <!-- using particle_thermal_velocity. -->
             <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
-            <P> particle_thermal_velocity = 0.0 </P>
+            <P> particle_thermal_velocity = 0.01 </P>
             
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-6  </P>

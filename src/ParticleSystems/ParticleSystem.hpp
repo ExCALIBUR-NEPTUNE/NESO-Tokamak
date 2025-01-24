@@ -283,7 +283,7 @@ public:
     inline void initialise_particles_from_fields()
     {
         double h_alpha;
-        this->session->load_parameter("particle_v_drift_scaling", h_alpha, 1.0);
+        this->config->load_parameter("particle_v_drift_scaling", h_alpha, 1.0);
         const double k_alpha = h_alpha;
 
         this->evaluate_fields();

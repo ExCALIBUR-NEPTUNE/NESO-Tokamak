@@ -20,23 +20,24 @@ void ParticleSystem::set_up_species()
     // get seed from file
     std::srand(std::time(nullptr));
     int seed;
-    this->session->load_parameter("particle_position_seed", seed, std::rand());
+
+    this->config->load_parameter("particle_position_seed", seed, std::rand());
     double particle_B_scaling;
-    this->session->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
+    this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
 
     double particle_thermal_velocity;
-    this->session->load_parameter("particle_thermal_velocity",
+    this->config->load_parameter("particle_thermal_velocity",
                                  particle_thermal_velocity, 0.0);
     double particle_velocity_B_scaling;
-    this->session->load_parameter("particle_velocity_B_scaling",
+    this->config->load_parameter("particle_velocity_B_scaling",
                                  particle_velocity_B_scaling, 0.0);
 
-    for (const auto &[k, v] : this->session->get_species())
+    for (const auto &[k, v] : this->config->get_species())
     {
         double particle_mass, particle_charge;
 
-        this->session->load_species_parameter(k, "Mass", particle_mass);
-        this->session->load_species_parameter(k, "Charge", particle_charge);
+        this->config->load_species_parameter(k, "Mass", particle_mass);
+        this->config->load_species_parameter(k, "Charge", particle_charge);
 
         long rstart, rend;
         const long size = this->sycl_target->comm_pair.size_parent;
@@ -120,7 +121,7 @@ void ParticleSystem::set_up_boundaries()
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
     std::vector<int> reflection_composites;
 
-    for (auto &[k, v] : this->session->get_boundaries())
+    for (auto &[k, v] : this->config->get_boundaries())
     {
         for (auto &[sk, sv] : v)
         {
