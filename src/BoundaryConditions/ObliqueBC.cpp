@@ -62,9 +62,9 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
         }
     }
     CalcDTensor();
-    // Obtain Flux and normal flux
+    // Obtain Flux
     Array<OneD, Array<OneD, NekDouble>> Flux(m_spacedim);
-    Array<OneD, NekDouble> Flux_n(m_nEdgePts, 0.0);
+
     for (int k = 0; k < m_spacedim; k++)
     {
         Flux[k] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
@@ -74,12 +74,14 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
             Vmath::Vvtvp(m_nEdgePts, m_D[k][j], 1, bndGrad[0][j], 1, Flux[k], 1,
                          Flux[k], 1);
         }
-        Vmath::Vvtvp(m_nEdgePts, Flux[k], 1, m_normals[k], 1, Flux_n, 1, Flux_n,
-                     1);
     }
+    Array<OneD, NekDouble> bndCoeffs(m_nEdgeCoeffs, 0.0);
 
-    m_bndExp[0]->IProductWRTBase(Flux_n, m_bndExp[0]->UpdateCoeffs());
-    AddRHS();
+    m_bndExp[0]->NormVectorIProductWRTBase(Flux, bndCoeffs);
+    NekDouble cs = -std::sqrt(k_B * T_bnd / m_i);
+
+    Vmath::Svtvp(m_nEdgeCoeffs, cs, m_bndExp[0]->UpdateCoeffs(), 1, bndCoeffs,
+                 1, m_bndExp[0]->UpdateCoeffs(), 1);
 }
 
 void ObliqueBC::CalcKPar()
@@ -114,23 +116,6 @@ void ObliqueBC::CalcDTensor()
             }
         }
     }
-}
-
-void ObliqueBC::AddRHS()
-{
-    Array<OneD, NekDouble> n = m_bndExp[0]->GetPhys();
-    NekDouble cs             = std::sqrt(k_B * T_bnd / m_i);
-
-    Array<OneD, NekDouble> rhs(m_fields.size());
-    for (int p = 0; p < m_nEdgePts; ++p)
-    {
-        rhs[p] = n[p] * cs;
-    }
-    Array<OneD, NekDouble> wk(m_nEdgeCoeffs);
-    m_bndExp[0]->FwdTrans(rhs, wk);
-
-    Vmath::Vsub(m_nEdgeCoeffs, m_bndExp[0]->GetCoeffs(), 1, wk, 1,
-                m_bndExp[0]->UpdateCoeffs(), 1);
 }
 
 } // namespace NESO::Solvers::tokamak

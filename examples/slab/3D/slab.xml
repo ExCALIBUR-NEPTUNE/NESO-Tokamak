@@ -23,10 +23,10 @@
         <PARAMETERS>
             <!-- Timestepping and output options -->
             <P> TimeStep      = 0.001            </P>
-            <P> NumSteps      = 10              </P>
+            <P> NumSteps      = 100              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
-            <P> IO_CheckSteps = 1     </P>
+            <P> IO_CheckSteps = 10     </P>
             <P> particle_output_freq = 1          </P>
 
             <P> epsilon         = 1.0   </P>
@@ -34,6 +34,9 @@
             <P> k_par           = 1   </P>
             <P> k_perp          = 1e-6   </P>
             <P> TCore           = 300.0 </P>
+            <P> T_bnd            = 1.0 </P>
+            <P> k_B             = 1.0 </P>
+            <P> m_i             = 1.0 </P>
 
             <!-- Scaling factor for ICs -->
             <P> xc = 1 </P>
@@ -84,16 +87,16 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="0">
-                <D VAR="n"  VALUE="0.0" />
+                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
             <REGION REF="1">
-                <D VAR="n"  VALUE="0.0" />
+                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
 	        <REGION REF="2">
-                <D VAR="n"  VALUE="0.0" />
+                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
             <REGION REF="3">
-                <D VAR="n"  VALUE="0.0" />
+                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">

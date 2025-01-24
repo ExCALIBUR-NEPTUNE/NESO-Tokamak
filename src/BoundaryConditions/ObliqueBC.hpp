@@ -38,7 +38,7 @@ private:
     void CalcKPar();
     void CalcKPerp();
     void CalcDTensor();
-    void AddRHS();
+
     Array<OneD, NekDouble> m_D[3][3];
     Array<OneD, NekDouble> kpar;
     Array<OneD, NekDouble> kperp;

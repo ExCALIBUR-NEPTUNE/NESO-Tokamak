@@ -18,24 +18,20 @@ TokamakBndCond::TokamakBndCond(
     : m_session(pSession), m_fields(pFields), m_spacedim(pSpaceDim),
       m_bcRegion(bcRegion), m_b(pMagneticField)
 {
-    m_nEdgePts =
-        m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
-    m_nEdgeCoeffs =
-        m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetNcoeffs();
-        
     m_bndExp = Array<OneD, MultiRegions::ExpListSharedPtr>(m_fields.size());
 
     for (int v = 0; v < m_fields.size(); ++v)
     {
         m_bndExp[v] = m_fields[0]->GetBndCondExpansions()[m_bcRegion];
     }
+    m_nEdgePts    = m_bndExp[0]->GetTotPoints();
+    m_nEdgeCoeffs = m_bndExp[0]->GetNcoeffs();
 
     m_fields[0]->GetBndElmtExpansion(m_bcRegion, m_bndElmtExp, false);
 
     m_fields[0]->GetBoundaryNormals(m_bcRegion, m_normals);
 
     m_diffusionAveWeight = 1.0;
-
 }
 
 /**

@@ -44,7 +44,7 @@ private:
     void CalcKappaPar();
     void CalcKappaPerp();
     void CalcKappaTensor();
-    void AddRHS();
+
     Array<OneD, NekDouble> m_D[3][3];
     Array<OneD, NekDouble> m_kappa[3][3];
     Array<OneD, NekDouble> kpar;
