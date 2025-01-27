@@ -48,7 +48,7 @@
             <P> s = 0.1 </P>
 
             <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 50 </P>
+            <P> num_particles_total = 0 </P>
             <!-- Mass of each particle -->
             <P> particle_mass = 1.0 </P>
             <!-- Charge of each particle -->
@@ -100,7 +100,7 @@
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="n"  DOMAIN="0" VALUE="exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys)-(z-zc-zs)*(z-zc-zs))/(s*s))" />
+            <E VAR="n"  DOMAIN="0" VALUE="1+exp((-(x-xc-xs)*(x-xc-xs)-(y-yc-ys)*(y-yc-ys)-(z-zc-zs)*(z-zc-zs))/(s*s))" />
         </FUNCTION>
         <FUNCTION NAME="MagneticMeanField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc))" />

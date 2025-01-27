@@ -64,6 +64,9 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
     CalcDTensor();
     // Obtain Flux
     Array<OneD, Array<OneD, NekDouble>> Flux(m_spacedim);
+    Array<OneD, NekDouble> bc(m_nEdgePts, 0.0);
+    NekDouble cs = -std::sqrt(k_B * T_bnd / m_i);
+    Vmath::Smul(m_nEdgePts, cs, m_bndExp[0]->GetPhys(), 1, bc, 1);
 
     for (int k = 0; k < m_spacedim; k++)
     {
@@ -74,14 +77,10 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
             Vmath::Vvtvp(m_nEdgePts, m_D[k][j], 1, bndGrad[0][j], 1, Flux[k], 1,
                          Flux[k], 1);
         }
+
+        Vmath::Vvtvp(m_nEdgePts, Flux[k], 1, m_b[k], 1, bc, 1, bc, 1);
     }
-    Array<OneD, NekDouble> bndCoeffs(m_nEdgeCoeffs, 0.0);
-
-    m_bndExp[0]->NormVectorIProductWRTBase(Flux, bndCoeffs);
-    NekDouble cs = -std::sqrt(k_B * T_bnd / m_i);
-
-    Vmath::Svtvp(m_nEdgeCoeffs, cs, m_bndExp[0]->UpdateCoeffs(), 1, bndCoeffs,
-                 1, m_bndExp[0]->UpdateCoeffs(), 1);
+    m_bndExp[0]->FwdTrans(bc, m_bndExp[0]->UpdateCoeffs());
 }
 
 void ObliqueBC::CalcKPar()

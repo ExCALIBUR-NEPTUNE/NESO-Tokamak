@@ -69,10 +69,20 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
     // Obtain anisotropic tensors
     CalcDTensor();
     CalcKappaTensor();
-
     // Obtain Fluxes
     Array<OneD, Array<OneD, NekDouble>> density_flux(m_spacedim);
     Array<OneD, Array<OneD, NekDouble>> energy_flux(m_spacedim);
+
+    // Obtain rhs of bcs
+    Array<OneD, NekDouble> density_bc(m_nEdgePts, 0.0);
+    Array<OneD, NekDouble> energy_bc(m_nEdgePts, 0.0);
+
+    for (int p = 0; p < m_nEdgePts; ++p)
+    {
+        NekDouble cs  = -std::sqrt(k_B * m_bndExp[2]->GetPhys()[p] / m_i);
+        density_bc[p] = m_bndExp[0]->GetPhys()[p] * cs;
+        energy_bc[p]  = gamma * k_B * density_bc[p] * m_bndExp[2]->GetPhys()[p];
+    }
 
     for (int k = 0; k < m_spacedim; k++)
     {
@@ -86,44 +96,14 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
             Vmath::Vvtvp(m_nEdgePts, m_kappa[k][j], 1, bndGrad[1][j], 1,
                          energy_flux[k], 1, energy_flux[k], 1);
         }
-    }
-    Array<OneD, NekDouble> nbndCoeffs(m_nEdgeCoeffs, 0.0);
-    Array<OneD, NekDouble> TbndCoeffs(m_nEdgeCoeffs, 0.0);
-
-    m_bndExp[0]->NormVectorIProductWRTBase(density_flux, nbndCoeffs);
-    m_bndExp[2]->NormVectorIProductWRTBase(energy_flux, TbndCoeffs);
-
-    // Obtain rhs of bcs
-    Array<OneD, NekDouble> n = m_bndExp[0]->GetPhys();
-    Array<OneD, NekDouble> T = m_bndExp[2]->GetPhys();
-
-    Array<OneD, Array<OneD, NekDouble>> rhs(2);
-    for (int p = 0; p < m_nEdgePts; ++p)
-    {
-        NekDouble cs = -std::sqrt(k_B * T[p] / m_i);
-        rhs[0][p]    = n[p] * cs;
-        rhs[1][p]    = gamma * n[p] * k_B * T[p] * cs;
+        Vmath::Vvtvp(m_nEdgePts, density_flux[k], 1, m_b[k], 1, density_bc, 1,
+                     density_bc, 1);
+        Vmath::Vvtvp(m_nEdgePts, energy_flux[k], 1, m_b[k], 1, energy_bc, 1,
+                     energy_bc, 1);
     }
 
-    Array<OneD, Array<OneD, NekDouble>> wk(2);
-    wk[0] = Array<OneD, NekDouble>(m_nEdgeCoeffs);
-    wk[1] = Array<OneD, NekDouble>(m_nEdgeCoeffs);
-    m_bndExp[0]->FwdTrans(rhs[0], wk[0]);
-    m_bndExp[2]->FwdTrans(rhs[1], wk[1]);
-
-    // Combine fluxes and rhs
-    Vmath::Vvtvp(m_nEdgeCoeffs, wk[0], 1, m_bndExp[0]->UpdateCoeffs(), 1,
-                 nbndCoeffs, 1, m_bndExp[0]->UpdateCoeffs(), 1);
-    Vmath::Vvtvp(m_nEdgeCoeffs, wk[1], 1, m_bndExp[2]->UpdateCoeffs(), 1,
-                 TbndCoeffs, 1, m_bndExp[2]->UpdateCoeffs(), 1);
-
-    // Finally calculate pressure on boundary
-
-    m_bndExp[0]->BwdTrans(m_bndExp[0]->GetCoeffs(), n);
-    m_bndExp[2]->BwdTrans(m_bndExp[2]->GetCoeffs(), T);
-    Array<OneD, NekDouble> p(m_nEdgePts);
-    Vmath::Vmul(m_nEdgePts, n, 1, T, 1, p, 1);
-    m_bndExp[1]->FwdTrans(p, m_bndExp[1]->UpdateCoeffs());
+    m_bndExp[0]->FwdTrans(density_bc, m_bndExp[0]->UpdateCoeffs());
+    m_bndExp[1]->FwdTrans(energy_bc, m_bndExp[1]->UpdateCoeffs());
 }
 
 void ObliqueOutflowBC::CalcKPar()
