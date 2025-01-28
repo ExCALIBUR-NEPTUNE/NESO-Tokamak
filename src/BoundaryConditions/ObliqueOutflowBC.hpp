@@ -44,7 +44,7 @@ private:
     void CalcKappaPar();
     void CalcKappaPerp();
     void CalcKappaTensor();
-    void AddRHS();
+
     Array<OneD, NekDouble> m_D[3][3];
     Array<OneD, NekDouble> m_kappa[3][3];
     Array<OneD, NekDouble> kpar;
@@ -54,6 +54,10 @@ private:
     NekDouble gamma;
     NekDouble m_i;
     NekDouble k_B;
+    NekDouble k_par;
+    NekDouble k_perp;
+    NekDouble kappa_par;
+    NekDouble kappa_perp;
 };
 
 } // namespace NESO::Solvers::tokamak

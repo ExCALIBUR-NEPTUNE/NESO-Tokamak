@@ -385,16 +385,16 @@ void TokamakSystem::v_InitObject(bool create_field)
         std::string type = BndConds[n]->GetUserDefined();
         if (type.rfind("ObliqueOutflow", 0) == 0)
         {
-            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
+            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
                      "Oblique outflow boundary condition must be of type "
-                     "Dirichlet <D>");
+                     "Neumann <N>");
         }
 
         else if (type.rfind("Oblique", 0) == 0)
         {
             ASSERTL0(
-                BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
-                "Oblique boundary condition must be of type Dirichlet <D>");
+                BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
+                "Oblique boundary condition must be of type Neumann <N>");
         }
         else if (type.rfind("Sheath", 0) == 0)
         {

@@ -38,13 +38,15 @@ private:
     void CalcKPar();
     void CalcKPerp();
     void CalcDTensor();
-    void AddRHS();
+
     Array<OneD, NekDouble> m_D[3][3];
     Array<OneD, NekDouble> kpar;
     Array<OneD, NekDouble> kperp;
     NekDouble T_bnd;
     NekDouble m_i;
     NekDouble k_B;
+    NekDouble k_par;
+    NekDouble k_perp;
 };
 
 } // namespace NESO::Solvers::tokamak
