@@ -52,8 +52,7 @@ void SingleDiffusiveField::CalcKPar()
 {
     // Change to fn of fields
     int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_par;
-    m_session->LoadParameter("k_par", k_par, 100.0);
+    NekDouble k_par = this->k_par;
     m_kpar = Array<OneD, NekDouble>(npoints, k_par);
 }
 
@@ -61,7 +60,7 @@ void SingleDiffusiveField::CalcKPerp()
 {
     // Change to fn of fields
     int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_perp;
+    NekDouble k_perp = this->k_perp;
     m_session->LoadParameter("k_perp", k_perp, 1.0);
     m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
 }
@@ -132,5 +131,14 @@ void SingleDiffusiveField::GetFluxVectorDiff(
                          fluxes[j][n_idx], 1, fluxes[j][n_idx], 1);
         }
     }
+}
+
+void SingleDiffusiveField::load_params()
+{
+    TokamakSystem::load_params();
+    // Adiabatic gamma
+    m_session->LoadParameter("k_B", this->m_k_B);
+    m_session->LoadParameter("k_par", this->k_par, 100.0);
+    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
 }
 } // namespace NESO::Solvers::tokamak

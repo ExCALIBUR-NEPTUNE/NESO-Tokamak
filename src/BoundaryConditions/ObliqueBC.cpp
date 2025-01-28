@@ -18,6 +18,8 @@ ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
     m_session->LoadParameter("T_bnd", T_bnd);
     m_session->LoadParameter("m_i", m_i);
     m_session->LoadParameter("k_B", k_B);
+    m_session->LoadParameter("k_par", this->k_par, 100.0);
+    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
@@ -85,15 +87,13 @@ void ObliqueBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
 
 void ObliqueBC::CalcKPar()
 {
-    NekDouble k_par;
-    m_session->LoadParameter("k_par", k_par, 100.0);
+    NekDouble k_par = this->k_par;
     kpar = Array<OneD, NekDouble>(m_nEdgePts, k_par);
 }
 
 void ObliqueBC::CalcKPerp()
 {
-    NekDouble k_perp;
-    m_session->LoadParameter("k_perp", k_perp, 1.0);
+    NekDouble k_perp = this->k_perp;
     kperp = Array<OneD, NekDouble>(m_nEdgePts, k_perp);
 }
 

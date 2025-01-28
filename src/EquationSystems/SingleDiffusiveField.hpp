@@ -44,10 +44,15 @@ protected:
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
+    void load_params() override;
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
     /// Weight for average calculation of diffusion term
 
+    NekDouble m_k_B;
+    NekDouble k_par;
+    NekDouble k_perp;
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
     StdRegions::VarCoeffMap m_D;

@@ -21,6 +21,10 @@ ObliqueOutflowBC::ObliqueOutflowBC(
     m_session->LoadParameter("gamma", gamma, 7.0);
     m_session->LoadParameter("m_i", m_i);
     m_session->LoadParameter("k_B", k_B);
+    m_session->LoadParameter("k_par", this->k_par, 100.0);
+    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+    m_session->LoadParameter("kappa_par", this->kappa_par, 100.0);
+    m_session->LoadParameter("kappa_perp", this->kappa_perp, 1.0);
 
     for (int i = 0; i < 3; ++i)
     {
@@ -108,14 +112,13 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
 
 void ObliqueOutflowBC::CalcKPar()
 {
-    NekDouble k_par;
-    m_session->LoadParameter("k_par", k_par, 100.0);
+    NekDouble k_par = this->k_par;
     kpar = Array<OneD, NekDouble>(m_nEdgePts, k_par);
 }
 
 void ObliqueOutflowBC::CalcKPerp()
 {
-    NekDouble k_perp;
+    NekDouble k_perp = this->k_perp;
     m_session->LoadParameter("k_perp", k_perp, 1.0);
     kperp = Array<OneD, NekDouble>(m_nEdgePts, k_perp);
 }
@@ -142,15 +145,13 @@ void ObliqueOutflowBC::CalcDTensor()
 
 void ObliqueOutflowBC::CalcKappaPar()
 {
-    NekDouble kappa_par;
-    m_session->LoadParameter("k_par", kappa_par, 100.0);
+    NekDouble kappa_par = this->kappa_par;
     kpar = Array<OneD, NekDouble>(m_nEdgePts, kappa_par);
 }
 
 void ObliqueOutflowBC::CalcKappaPerp()
 {
-    NekDouble kappa_perp;
-    m_session->LoadParameter("k_perp", kappa_perp, 1.0);
+    NekDouble kappa_perp = this->kappa_perp;
     kperp = Array<OneD, NekDouble>(m_nEdgePts, kappa_perp);
 }
 

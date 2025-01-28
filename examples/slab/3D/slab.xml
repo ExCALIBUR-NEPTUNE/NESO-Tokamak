@@ -87,16 +87,16 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="0">
-                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
             <REGION REF="1">
-                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
 	        <REGION REF="2">
-                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
             <REGION REF="3">
-                <D VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">

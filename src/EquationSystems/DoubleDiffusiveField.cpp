@@ -51,36 +51,33 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 void DoubleDiffusiveField::CalcKPar()
 {
     // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_par;
-    m_session->LoadParameter("k_par", k_par, 100.0);
-    m_kpar = Array<OneD, NekDouble>(npoints, k_par);
+    int npoints     = m_fields[0]->GetNpoints();
+    NekDouble k_par = this->k_par;
+    m_kpar          = Array<OneD, NekDouble>(npoints, k_par);
 }
 
 void DoubleDiffusiveField::CalcKPerp()
 {
     // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_perp;
-    m_session->LoadParameter("k_perp", k_perp, 1.0);
-    m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
+    int npoints      = m_fields[0]->GetNpoints();
+    NekDouble k_perp = this->k_perp;
+    m_kperp          = Array<OneD, NekDouble>(npoints, k_perp);
 }
 
 void DoubleDiffusiveField::CalcKappaPar()
 {
     // Change to fn of T
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble kappa_par;
-    m_session->LoadParameter("kappa_par", kappa_par, 100.0);
-    m_kappapar = Array<OneD, NekDouble>(npoints, 2 * kappa_par / 3);
+    int npoints         = m_fields[0]->GetNpoints();
+    NekDouble kappa_par = this->kappa_par;
+    m_kappapar          = Array<OneD, NekDouble>(npoints, 2 * kappa_par / 3);
 }
 
 void DoubleDiffusiveField::CalcKappaPerp()
 {
     // Change to fn of T
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble kappa_perp;
-    m_session->LoadParameter("kappa_perp", kappa_perp, 1.0);
+    int npoints          = m_fields[0]->GetNpoints();
+    NekDouble kappa_perp = this->kappa_perp;
+
     m_kappaperp = Array<OneD, NekDouble>(npoints, 2 * kappa_perp / 3);
 }
 
@@ -130,11 +127,12 @@ void DoubleDiffusiveField::DoOdeRhs(
     int n_idx         = this->field_to_index["n"];
     int p_idx         = this->field_to_index["p"];
     int T_idx         = this->field_to_index["T"];
+
     Array<OneD, Array<OneD, NekDouble>> tmp(nvariables);
     tmp = in_arr;
+    Vmath::Vdiv(nPts, tmp[p_idx], 1, tmp[n_idx], 1, tmp[T_idx], 1);
 
     CalcDiffTensor();
-
     m_diffusion->Diffuse(nvariables, m_fields, tmp, out_arr);
 
     // Add forcing terms
@@ -142,8 +140,6 @@ void DoubleDiffusiveField::DoOdeRhs(
     {
         x->Apply(m_fields, tmp, out_arr, time);
     }
-    Vmath::Vdiv(nPts, out_arr[p_idx], 1, out_arr[n_idx], 1, out_arr[T_idx], 1);
-
 }
 
 /**
@@ -185,6 +181,24 @@ void DoubleDiffusiveField::load_params()
     TokamakSystem::load_params();
     // Adiabatic gamma
     m_session->LoadParameter("gamma", this->m_gamma);
+    m_session->LoadParameter("k_B", this->m_k_B);
+    m_session->LoadParameter("k_par", this->k_par, 100.0);
+    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+    m_session->LoadParameter("kappa_par", this->kappa_par, 100.0);
+    m_session->LoadParameter("kappa_perp", this->kappa_perp, 1.0);
+}
+
+bool DoubleDiffusiveField::v_PostIntegrate(int step)
+{
+    unsigned int nPts = GetNpoints();
+    int n_idx         = this->field_to_index["n"];
+    int p_idx         = this->field_to_index["p"];
+    int T_idx         = this->field_to_index["T"];
+    Vmath::Vdiv(nPts, m_fields[p_idx]->GetPhys(), 1, m_fields[n_idx]->GetPhys(),
+                1, m_fields[T_idx]->UpdatePhys(), 1);
+    m_fields[T_idx]->FwdTrans(m_fields[T_idx]->GetPhys(),
+                              m_fields[T_idx]->UpdateCoeffs());
+    return TokamakSystem::v_PostIntegrate(step);
 }
 
 } // namespace NESO::Solvers::tokamak

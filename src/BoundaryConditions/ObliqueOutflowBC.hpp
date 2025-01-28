@@ -54,6 +54,10 @@ private:
     NekDouble gamma;
     NekDouble m_i;
     NekDouble k_B;
+    NekDouble k_par;
+    NekDouble k_perp;
+    NekDouble kappa_par;
+    NekDouble kappa_perp;
 };
 
 } // namespace NESO::Solvers::tokamak

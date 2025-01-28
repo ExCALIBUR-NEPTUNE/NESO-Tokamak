@@ -52,9 +52,16 @@ protected:
 
     void load_params() override;
 
+    bool v_PostIntegrate(int step);
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
 
+
+    NekDouble k_par;
+    NekDouble k_perp;
+    NekDouble kappa_par;
+    NekDouble kappa_perp;
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
     StdRegions::VarCoeffMap m_D;
@@ -64,6 +71,7 @@ protected:
     StdRegions::VarCoeffMap m_kappa;
 
     NekDouble m_gamma;
+    NekDouble m_k_B;
 };
 
 } // namespace NESO::Solvers::tokamak
