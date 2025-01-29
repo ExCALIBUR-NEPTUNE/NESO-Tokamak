@@ -59,25 +59,45 @@ public:
 
     inline virtual void init_spec() override
     {
-        this->particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
-                               ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-                               ParticleProp(Sym<REAL>("POSITION"), 3, true),
-                               ParticleProp(Sym<REAL>("VELOCITY"), 3),
-                               ParticleProp(Sym<REAL>("M"), 1),
-                               ParticleProp(Sym<REAL>("Q"), 1),
-                               ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
-                               ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
-                               ParticleProp(Sym<REAL>("E0"), 1),
-                               ParticleProp(Sym<REAL>("E1"), 1),
-                               ParticleProp(Sym<REAL>("E2"), 1),
-                               ParticleProp(Sym<REAL>("B0"), 1),
-                               ParticleProp(Sym<REAL>("B1"), 1),
-                               ParticleProp(Sym<REAL>("B2"), 1)};
+        this->particle_spec = {
+            ParticleProp(Sym<INT>("CELL_ID"), 1, true),
+            ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
+            ParticleProp(Sym<INT>("SPECIES"), 1),
+            ParticleProp(Sym<REAL>("POSITION"), 3, true),
+            ParticleProp(Sym<REAL>("VELOCITY"), 3),
+            ParticleProp(Sym<REAL>("M"), 1),
+            ParticleProp(Sym<REAL>("Q"), 1),
+            ParticleProp(Sym<REAL>("E0"), 1),
+            ParticleProp(Sym<REAL>("E1"), 1),
+            ParticleProp(Sym<REAL>("E2"), 1),
+            ParticleProp(Sym<REAL>("B0"), 1),
+            ParticleProp(Sym<REAL>("B1"), 1),
+            ParticleProp(Sym<REAL>("B2"), 1),
+            ParticleProp(Sym<REAL>("COMPUTATIONAL_WEIGHT"), 1)};
+
+        for (auto &[k, v] : this->config->get_species())
+        {
+            std::string name = std::get<0>(v);
+            this->particle_spec.push(
+                ParticleProp(Sym<REAL>(name + "_NSRC"), 1));
+            this->particle_spec.push(
+                ParticleProp(Sym<REAL>(name + "_ESRC"), 1));
+        }
     }
 
     virtual void init_object() override
     {
-        PartSysBase::init_object();
+        this->config->read_particles();
+        this->init_spec();
+        this->read_params();
+        this->particle_group = std::make_shared<ParticleGroup>(
+            this->domain, this->particle_spec, this->sycl_target);
+        this->cell_id_translation = std::make_shared<CellIDTranslation>(
+            this->sycl_target, this->particle_group->cell_id_dat,
+            this->particle_mesh_interface);
+        this->set_up_species();
+        this->set_up_boundaries();
+        // PartSysBase::init_object();
 
         parallel_advection_initialisation(this->particle_group);
         parallel_advection_store(this->particle_group);
@@ -91,9 +111,9 @@ public:
         // Move particles to the owning ranks and correct cells.
         this->transfer_particles();
 
-        init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
-                    Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
-                    Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
+        init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
+                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"),
+                    Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
     virtual void set_up_particles() override
     {
@@ -169,13 +189,13 @@ public:
         NESOASSERT(this->field_project != nullptr,
                    "Field project object is null. Was setup_project called?");
 
-        std::vector<Sym<REAL>> syms = {Sym<REAL>("SOURCE_DENSITY"),
-                                       Sym<REAL>("SOURCE_ENERGY")};
-        std::vector<int> components = {0, 0};
-
-        for (auto &s : species_map)
+        for (auto &[k, v] : species_map)
         {
-            this->field_project->project(s.second.sub_group, syms, components);
+            std::vector<Sym<REAL>> syms = {Sym<REAL>(v.name + "_NSRC")/*,
+                                           Sym<REAL>(v.name + "_ESRC")*/};
+            std::vector<int> components = {0 /*, 0*/};
+
+            this->field_project->project(v.sub_group, syms, components);
         }
         // remove fully ionised particles from the simulation
         remove_marked_particles();

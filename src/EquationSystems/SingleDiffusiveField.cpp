@@ -31,7 +31,7 @@ SingleDiffusiveField::SingleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        //this->required_fld_names = {"n_src"};
+        // this->required_fld_names = {"n_src"};
     }
 }
 
@@ -51,15 +51,15 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 void SingleDiffusiveField::CalcKPar()
 {
     // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
+    int npoints     = m_fields[0]->GetNpoints();
     NekDouble k_par = this->k_par;
-    m_kpar = Array<OneD, NekDouble>(npoints, k_par);
+    m_kpar          = Array<OneD, NekDouble>(npoints, k_par);
 }
 
 void SingleDiffusiveField::CalcKPerp()
 {
     // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
+    int npoints      = m_fields[0]->GetNpoints();
     NekDouble k_perp = this->k_perp;
     m_session->LoadParameter("k_perp", k_perp, 1.0);
     m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
@@ -102,6 +102,14 @@ void SingleDiffusiveField::DoOdeRhs(
     CalcDiffTensor();
     m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
 
+    if (this->particles_enabled)
+    {
+        for (auto &s : particle_sys->get_species())
+        {
+            Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
+                        this->src_fields[s.first]->GetPhys(), 1, out_arr[0], 1);
+        }
+    }
     // Add forcing terms
     for (auto &x : m_forcing)
     {

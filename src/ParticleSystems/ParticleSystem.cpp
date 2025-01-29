@@ -33,15 +33,15 @@ void ParticleSystem::set_up_species()
 
     for (const auto &[k, v] : this->config->get_species())
     {
-        double particle_mass, particle_charge;
-
+        std::string name = std::get<0>(v);
+        double particle_mass, particle_charge, particle_number;
         this->config->load_species_parameter(k, "Mass", particle_mass);
         this->config->load_species_parameter(k, "Charge", particle_charge);
-
+        this->config->load_species_parameter(k, "Number", particle_number);
         long rstart, rend;
         const long size = this->sycl_target->comm_pair.size_parent;
         const long rank = this->sycl_target->comm_pair.rank_parent;
-        get_decomp_1d(size, (long)this->num_parts_tot, rank, &rstart, &rend);
+        get_decomp_1d(size, (long)particle_number, rank, &rstart, &rend);
         const long N = rend - rstart;
 
         std::mt19937 rng_phasespace(seed + rank);
@@ -93,6 +93,7 @@ void ParticleSystem::set_up_species()
                 initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
                 initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] =
                     px + rstart;
+                initial_distribution[Sym<INT>("SPECIES")][px][0] = k;
             }
 
             this->particle_group->add_particles_local(initial_distribution);
@@ -101,10 +102,9 @@ void ParticleSystem::set_up_species()
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [k](auto sid) { return sid[0] == k; },
                 Access::read(Sym<INT>("SPECIES")));
-        species_map[k] = SpeciesInfo{std::get<0>(v), particle_mass,
+        species_map[k] = SpeciesInfo{name, particle_mass,
                                      particle_charge, sub_group};
 
-        this->particle_spec.push(ParticleProp(Sym<REAL>(k + "_src"), 1));
     }
 }
 

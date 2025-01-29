@@ -392,9 +392,8 @@ void TokamakSystem::v_InitObject(bool create_field)
 
         else if (type.rfind("Oblique", 0) == 0)
         {
-            ASSERTL0(
-                BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
-                "Oblique boundary condition must be of type Neumann <N>");
+            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
+                     "Oblique boundary condition must be of type Neumann <N>");
         }
         else if (type.rfind("Sheath", 0) == 0)
         {
@@ -428,7 +427,7 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
         this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
 
-        for (int i = 0; i < this->nSpecies; ++i)
+        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
