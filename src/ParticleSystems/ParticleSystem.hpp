@@ -59,41 +59,64 @@ public:
 
     inline virtual void init_spec() override
     {
-        this->particle_spec = {ParticleProp(Sym<INT>("CELL_ID"), 1, true),
-                               ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
-                               ParticleProp(Sym<REAL>("POSITION"), 3, true),
-                               ParticleProp(Sym<REAL>("VELOCITY"), 3),
-                               ParticleProp(Sym<REAL>("M"), 1),
-                               ParticleProp(Sym<REAL>("Q"), 1),
-                               ParticleProp(Sym<REAL>("SOURCE_DENSITY"), 1),
-                               ParticleProp(Sym<REAL>("SOURCE_ENERGY"), 1),
-                               ParticleProp(Sym<REAL>("E0"), 1),
-                               ParticleProp(Sym<REAL>("E1"), 1),
-                               ParticleProp(Sym<REAL>("E2"), 1),
-                               ParticleProp(Sym<REAL>("B0"), 1),
-                               ParticleProp(Sym<REAL>("B1"), 1),
-                               ParticleProp(Sym<REAL>("B2"), 1)};
+        this->particle_spec = {
+            ParticleProp(Sym<INT>("CELL_ID"), 1, true),
+            ParticleProp(Sym<INT>("PARTICLE_ID"), 1),
+            ParticleProp(Sym<INT>("SPECIES"), 1),
+            ParticleProp(Sym<REAL>("POSITION"), 3, true),
+            ParticleProp(Sym<REAL>("VELOCITY"), 3),
+            ParticleProp(Sym<REAL>("M"), 1),
+            ParticleProp(Sym<REAL>("Q"), 1),
+            ParticleProp(Sym<REAL>("E0"), 1),
+            ParticleProp(Sym<REAL>("E1"), 1),
+            ParticleProp(Sym<REAL>("E2"), 1),
+            ParticleProp(Sym<REAL>("B0"), 1),
+            ParticleProp(Sym<REAL>("B1"), 1),
+            ParticleProp(Sym<REAL>("B2"), 1),
+            ParticleProp(Sym<REAL>("COMPUTATIONAL_WEIGHT"), 1),
+            ParticleProp(Sym<REAL>("TSP"), 2)};
+
+        for (auto &[k, v] : this->config->get_species())
+        {
+            std::string name = std::get<0>(v);
+            this->particle_spec.push(
+                ParticleProp(Sym<REAL>(name + "_NSRC"), 1));
+            this->particle_spec.push(
+                ParticleProp(Sym<REAL>(name + "_ESRC"), 1));
+        }
     }
 
     virtual void init_object() override
     {
-        PartSysBase::init_object();
+        this->config->read_particles();
+        this->init_spec();
+        this->read_params();
+        this->particle_group = std::make_shared<ParticleGroup>(
+            this->domain, this->particle_spec, this->sycl_target);
+        this->cell_id_translation = std::make_shared<CellIDTranslation>(
+            this->sycl_target, this->particle_group->cell_id_dat,
+            this->particle_mesh_interface);
+        this->set_up_species();
+        this->set_up_boundaries();
+        // PartSysBase::init_object();
 
-        parallel_advection_initialisation(this->particle_group);
-        parallel_advection_store(this->particle_group);
-        const int num_steps = 20;
-        for (int stepx = 0; stepx < num_steps; stepx++)
-        {
-            parallel_advection_step(this->particle_group, num_steps, stepx);
-            this->transfer_particles();
-        }
-        parallel_advection_restore(this->particle_group);
-        // Move particles to the owning ranks and correct cells.
+        // parallel_advection_initialisation(this->particle_group);
+        // parallel_advection_store(this->particle_group);
+        // const int num_steps = 20;
+        // for (int stepx = 0; stepx < num_steps; stepx++)
+        // {
+
+        //     parallel_advection_step(this->particle_group, num_steps, stepx);
+        //     this->transfer_particles();
+        // }
+        // parallel_advection_restore(this->particle_group);
+        //  Move particles to the owning ranks and correct cells.
         this->transfer_particles();
-
-        init_output("particle_trajectory.h5part", Sym<INT>("CELL_ID"),
-                    Sym<REAL>("VELOCITY"), Sym<REAL>("E0"), Sym<REAL>("E1"),
-                    Sym<REAL>("E2"), Sym<INT>("PARTICLE_ID"));
+        pre_advection(particle_sub_group(this->particle_group));
+        apply_boundary_conditions(particle_sub_group(this->particle_group));
+        init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
+                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"),
+                    Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
     virtual void set_up_particles() override
     {
@@ -139,12 +162,15 @@ public:
         while (time_tmp < time_end)
         {
             const double dt_inner = std::min(dt, time_end - time_tmp);
-            this->integrate_inner(dt_inner);
+            // this->integrate_inner(dt_inner);
+            apply_timestep(static_particle_sub_group(this->particle_group),
+                           dt_inner);
+            this->transfer_particles();
+
             time_tmp += dt_inner;
         }
 
         this->simulation_time = time_end;
-        this->transfer_particles();
     }
 
     /**
@@ -169,13 +195,13 @@ public:
         NESOASSERT(this->field_project != nullptr,
                    "Field project object is null. Was setup_project called?");
 
-        std::vector<Sym<REAL>> syms = {Sym<REAL>("SOURCE_DENSITY"),
-                                       Sym<REAL>("SOURCE_ENERGY")};
-        std::vector<int> components = {0, 0};
-
-        for (auto &s : species_map)
+        for (auto &[k, v] : species_map)
         {
-            this->field_project->project(s.second.sub_group, syms, components);
+            std::vector<Sym<REAL>> syms = {Sym<REAL>(v.name + "_NSRC")/*,
+                                           Sym<REAL>(v.name + "_ESRC")*/};
+            std::vector<int> components = {0 /*, 0*/};
+
+            this->field_project->project(v.sub_group, syms, components);
         }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
@@ -312,70 +338,78 @@ public:
     }
 
 protected:
-    virtual inline void integrate_inner(const double dt_inner)
+    virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg, const double dt_inner)
     {
         const auto k_dt  = dt_inner;
-        const auto k_dht = dt_inner * 0.5;
 
         particle_loop(
-            "ParticleSystem:boris", this->particle_group,
+            "ParticleSystem:boris", sg,
             [=](auto E0, auto E1, auto E2, auto B0, auto B1, auto B2, auto Q,
-                auto M, auto P, auto V)
+                auto M, auto P, auto V, auto TSP)
             {
-                const REAL QoM = Q.at(0) / M.at(0);
+                const REAL dt_left = k_dt - TSP.at(0);
+                const REAL hdt_left = dt_left * 0.5;
+                if (dt_left > 0.0)
+                {
+                    const REAL QoM = Q.at(0) / M.at(0);
 
-                const REAL scaling_t = QoM * k_dht;
-                const REAL t_0       = B0.at(0) * scaling_t;
-                const REAL t_1       = B1.at(0) * scaling_t;
-                const REAL t_2       = B2.at(0) * scaling_t;
+                    const REAL scaling_t = QoM * hdt_left;
+                    const REAL t_0       = B0.at(0) * scaling_t;
+                    const REAL t_1       = B1.at(0) * scaling_t;
+                    const REAL t_2       = B2.at(0) * scaling_t;
 
-                const REAL tmagsq    = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
-                const REAL scaling_s = 2.0 / (1.0 + tmagsq);
+                    const REAL tmagsq    = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
+                    const REAL scaling_s = 2.0 / (1.0 + tmagsq);
 
-                const REAL s_0 = scaling_s * t_0;
-                const REAL s_1 = scaling_s * t_1;
-                const REAL s_2 = scaling_s * t_2;
+                    const REAL s_0 = scaling_s * t_0;
+                    const REAL s_1 = scaling_s * t_1;
+                    const REAL s_2 = scaling_s * t_2;
 
-                const REAL V_0 = V.at(0);
-                const REAL V_1 = V.at(1);
-                const REAL V_2 = V.at(2);
+                    const REAL V_0 = V.at(0);
+                    const REAL V_1 = V.at(1);
+                    const REAL V_2 = V.at(2);
 
-                const REAL v_minus_0 = V_0 + (E0.at(0)) * scaling_t;
-                const REAL v_minus_1 = V_1 + (E1.at(0)) * scaling_t;
-                const REAL v_minus_2 = V_2 + (E2.at(0)) * scaling_t;
+                    const REAL v_minus_0 = V_0 + (E0.at(0)) * scaling_t;
+                    const REAL v_minus_1 = V_1 + (E1.at(0)) * scaling_t;
+                    const REAL v_minus_2 = V_2 + (E2.at(0)) * scaling_t;
 
-                REAL v_prime_0, v_prime_1, v_prime_2;
-                MAPPING_CROSS_PRODUCT_3D(v_minus_0, v_minus_1, v_minus_2, t_0,
-                                         t_1, t_2, v_prime_0, v_prime_1,
-                                         v_prime_2)
+                    REAL v_prime_0, v_prime_1, v_prime_2;
+                    MAPPING_CROSS_PRODUCT_3D(v_minus_0, v_minus_1, v_minus_2,
+                                             t_0, t_1, t_2, v_prime_0,
+                                             v_prime_1, v_prime_2)
 
-                v_prime_0 += v_minus_0;
-                v_prime_1 += v_minus_1;
-                v_prime_2 += v_minus_2;
+                    v_prime_0 += v_minus_0;
+                    v_prime_1 += v_minus_1;
+                    v_prime_2 += v_minus_2;
 
-                REAL v_plus_0, v_plus_1, v_plus_2;
-                MAPPING_CROSS_PRODUCT_3D(v_prime_0, v_prime_1, v_prime_2, s_0,
-                                         s_1, s_2, v_plus_0, v_plus_1, v_plus_2)
+                    REAL v_plus_0, v_plus_1, v_plus_2;
+                    MAPPING_CROSS_PRODUCT_3D(v_prime_0, v_prime_1, v_prime_2,
+                                             s_0, s_1, s_2, v_plus_0, v_plus_1,
+                                             v_plus_2)
 
-                v_plus_0 += v_minus_0;
-                v_plus_1 += v_minus_1;
-                v_plus_2 += v_minus_2;
+                    v_plus_0 += v_minus_0;
+                    v_plus_1 += v_minus_1;
+                    v_plus_2 += v_minus_2;
 
-                V.at(0) = v_plus_0 + scaling_t * (E0.at(0));
-                V.at(1) = v_plus_1 + scaling_t * (E1.at(0));
-                V.at(2) = v_plus_2 + scaling_t * (E2.at(0));
+                    V.at(0) = v_plus_0 + scaling_t * (E0.at(0));
+                    V.at(1) = v_plus_1 + scaling_t * (E1.at(0));
+                    V.at(2) = v_plus_2 + scaling_t * (E2.at(0));
 
-                // update of position to next time step
-                P.at(0) += k_dt * V.at(0);
-                P.at(1) += k_dt * V.at(1);
-                P.at(2) += k_dt * V.at(2);
+                    // update of position to next time step
+                    P.at(0) += dt_left * V.at(0);
+                    P.at(1) += dt_left * V.at(1);
+                    P.at(2) += dt_left * V.at(2);
+                    TSP.at(0) = k_dt;
+                    TSP.at(1) = dt_left;
+                }
             },
             Access::read(Sym<REAL>("E0")), Access::read(Sym<REAL>("E1")),
             Access::read(Sym<REAL>("E2")), Access::read(Sym<REAL>("B0")),
             Access::read(Sym<REAL>("B1")), Access::read(Sym<REAL>("B2")),
             Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
             Access::write(Sym<REAL>("POSITION")),
-            Access::write(Sym<REAL>("VELOCITY")))
+            Access::write(Sym<REAL>("VELOCITY")),
+            Access::write(Sym<REAL>("TSP")))
             ->execute();
     };
 
@@ -402,6 +436,60 @@ protected:
     /// Reflective Boundary Conditions
     std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 
+    inline void apply_timestep_reset(ParticleSubGroupSharedPtr sg)
+    {
+        particle_loop(
+            sg,
+            [=](auto TSP)
+            {
+                TSP.at(0) = 0.0;
+                TSP.at(1) = 0.0;
+            },
+            Access::write(Sym<REAL>("TSP")))
+            ->execute();
+    }
+
+    void pre_advection(ParticleSubGroupSharedPtr sg)
+    {
+        reflection->pre_advection(sg);
+    };
+
+    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
+    {
+        reflection->execute(sg);
+    };
+
+    auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
+    {
+        return static_particle_sub_group(
+            this->particle_group, [=](auto TSP) { return TSP.at(0) < dt; },
+            Access::read(Sym<REAL>("TSP")));
+    };
+
+    bool partial_moves_remaining(ParticleSubGroupSharedPtr sg)
+    {
+        const int size = sg->get_npart_local();
+        int size_global;
+        MPICHK(MPI_Allreduce(&size, &size_global, 1, MPI_INT, MPI_SUM,
+                             sycl_target->comm_pair.comm_parent));
+        return size_global > 0;
+    };
+
+    inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
+    {
+        apply_timestep_reset(sg);
+        pre_advection(sg);
+        integrate_inner(sg, dt);
+        apply_boundary_conditions(sg);
+        sg = find_partial_moves(sg, dt);
+        while (partial_moves_remaining(sg))
+        {
+            pre_advection(sg);
+            integrate_inner(sg, dt);
+            apply_boundary_conditions(sg);
+            sg = find_partial_moves(sg, dt);
+        }
+    }
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
      * // Move some of this to PartSysBase / make it a pure-virtual func?
@@ -409,8 +497,7 @@ protected:
     inline void transfer_particles()
     {
         auto t0 = profile_timestamp();
-        this->pre_integration();
-        this->boundary_conditions();
+
         this->particle_group->hybrid_move();
         this->cell_id_translation->execute();
         this->particle_group->cell_move();

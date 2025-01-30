@@ -23,10 +23,10 @@
         <PARAMETERS>
             <!-- Timestepping and output options -->
             <P> TimeStep      = 0.001            </P>
-            <P> NumSteps      = 100              </P>
+            <P> NumSteps      = 10              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
-            <P> IO_CheckSteps = 10     </P>
+            <P> IO_CheckSteps = 1     </P>
             <P> particle_output_freq = 1          </P>
 
             <P> epsilon         = 1.0   </P>
@@ -46,25 +46,6 @@
             <P> ys = 0 </P>
             <P> zs = 0 </P>
             <P> s = 0.1 </P>
-
-            <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 0 </P>
-            <!-- Mass of each particle -->
-            <P> particle_mass = 1.0 </P>
-            <!-- Charge of each particle -->
-            <P> particle_charge = 1.0 </P>
-            <!-- Scaling coefficient when adding particle drift velocities. -->
-            <P> particle_v_drift_scaling = 1.0 </P>
-            <!-- Scaling coefficient applied to B for particles, -->
-            <!-- i.e. if 0 particles ignore B. -->
-            <P> particle_B_scaling = 1.0 </P>
-            <!-- Add to initial particle velocity a contribution: -->
-            <!-- particle_velocity_B_scaling * unit(B) -->
-            <P> particle_velocity_B_scaling = 0.0 </P>
-            <!-- Add to initial particle velocity a contribution: -->
-            <!-- using particle_thermal_velocity. -->
-            <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
-            <P> particle_thermal_velocity = 0.01 </P>
             
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-6  </P>
@@ -72,6 +53,8 @@
             <P> NewtonRelativeIteTol      = 1.0E-10  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
+
+            <P> num_particles_total = 1 </P>
         </PARAMETERS>
 
         <VARIABLES>
@@ -79,23 +62,23 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <B ID="0"> C[1] </B> <!-- Low x -->
-            <B ID="1"> C[2] </B> <!-- High x -->
-            <B ID="2"> C[3] </B> <!-- Low y -->
-            <B ID="3"> C[4] </B> <!-- High y -->
+            <B ID="1"> C[1] </B> <!-- Low x -->
+            <B ID="2"> C[2] </B> <!-- High x -->
+            <B ID="3"> C[3] </B> <!-- Low y -->
+            <B ID="4"> C[4] </B> <!-- High y -->
         </BOUNDARYREGIONS>
 
         <BOUNDARYCONDITIONS>
-            <REGION REF="0">
-                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
-            </REGION>
             <REGION REF="1">
                 <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
-	        <REGION REF="2">
+            <REGION REF="2">
                 <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
-            <REGION REF="3">
+	        <REGION REF="3">
+                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+            </REGION>
+            <REGION REF="4">
                 <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
@@ -108,4 +91,50 @@
             <E VAR="Bz" VALUE="10.0" />
         </FUNCTION>
     </CONDITIONS>
+
+    <PARTICLES>
+        <INFO>
+            <I PROPERTY="PARTTYPE" VALUE="ParticleSystem"/>
+        </INFO>
+
+        <PARAMETERS>
+            <!-- No particles when num_particles_total = 0-->
+            <P> num_particles_total = 1 </P>
+            <!-- Scaling coefficient when adding particle drift velocities. -->
+            <P> particle_v_drift_scaling = 1.0 </P>
+            <!-- Scaling coefficient applied to B for particles, -->
+            <!-- i.e. if 0 particles ignore B. -->
+            <P> particle_B_scaling = 1.0 </P>
+            <!-- Add to initial particle velocity a contribution: -->
+            <!-- particle_velocity_B_scaling * unit(B) -->
+            <P> particle_velocity_B_scaling = 0 </P>
+            <!-- Add to initial particle velocity a contribution: -->
+            <!-- using particle_thermal_velocity. -->
+            <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
+            <P> particle_thermal_velocity = 10 </P>
+        </PARAMETERS>
+
+        <SPECIES>
+            <S ID="0" NAME="Argon">
+                <P> Mass = 1.0 </P>
+                <P> Charge = 1.0 </P>
+                <P> Number = 1 </P>
+            </S>
+        </SPECIES>
+
+        <BOUNDARYINTERACTION>
+            <REGION REF="1">
+                <C SPECIES="0"  VALUE="0.0" />
+            </REGION>
+            <REGION REF="2">
+                <C SPECIES="0"  VALUE="0.0" />
+            </REGION>
+	        <REGION REF="3">
+                <C SPECIES="0"  VALUE="0.0" />
+            </REGION>
+            <REGION REF="4">
+                <C SPECIES="0"  VALUE="0.0" />
+            </REGION>
+        </BOUNDARYINTERACTION>
+    </PARTICLES>
 </NEKTAR>
