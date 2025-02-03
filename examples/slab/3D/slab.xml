@@ -107,7 +107,7 @@
             <P> particle_B_scaling = 1.0 </P>
             <!-- Add to initial particle velocity a contribution: -->
             <!-- particle_velocity_B_scaling * unit(B) -->
-            <P> particle_velocity_B_scaling = 0 </P>
+            <P> particle_velocity_B_scaling = 1 </P>
             <!-- Add to initial particle velocity a contribution: -->
             <!-- using particle_thermal_velocity. -->
             <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
@@ -118,7 +118,7 @@
             <S ID="0" NAME="Argon">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 1 </P>
+                <P> Number = 10 </P>
             </S>
         </SPECIES>
 

@@ -223,6 +223,7 @@ void TokamakSystem::ReadMagneticField()
         B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
         B[d]->UpdatePhys() = B_in[d];
+        B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
     }
 
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
@@ -334,6 +335,14 @@ void TokamakSystem::v_ExtraFldOutput(
     Array<OneD, NekDouble> EzFwd(nCoeffs);
     m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
     fieldcoeffs.push_back(EzFwd);
+
+    for (auto s : this->particle_sys->get_species())
+    {
+        variables.push_back(s.second.name + "_SOURCE_DENSITY");
+        Array<OneD, NekDouble> SrcFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(src_fields[s.first]->GetPhys(), SrcFwd);
+        fieldcoeffs.push_back(SrcFwd);
+    }
 }
 
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
@@ -357,10 +366,10 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     // Store FieldSharedPtr casts of fields in a map, indexed by name
 
-    E = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    this->E = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (int d = 0; d < 3; ++d)
     {
-        E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
 
@@ -424,8 +433,12 @@ void TokamakSystem::v_InitObject(bool create_field)
     if (this->particles_enabled)
     {
         // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
-        this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
+        this->particle_sys->setup_evaluate_E(this->E[0], this->E[1],
+                                             this->E[2]);
+        this->particle_sys->setup_evaluate_B(this->B[0], this->B[1],
+                                             this->B[2]);
+        this->particle_sys->setup_evaluate_ne(
+            std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
 
         for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
@@ -456,7 +469,7 @@ bool TokamakSystem::v_PostIntegrate(int step)
     if (this->particles_enabled && particle_output_freq > 0 &&
         (step % particle_output_freq) == 0)
     {
-        this->particle_sys->write(step);
+        this->particle_sys->write(step + 1);
     }
     return TimeEvoEqnSysBase<SU::UnsteadySystem,
                              ParticleSystem>::v_PostIntegrate(step);
@@ -476,6 +489,11 @@ bool TokamakSystem::v_PreIntegrate(int step)
     {
         // Integrate the particle system to the requested time.
         this->particle_sys->evaluate_fields();
+        if (step == 0)
+        {
+            this->particle_sys->write(0);
+        }
+
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
         this->particle_sys->project_source_terms();
     }

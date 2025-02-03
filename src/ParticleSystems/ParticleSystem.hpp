@@ -67,6 +67,7 @@ public:
             ParticleProp(Sym<REAL>("VELOCITY"), 3),
             ParticleProp(Sym<REAL>("M"), 1),
             ParticleProp(Sym<REAL>("Q"), 1),
+            ParticleProp(Sym<REAL>("ELECTRON_DENSITY"), 1),
             ParticleProp(Sym<REAL>("E0"), 1),
             ParticleProp(Sym<REAL>("E1"), 1),
             ParticleProp(Sym<REAL>("E2"), 1),
@@ -80,9 +81,9 @@ public:
         {
             std::string name = std::get<0>(v);
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_NSRC"), 1));
+                ParticleProp(Sym<REAL>(name + "_SOURCE_DENSITY"), 1));
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_ESRC"), 1));
+                ParticleProp(Sym<REAL>(name + "_SOURCE_ENERGY"), 1));
         }
     }
 
@@ -115,7 +116,10 @@ public:
         pre_advection(particle_sub_group(this->particle_group));
         apply_boundary_conditions(particle_sub_group(this->particle_group));
         init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
-                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"),
+                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"), Sym<REAL>("B0"),
+                    Sym<REAL>("B1"), Sym<REAL>("B2"),
+                    Sym<REAL>("ELECTRON_DENSITY"),
+                    Sym<REAL>("Argon_SOURCE_DENSITY"),
                     Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
     virtual void set_up_particles() override
@@ -197,14 +201,21 @@ public:
 
         for (auto &[k, v] : species_map)
         {
-            std::vector<Sym<REAL>> syms = {Sym<REAL>(v.name + "_NSRC")/*,
-                                           Sym<REAL>(v.name + "_ESRC")*/};
+            std::vector<Sym<REAL>> syms = {Sym<REAL>(v.name + "_SOURCE_DENSITY")/*,
+                                           Sym<REAL>(v.name + "_SOURCE_ENERGY")*/};
             std::vector<int> components = {0 /*, 0*/};
 
             this->field_project->project(v.sub_group, syms, components);
         }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
+    }
+
+    inline void setup_evaluate_ne(std::shared_ptr<DisContField> n)
+    {
+        this->field_evaluate_ne = std::make_shared<FieldEvaluate<DisContField>>(
+            n, this->particle_group, this->cell_id_translation);
+        this->fields["ne"] = n;
     }
 
     /**
@@ -279,6 +290,10 @@ public:
         this->field_evaluate_B0->evaluate(Sym<REAL>("B0"));
         this->field_evaluate_B1->evaluate(Sym<REAL>("B1"));
         this->field_evaluate_B2->evaluate(Sym<REAL>("B2"));
+
+        NESOASSERT(this->field_evaluate_ne != nullptr,
+                   "FieldEvaluate not setup.");
+        this->field_evaluate_ne->evaluate(Sym<REAL>("ELECTRON_DENSITY"));
     }
 
     inline void remove_marked_particles()
@@ -338,16 +353,67 @@ public:
     }
 
 protected:
-    virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg, const double dt_inner)
+    inline void ionise(const double dt)
     {
-        const auto k_dt  = dt_inner;
+
+        // Evaluate the density and temperature fields at the particle locations
+        this->evaluate_fields();
+
+        const double k_dt = dt;
+        const REAL rate        = 100;
+        const INT k_remove_key = particle_remove_key;
+
+        auto t0 = profile_timestamp();
+        for (auto &[k, v] : this->species_map)
+        {
+            particle_loop(
+                "NeutralParticleSystem::ionise", this->particle_group,
+                [=](auto k_ID, auto k_n, auto k_SD, auto k_W)
+                {
+                    const REAL n      = k_n.at(0);
+                    const REAL weight = k_W.at(0);
+                    // note that the rate will be a positive number, so minus
+                    // sign here
+                    REAL deltaweight = -rate * weight * k_dt * n;
+
+                    /* Check whether weight is about to drop below zero.
+                       If so, flag particle for removal and adjust deltaweight.
+                       These particles are removed after the project call.
+                    */
+                    if ((weight + deltaweight) <= 0)
+                    {
+                        k_ID.at(0)  = k_remove_key;
+                        deltaweight = -weight;
+                    }
+
+                    // Mutate the weight on the particle
+                    k_W.at(0) += deltaweight;
+                    // Set value for fluid density source (num / Nektar unit
+                    // time)
+                    k_SD.at(0) = -deltaweight * 1e-6/ k_dt;
+                },
+                Access::write(Sym<INT>("PARTICLE_ID")),
+                Access::read(Sym<REAL>("ELECTRON_DENSITY")),
+                Access::write(Sym<REAL>(v.name + "_SOURCE_DENSITY")),
+                Access::write(Sym<REAL>("COMPUTATIONAL_WEIGHT")))
+                ->execute();
+        }
+        this->sycl_target->profile_map.inc(
+            "NeutralParticleSystem", "Ionisation_Execute", 1,
+            profile_elapsed(t0, profile_timestamp()));
+    }
+
+    virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg,
+                                        const double dt_inner)
+    {
+        const auto k_dt = dt_inner;
 
         particle_loop(
             "ParticleSystem:boris", sg,
             [=](auto E0, auto E1, auto E2, auto B0, auto B1, auto B2, auto Q,
                 auto M, auto P, auto V, auto TSP)
             {
-                const REAL dt_left = k_dt - TSP.at(0);
+                const REAL dt_left  = k_dt - TSP.at(0);
                 const REAL hdt_left = dt_left * 0.5;
                 if (dt_left > 0.0)
                 {
@@ -411,6 +477,7 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")),
             Access::write(Sym<REAL>("TSP")))
             ->execute();
+        ionise(dt_inner);
     };
 
     const int particle_remove_key = -1;
@@ -429,6 +496,7 @@ protected:
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B1;
     std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_B2;
     /// Object used to project onto Nektar number density field
+    std::shared_ptr<FieldEvaluate<DisContField>> field_evaluate_ne;
     std::map<std::string, std::shared_ptr<DisContField>> fields;
     /// Simulation time
     double simulation_time;
