@@ -290,13 +290,44 @@ void TokamakSystem::DoOdeProjection(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
+    int i;
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
-    for (int i = 0; i < num_vars; ++i)
+    switch (m_projectionType)
     {
-        Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
+        case MultiRegions::eDiscontinuous:
+        {
+            // Just copy over array
+            if (in_arr != out_arr)
+            {
+                int npoints = GetNpoints();
+
+                for (i = 0; i < num_vars; ++i)
+                {
+                    Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
+                }
+            }
+            break;
+        }
+        case MultiRegions::eGalerkin:
+        {
+            Array<OneD, NekDouble> coeffs(m_fields[0]->GetNcoeffs());
+
+            for (i = 0; i < num_vars; ++i)
+            {
+                m_fields[i]->FwdTrans(in_arr[i], coeffs);
+                m_fields[i]->BwdTrans(coeffs, out_arr[i]);
+            }
+            break;
+        }
+        default:
+        {
+            ASSERTL0(false, "Unknown projection scheme");
+            break;
+        }
     }
     SetBoundaryConditions(out_arr, time);
+
 }
 
 void TokamakSystem::v_ExtraFldOutput(
@@ -343,6 +374,12 @@ void TokamakSystem::v_ExtraFldOutput(
         m_fields[0]->FwdTransLocalElmt(src_fields[s.first]->GetPhys(), SrcFwd);
         fieldcoeffs.push_back(SrcFwd);
     }
+
+    variables.push_back("Rank");
+    Array<OneD, NekDouble> Rank(nPhys, this->m_session->GetComm()->GetRank());
+    Array<OneD, NekDouble> RankFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(Rank, RankFwd);
+    fieldcoeffs.push_back(RankFwd);
 }
 
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)

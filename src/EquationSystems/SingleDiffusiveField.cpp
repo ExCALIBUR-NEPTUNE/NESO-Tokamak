@@ -38,16 +38,96 @@ SingleDiffusiveField::SingleDiffusiveField(
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+    CalcDiffTensor();
+
     // Setup diffusion object
-    std::string diffName;
-    m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
-    m_diffusion =
-        SolverUtils::GetDiffusionFactory().CreateInstance(diffName, diffName);
-    m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff, this);
-    m_diffusion->InitObject(m_session, m_fields);
     m_ode.DefineOdeRhs(&SingleDiffusiveField::DoOdeRhs, this);
+
+    switch (m_projectionType)
+    {
+        case MultiRegions::eDiscontinuous:
+        {
+            std::string diffName;
+            m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
+            m_diffusion = SolverUtils::GetDiffusionFactory().CreateInstance(
+                diffName, diffName);
+            m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff,
+                                       this);
+            m_diffusion->InitObject(m_session, m_fields);
+            break;
+        }
+        case MultiRegions::eGalerkin:
+        {
+            // Enable implicit solver for CG.
+            m_ode.DefineImplicitSolve(&SingleDiffusiveField::ImplicitTimeIntCG,
+                                      this);
+
+            break;
+        }
+        default:
+        {
+            ASSERTL0(false, "Unknown projection scheme");
+            break;
+        }
+    }
+}
+void SingleDiffusiveField::ImplicitTimeIntCG(
+    const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray,
+    [[maybe_unused]] const NekDouble time, const NekDouble lambda)
+{
+
+    int nvariables                       = inarray.size();
+    int npoints                          = m_fields[0]->GetNpoints();
+    m_factors[StdRegions::eFactorLambda] = 1.0 / lambda / m_epsilon;
+
+    // if (m_useSpecVanVisc)
+    // {
+    //     m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
+    //     m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff /
+    //     m_epsilon;
+    // }
+
+    // We solve ( \nabla^2 - HHlambda ) Y[i] = rhs [i]
+    // inarray = input: \hat{rhs} -> output: \hat{Y}
+    // outarray = output: nabla^2 \hat{Y}
+    // where \hat = modal coeffs
+    CalcDiffTensor();
+    for (int i = 0; i < nvariables; ++i)
+    {
+        // Multiply 1.0/timestep/lambda
+        Vmath::Smul(npoints, -m_factors[StdRegions::eFactorLambda], inarray[i],
+                    1, outarray[i], 1);
+
+        // Solve a system of equations with Helmholtz solver
+        m_fields[i]->HelmSolve(outarray[i], m_fields[i]->UpdateCoeffs(),
+                               m_factors, m_D);
+
+        m_fields[i]->BwdTrans(m_fields[i]->GetCoeffs(), outarray[i]);
+
+        m_fields[i]->SetPhysState(false);
+    }
 }
 
+void SingleDiffusiveField::v_ExtraFldOutput(
+    std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+    std::vector<std::string> &variables)
+{
+    TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
+    const int nPhys   = m_fields[0]->GetNpoints();
+    const int nCoeffs = m_fields[0]->GetNcoeffs();
+    for (int i = 0; i < 3; ++i)
+    {
+        for (int k = 0; k < 3; ++k)
+        {
+            variables.push_back("D" + std::to_string(i) + std::to_string(k));
+            Array<OneD, NekDouble> D = m_D[vc[i][k]].GetValue();
+            Array<OneD, NekDouble> DFwd(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(D, DFwd);
+            fieldcoeffs.push_back(DFwd);
+        }
+    }
+}
 void SingleDiffusiveField::CalcKPar()
 {
     // Change to fn of fields
@@ -97,10 +177,19 @@ void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
-    size_t nvariables = in_arr.size();
-
+    // if (m_explicitDiffusion)
+    //{
     CalcDiffTensor();
+    size_t nvariables = in_arr.size();
     m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
+    //}
+    // else
+    // {
+    //     for (int i = 0; i < out_arr.size(); ++i)
+    //     {
+    //         Vmath::Zero(out_arr[i].size(), &out_arr[i][0], 1);
+    //     }
+    // }
 
     if (this->particles_enabled)
     {
