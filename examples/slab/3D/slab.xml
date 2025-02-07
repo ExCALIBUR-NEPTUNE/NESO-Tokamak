@@ -13,10 +13,10 @@
     <CONDITIONS>
         <SOLVERINFO>
             <I PROPERTY="EQTYPE"                       VALUE="SingleDiffusiveField"/>
-            <I PROPERTY="Projection"                   VALUE="DisContinuous" />
-            <I PROPERTY="TimeIntegrationMethod"        VALUE="DIRKOrder2"    />
-            <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
-            <I PROPERTY="UpwindType"                   VALUE="Upwind"        />
+            <I PROPERTY="Projection"                   VALUE="Continuous" />
+            <I PROPERTY="TimeIntegrationMethod"        VALUE="IMEXOrder2"    />
+            <!-- <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         /> -->
+            <!-- <I PROPERTY="UpwindType"                   VALUE="Upwind"        /> -->
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
 
@@ -70,16 +70,16 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
-                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n"  VALUE="0.0" />
             </REGION>
             <REGION REF="2">
-                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n"  VALUE="0.0" />
             </REGION>
 	        <REGION REF="3">
-                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n"  VALUE="0.0" />
             </REGION>
             <REGION REF="4">
-                <N VAR="n" USERDEFINEDTYPE="Oblique" VALUE="0.0" />
+                <N VAR="n"  VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
@@ -118,7 +118,7 @@
             <S ID="0" NAME="Argon">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 10 </P>
+                <P> Number = 0 </P>
             </S>
         </SPECIES>
 

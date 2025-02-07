@@ -327,7 +327,6 @@ void TokamakSystem::DoOdeProjection(
         }
     }
     SetBoundaryConditions(out_arr, time);
-
 }
 
 void TokamakSystem::v_ExtraFldOutput(
@@ -413,11 +412,14 @@ void TokamakSystem::v_InitObject(bool create_field)
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
     int nConvectiveFields = m_fields.size();
-
-    m_implHelper = std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode,
-                                                    nConvectiveFields);
-    m_implHelper->InitialiseNonlinSysSolver();
-    m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt, m_implHelper);
+    if (m_projectionType == MultiRegions::eDiscontinuous)
+    {
+        m_implHelper = std::make_shared<ImplicitHelper>(
+            m_session, m_fields, m_ode, nConvectiveFields);
+        m_implHelper->InitialiseNonlinSysSolver();
+        m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
+                                  m_implHelper);
+    }
 
     // Forcing terms for coupling to Reactions
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_fields,

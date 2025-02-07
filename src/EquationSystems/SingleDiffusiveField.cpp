@@ -109,25 +109,6 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
     }
 }
 
-void SingleDiffusiveField::v_ExtraFldOutput(
-    std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
-    std::vector<std::string> &variables)
-{
-    TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
-    const int nPhys   = m_fields[0]->GetNpoints();
-    const int nCoeffs = m_fields[0]->GetNcoeffs();
-    for (int i = 0; i < 3; ++i)
-    {
-        for (int k = 0; k < 3; ++k)
-        {
-            variables.push_back("D" + std::to_string(i) + std::to_string(k));
-            Array<OneD, NekDouble> D = m_D[vc[i][k]].GetValue();
-            Array<OneD, NekDouble> DFwd(nCoeffs);
-            m_fields[0]->FwdTransLocalElmt(D, DFwd);
-            fieldcoeffs.push_back(DFwd);
-        }
-    }
-}
 void SingleDiffusiveField::CalcKPar()
 {
     // Change to fn of fields
@@ -177,19 +158,9 @@ void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
-    // if (m_explicitDiffusion)
-    //{
     CalcDiffTensor();
     size_t nvariables = in_arr.size();
     m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
-    //}
-    // else
-    // {
-    //     for (int i = 0; i < out_arr.size(); ++i)
-    //     {
-    //         Vmath::Zero(out_arr[i].size(), &out_arr[i][0], 1);
-    //     }
-    // }
 
     if (this->particles_enabled)
     {
