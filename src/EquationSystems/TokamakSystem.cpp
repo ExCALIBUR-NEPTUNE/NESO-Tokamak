@@ -366,14 +366,6 @@ void TokamakSystem::v_ExtraFldOutput(
     m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
     fieldcoeffs.push_back(EzFwd);
 
-    for (auto s : this->particle_sys->get_species())
-    {
-        variables.push_back(s.second.name + "_SOURCE_DENSITY");
-        Array<OneD, NekDouble> SrcFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(src_fields[s.first]->GetPhys(), SrcFwd);
-        fieldcoeffs.push_back(SrcFwd);
-    }
-
     variables.push_back("Rank");
     Array<OneD, NekDouble> Rank(nPhys, this->m_session->GetComm()->GetRank());
     Array<OneD, NekDouble> RankFwd(nCoeffs);
@@ -479,14 +471,6 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->particle_sys->setup_evaluate_ne(
             std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
 
-        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
-        {
-            this->src_fields.emplace_back(
-                MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-        }
-
-        this->particle_sys->setup_project(this->src_fields);
     }
 }
 
@@ -534,7 +518,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms();
+        this->particle_sys->project_source_terms(this->src_syms, this->components);
     }
 
     return UnsteadySystem::v_PreIntegrate(step);

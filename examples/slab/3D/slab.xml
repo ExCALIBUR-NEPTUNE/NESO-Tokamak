@@ -118,7 +118,7 @@
             <S ID="0" NAME="Argon">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 0 </P>
+                <P> Number = 1 </P>
             </S>
         </SPECIES>
 

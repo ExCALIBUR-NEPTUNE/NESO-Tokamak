@@ -55,7 +55,6 @@ public:
 
     virtual std::shared_ptr<ParticleSystem> GetParticleSystem();
 
-
     /// Object to facilitate allows optional recording of energy and enstrophy
     std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
         energy_enstrophy_recorder;
@@ -97,6 +96,8 @@ protected:
      * particle evaluation/projection methods
      */
     std::vector<MR::DisContFieldSharedPtr> src_fields;
+    std::vector<int> components;
+    std::vector<Sym<REAL>> src_syms;
 
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;

@@ -33,9 +33,9 @@ protected:
     void v_InitObject(bool DeclareFields = true) override;
 
     void ImplicitTimeIntCG(
-    const Array<OneD, const Array<OneD, NekDouble>> &inarray,
-    Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,
-    const NekDouble lambda);
+        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+        Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,
+        const NekDouble lambda);
 
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
@@ -51,6 +51,9 @@ protected:
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
     void load_params() override;
+
+    void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+                          std::vector<std::string> &variables) override;
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;

@@ -70,6 +70,19 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
             break;
         }
     }
+    if (this->particles_enabled)
+    {
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            this->components.push_back(0);
+        }
+
+        this->particle_sys->setup_project(this->src_fields);
+    }
 }
 void SingleDiffusiveField::ImplicitTimeIntCG(
     const Array<OneD, const Array<OneD, NekDouble>> &inarray,
@@ -208,5 +221,21 @@ void SingleDiffusiveField::load_params()
     m_session->LoadParameter("k_B", this->m_k_B);
     m_session->LoadParameter("k_par", this->k_par, 100.0);
     m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+}
+
+void SingleDiffusiveField::v_ExtraFldOutput(
+    std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+    std::vector<std::string> &variables)
+{
+    TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
+    const int nPhys   = m_fields[0]->GetNpoints();
+    const int nCoeffs = m_fields[0]->GetNcoeffs();
+    for (auto s : this->particle_sys->get_species())
+    {
+        variables.push_back(s.second.name + "_SOURCE_DENSITY");
+        Array<OneD, NekDouble> SrcFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(src_fields[s.first]->GetPhys(), SrcFwd);
+        fieldcoeffs.push_back(SrcFwd);
+    }
 }
 } // namespace NESO::Solvers::tokamak

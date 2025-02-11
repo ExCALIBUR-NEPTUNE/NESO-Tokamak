@@ -23,7 +23,7 @@
         <PARAMETERS>
             <!-- Timestepping and output options -->
             <P> TimeStep      = 0.0001            </P>
-            <P> NumSteps      = 10              </P>
+            <P> NumSteps      = 1              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
             <P> IO_CheckSteps = 1     </P>
@@ -97,14 +97,14 @@
             <!-- Add to initial particle velocity a contribution: -->
             <!-- using particle_thermal_velocity. -->
             <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
-            <P> particle_thermal_velocity = 10 </P>
+            <P> particle_thermal_velocity = 0 </P>
         </PARAMETERS>
 
         <SPECIES>
             <S ID="0" NAME="Argon">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 0 </P>
+                <P> Number = 1 </P>
             </S>
         </SPECIES>
 

@@ -115,11 +115,18 @@ public:
         this->transfer_particles();
         pre_advection(particle_sub_group(this->particle_group));
         apply_boundary_conditions(particle_sub_group(this->particle_group));
+
+        std::vector<Sym<REAL>> src_syms;
+        for (auto &[k, v] : species_map)
+        {
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+        }
+
         init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
                     Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"), Sym<REAL>("B0"),
                     Sym<REAL>("B1"), Sym<REAL>("B2"),
-                    Sym<REAL>("ELECTRON_DENSITY"),
-                    Sym<REAL>("Argon_SOURCE_DENSITY"),
+                    Sym<REAL>("ELECTRON_DENSITY"), src_syms,
                     Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
     virtual void set_up_particles() override
@@ -194,19 +201,15 @@ public:
      *  Project the plasma source and momentum contributions from particle data
      *  onto field data.
      */
-    inline void project_source_terms()
+    inline void project_source_terms(std::vector<Sym<REAL>> &src_syms,
+                                     std::vector<int> &components)
     {
         NESOASSERT(this->field_project != nullptr,
                    "Field project object is null. Was setup_project called?");
 
-        for (auto &[k, v] : species_map)
-        {
-            std::vector<Sym<REAL>> syms = {Sym<REAL>(v.name + "_SOURCE_DENSITY")/*,
-                                           Sym<REAL>(v.name + "_SOURCE_ENERGY")*/};
-            std::vector<int> components = {0 /*, 0*/};
+        this->field_project->project(this->particle_group, src_syms,
+                                     components);
 
-            this->field_project->project(v.sub_group, syms, components);
-        }
         // remove fully ionised particles from the simulation
         remove_marked_particles();
     }
@@ -359,7 +362,7 @@ protected:
         // Evaluate the density and temperature fields at the particle locations
         this->evaluate_fields();
 
-        const double k_dt = dt;
+        const double k_dt      = dt;
         const REAL rate        = 100;
         const INT k_remove_key = particle_remove_key;
 
@@ -390,7 +393,7 @@ protected:
                     k_W.at(0) += deltaweight;
                     // Set value for fluid density source (num / Nektar unit
                     // time)
-                    k_SD.at(0) = -deltaweight * 1e-6/ k_dt;
+                    k_SD.at(0) = -deltaweight * 1e-6 / k_dt;
                 },
                 Access::write(Sym<INT>("PARTICLE_ID")),
                 Access::read(Sym<REAL>("ELECTRON_DENSITY")),
