@@ -52,7 +52,7 @@ protected:
 
     void load_params() override;
 
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
 
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;

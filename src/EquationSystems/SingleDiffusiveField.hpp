@@ -57,7 +57,11 @@ protected:
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
-    /// Weight for average calculation of diffusion term
+    NekDouble m_epsilon;
+    bool m_useSpecVanVisc;
+    NekDouble
+        m_sVVCutoffRatio; // Cut-off ratio from which to start decaying modes
+    NekDouble m_sVVDiffCoeff; // Diffusion coefficient of SVV modes
 
     NekDouble m_k_B;
     NekDouble k_par;
