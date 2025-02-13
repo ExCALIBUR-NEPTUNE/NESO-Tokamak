@@ -20,6 +20,7 @@ class NesoTokamak(CMakePackage):
     depends_on("cmake@3.24:", type="build", when="@main")
     depends_on("cmake@3.24:", type="build", when="@working")
     depends_on("neso.neso@working", type=("build", "link", "run"))
+    depends_on("reactions", type=("build", "link", "run"))
 
     # Depend on a sycl implementation - with workarounds for intel packaging.
     depends_on("sycl", type=("build", "link", "run"))

@@ -31,7 +31,10 @@ SingleDiffusiveField::SingleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        // this->required_fld_names = {"n_src"};
+        for (auto &[k, v] : particle_sys->get_species())
+        {
+            this->required_fld_names.push_back(v.name + "_src");
+        }
     }
 }
 

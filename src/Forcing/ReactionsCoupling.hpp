@@ -2,6 +2,7 @@
 #define REACTIONS_COUPLING_HPP
 
 #include "nektar_interface/utilities.hpp"
+#include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include <SolverUtils/Forcing/Forcing.h>
 
 using namespace Nektar;
