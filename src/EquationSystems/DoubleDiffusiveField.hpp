@@ -52,11 +52,13 @@ protected:
 
     void load_params() override;
 
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
+
+    void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+                          std::vector<std::string> &variables) override;
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
-
 
     NekDouble k_par;
     NekDouble k_perp;
@@ -72,6 +74,9 @@ protected:
 
     NekDouble m_gamma;
     NekDouble m_k_B;
+
+    std::vector<MR::DisContFieldSharedPtr> density_src_fields;
+    std::vector<MR::DisContFieldSharedPtr> energy_src_fields;
 };
 
 } // namespace NESO::Solvers::tokamak

@@ -223,6 +223,7 @@ void TokamakSystem::ReadMagneticField()
         B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
         B[d]->UpdatePhys() = B_in[d];
+        B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
     }
 
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
@@ -289,11 +290,41 @@ void TokamakSystem::DoOdeProjection(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
+    int i;
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
-    for (int i = 0; i < num_vars; ++i)
+    switch (m_projectionType)
     {
-        Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
+        case MultiRegions::eDiscontinuous:
+        {
+            // Just copy over array
+            if (in_arr != out_arr)
+            {
+                int npoints = GetNpoints();
+
+                for (i = 0; i < num_vars; ++i)
+                {
+                    Vmath::Vcopy(npoints, in_arr[i], 1, out_arr[i], 1);
+                }
+            }
+            break;
+        }
+        case MultiRegions::eGalerkin:
+        {
+            Array<OneD, NekDouble> coeffs(m_fields[0]->GetNcoeffs());
+
+            for (i = 0; i < num_vars; ++i)
+            {
+                m_fields[i]->FwdTrans(in_arr[i], coeffs);
+                m_fields[i]->BwdTrans(coeffs, out_arr[i]);
+            }
+            break;
+        }
+        default:
+        {
+            ASSERTL0(false, "Unknown projection scheme");
+            break;
+        }
     }
     SetBoundaryConditions(out_arr, time);
 }
@@ -334,6 +365,12 @@ void TokamakSystem::v_ExtraFldOutput(
     Array<OneD, NekDouble> EzFwd(nCoeffs);
     m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
     fieldcoeffs.push_back(EzFwd);
+
+    variables.push_back("Rank");
+    Array<OneD, NekDouble> Rank(nPhys, this->m_session->GetComm()->GetRank());
+    Array<OneD, NekDouble> RankFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(Rank, RankFwd);
+    fieldcoeffs.push_back(RankFwd);
 }
 
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
@@ -357,21 +394,24 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     // Store FieldSharedPtr casts of fields in a map, indexed by name
 
-    E = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    this->E = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (int d = 0; d < 3; ++d)
     {
-        E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
 
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
     int nConvectiveFields = m_fields.size();
-
-    m_implHelper = std::make_shared<ImplicitHelper>(m_session, m_fields, m_ode,
-                                                    nConvectiveFields);
-    m_implHelper->InitialiseNonlinSysSolver();
-    m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt, m_implHelper);
+    if (m_projectionType == MultiRegions::eDiscontinuous)
+    {
+        m_implHelper = std::make_shared<ImplicitHelper>(
+            m_session, m_fields, m_ode, nConvectiveFields);
+        m_implHelper->InitialiseNonlinSysSolver();
+        m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
+                                  m_implHelper);
+    }
 
     // Forcing terms for coupling to Reactions
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_fields,
@@ -424,17 +464,13 @@ void TokamakSystem::v_InitObject(bool create_field)
     if (this->particles_enabled)
     {
         // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(E[0], E[1], E[2]);
-        this->particle_sys->setup_evaluate_B(B[0], B[1], B[2]);
+        this->particle_sys->setup_evaluate_E(this->E[0], this->E[1],
+                                             this->E[2]);
+        this->particle_sys->setup_evaluate_B(this->B[0], this->B[1],
+                                             this->B[2]);
+        this->particle_sys->setup_evaluate_ne(
+            std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
 
-        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
-        {
-            this->src_fields.emplace_back(
-                MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-        }
-
-        this->particle_sys->setup_project(this->src_fields);
     }
 }
 
@@ -456,7 +492,7 @@ bool TokamakSystem::v_PostIntegrate(int step)
     if (this->particles_enabled && particle_output_freq > 0 &&
         (step % particle_output_freq) == 0)
     {
-        this->particle_sys->write(step);
+        this->particle_sys->write(step + 1);
     }
     return TimeEvoEqnSysBase<SU::UnsteadySystem,
                              ParticleSystem>::v_PostIntegrate(step);
@@ -476,8 +512,13 @@ bool TokamakSystem::v_PreIntegrate(int step)
     {
         // Integrate the particle system to the requested time.
         this->particle_sys->evaluate_fields();
+        if (step == 0)
+        {
+            this->particle_sys->write(0);
+        }
+
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms();
+        this->particle_sys->project_source_terms(this->src_syms, this->components);
     }
 
     return UnsteadySystem::v_PreIntegrate(step);

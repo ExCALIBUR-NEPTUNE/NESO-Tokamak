@@ -41,14 +41,122 @@ SingleDiffusiveField::SingleDiffusiveField(
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+
+    m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
+                               m_useSpecVanVisc, false);
+    m_session->LoadParameter("epsilon", m_epsilon, 1.0);
+    if (m_useSpecVanVisc)
+    {
+        m_session->LoadParameter("SVVCutoffRatio", m_sVVCutoffRatio, 0.75);
+        m_session->LoadParameter("SVVDiffCoeff", m_sVVDiffCoeff, 0.1);
+        m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
+        m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff / m_epsilon;
+    }
+    CalcDiffTensor();
+
     // Setup diffusion object
-    std::string diffName;
-    m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
-    m_diffusion =
-        SolverUtils::GetDiffusionFactory().CreateInstance(diffName, diffName);
-    m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff, this);
-    m_diffusion->InitObject(m_session, m_fields);
     m_ode.DefineOdeRhs(&SingleDiffusiveField::DoOdeRhs, this);
+
+    switch (m_projectionType)
+    {
+        case MultiRegions::eDiscontinuous:
+        {
+            std::string diffName;
+            m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
+            m_diffusion = SolverUtils::GetDiffusionFactory().CreateInstance(
+                diffName, diffName);
+            m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff,
+                                       this);
+            m_diffusion->InitObject(m_session, m_fields);
+            break;
+        }
+        case MultiRegions::eGalerkin:
+        {
+            // Enable implicit solver for CG.
+            m_ode.DefineImplicitSolve(&SingleDiffusiveField::ImplicitTimeIntCG,
+                                      this);
+
+            break;
+        }
+        default:
+        {
+            ASSERTL0(false, "Unknown projection scheme");
+            break;
+        }
+    }
+    if (this->particles_enabled)
+    {
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            this->components.push_back(0);
+        }
+
+        this->particle_sys->setup_project(this->src_fields);
+    }
+}
+void SingleDiffusiveField::ImplicitTimeIntCG(
+    const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray,
+    [[maybe_unused]] const NekDouble time, const NekDouble lambda)
+{
+
+    int nvariables                       = inarray.size();
+    int npoints                          = m_fields[0]->GetNpoints();
+    m_factors[StdRegions::eFactorLambda] = 1.0 / lambda / m_epsilon;
+
+    if (m_useSpecVanVisc)
+    {
+        m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
+        m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff / m_epsilon;
+    }
+
+    // We solve ( \nabla^2 - HHlambda ) Y[i] = rhs [i]
+    // inarray = input: \hat{rhs} -> output: \hat{Y}
+    // outarray = output: nabla^2 \hat{Y}
+    // where \hat = modal coeffs
+    if (m_intScheme->GetIntegrationSchemeType() == LibUtilities::eImplicit)
+    {
+        for (int i = 0; i < nvariables; ++i)
+        {
+            Vmath::Zero(npoints, outarray[i], 1);
+        }
+
+        for (auto &x : m_forcing)
+        {
+            x->Apply(m_fields, inarray, outarray, time);
+        }
+    }
+    CalcDiffTensor();
+    for (int i = 0; i < nvariables; ++i)
+    {
+        if (m_intScheme->GetIntegrationSchemeType() == LibUtilities::eImplicit)
+        {
+            // Multiply forcing term by -1 for definition of HelmSolve function
+            Vmath::Smul(npoints, -1.0, outarray[i], 1, outarray[i], 1);
+
+            // Multiply 1.0/timestep/lambda
+            Vmath::Svtvp(npoints, -m_factors[StdRegions::eFactorLambda],
+                         inarray[i], 1, outarray[i], 1, outarray[i], 1);
+        }
+        else
+        {
+            // Multiply 1.0/timestep/lambda
+            Vmath::Smul(npoints, -m_factors[StdRegions::eFactorLambda],
+                        inarray[i], 1, outarray[i], 1);
+        }
+
+        // Solve a system of equations with Helmholtz solver
+        m_fields[i]->HelmSolve(outarray[i], m_fields[i]->UpdateCoeffs(),
+                               m_factors, m_D);
+
+        m_fields[i]->BwdTrans(m_fields[i]->GetCoeffs(), outarray[i]);
+
+        m_fields[i]->SetPhysState(false);
+    }
 }
 
 void SingleDiffusiveField::CalcKPar()
@@ -100,19 +208,30 @@ void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
-    size_t nvariables = in_arr.size();
-
-    CalcDiffTensor();
-    m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
+    if (m_explicitDiffusion)
+    {
+        CalcDiffTensor();
+        size_t nvariables = in_arr.size();
+        m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
+    }
+    else
+    {
+        // RHS should be set to zero.
+        for (int i = 0; i < out_arr.size(); ++i)
+        {
+            Vmath::Zero(out_arr[i].size(), &out_arr[i][0], 1);
+        }
+    }
 
     if (this->particles_enabled)
     {
-        for (auto &s : particle_sys->get_species())
+        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
             Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
-                        this->src_fields[s.first]->GetPhys(), 1, out_arr[0], 1);
+                        this->src_fields[i]->GetPhys(), 1, out_arr[0], 1);
         }
     }
+
     // Add forcing terms
     for (auto &x : m_forcing)
     {
@@ -151,5 +270,23 @@ void SingleDiffusiveField::load_params()
     m_session->LoadParameter("k_B", this->m_k_B);
     m_session->LoadParameter("k_par", this->k_par, 100.0);
     m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+}
+
+void SingleDiffusiveField::v_ExtraFldOutput(
+    std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+    std::vector<std::string> &variables)
+{
+    TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
+    const int nPhys   = m_fields[0]->GetNpoints();
+    const int nCoeffs = m_fields[0]->GetNcoeffs();
+    int i             = 0;
+    for (auto &[k, v] : this->particle_sys->get_species())
+    {
+        variables.push_back(v.name + "_SOURCE_DENSITY");
+        Array<OneD, NekDouble> SrcFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(this->src_fields[i++]->GetPhys(),
+                                       SrcFwd);
+        fieldcoeffs.push_back(SrcFwd);
+    }
 }
 } // namespace NESO::Solvers::tokamak
