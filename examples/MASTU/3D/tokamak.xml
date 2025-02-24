@@ -15,15 +15,13 @@
             <I PROPERTY="EQTYPE"                       VALUE="SingleDiffusiveField"/>
             <I PROPERTY="Projection"                   VALUE="Continuous" />
             <I PROPERTY="TimeIntegrationMethod"        VALUE="IMEXOrder2"    />
-            <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
-            <I PROPERTY="UpwindType"                   VALUE="Upwind"        />
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.1            </P>
-            <P> NumSteps      = 10              </P>
+            <P> TimeStep      = 0.01            </P>
+            <P> NumSteps      = 100              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
             <P> IO_CheckSteps = 1     </P>
@@ -31,8 +29,8 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e3   </P>
-            <P> k_perp          = 1e-3   </P>
+            <P> k_par           = 1e6   </P>
+            <P> k_perp          = 1   </P>
             <P> TCore           = 300.0 </P>
             <P> T_bnd            = 1.0 </P>
             <P> k_B             = 1.0 </P>
@@ -47,7 +45,7 @@
             <P> sr = 400 </P>
 
             <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 0 </P>
+            <P> num_particles_total = 1 </P>
             
             <!-- Implicit solve params -->
             <P> IterativeSolverTolerance  = 1.0E-6  </P>
@@ -71,7 +69,8 @@
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="n"  DOMAIN="0" VALUE="1+exp((-(sqrt(x*x+z*z)-rc-rs)*(sqrt(x*x+z*z)-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+            <E VAR="n"  DOMAIN="0" VALUE="0.1" />
+            <!-- <E VAR="n"  DOMAIN="0" VALUE="1+exp((-(sqrt(x*x+z*z)-rc-rs)*(sqrt(x*x+z*z)-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
         </FUNCTION>
         <FUNCTION NAME="MagneticMeanField">
             <F VAR="Bx,By,Bz"  FILE="B.pts"  />
@@ -85,7 +84,7 @@
 
         <PARAMETERS>
             <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 0 </P>
+            <P> num_particles_total = 1 </P>
             <!-- Scaling coefficient when adding particle drift velocities. -->
             <P> particle_v_drift_scaling = 1.0 </P>
             <!-- Scaling coefficient applied to B for particles, -->
@@ -103,7 +102,7 @@
         <SPECIES>
             <S ID="0" NAME="Argon">
                 <P> Mass = 1.0 </P>
-                <P> Charge = 1.0 </P>
+                <P> Charge = 1 </P>
                 <P> Number = 1 </P>
             </S>
         </SPECIES>

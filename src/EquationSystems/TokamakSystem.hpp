@@ -90,8 +90,6 @@ protected:
     /// Sheath potential
     NekDouble lambda;
 
-    int nSpecies;
-
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
      */

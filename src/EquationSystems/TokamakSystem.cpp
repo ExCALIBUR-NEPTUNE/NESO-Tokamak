@@ -259,7 +259,6 @@ void TokamakSystem::load_params()
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
 
     ReadMagneticField();
-    nSpecies = 2;
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,

@@ -5,7 +5,6 @@ General.NumThreads = 6;
 
 // open brep geometry
 Merge "Revolution_Geometry.brep";
-
 // Characteristic Length
 // no boundary layer settings for this mesh
 // min, max Characteristic Length
