@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>NESO-Tokamak-Reactions coupling minimal equations &#8212; NESO-Tokamak 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=12dfc556" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7653d125" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="NESO-Tokamak" href="../index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="neso-tokamak-reactions-coupling-minimal-equations">
+<h1>NESO-Tokamak-Reactions coupling minimal equations<a class="headerlink" href="#neso-tokamak-reactions-coupling-minimal-equations" title="Link to this heading">¶</a></h1>
+<section id="single-field-anisotropic-diffusion-with-sources-and-outflow">
+<h2>Single field anisotropic diffusion with sources and outflow<a class="headerlink" href="#single-field-anisotropic-diffusion-with-sources-and-outflow" title="Link to this heading">¶</a></h2>
+<p>This can be in 2D or 3D.</p>
+<div class="math notranslate nohighlight">
+\[\frac{\partial n}{\partial t} + \nabla \cdot \vec{\Gamma} = S_n\]</div>
+<p>with the diffusive flux given by <span class="math notranslate nohighlight">\(\vec{\Gamma} = D \cdot \nabla n\)</span>
+with D being the anisotropic diffusion tensor
+<span class="math notranslate nohighlight">\(D = \vec{b}\vec{b} k_\parallel + (I - \vec{b}\vec{b}) k_\perp\)</span>
+where the <span class="math notranslate nohighlight">\(k_\parallel\)</span> and <span class="math notranslate nohighlight">\(k_\perp\)</span> should have the option
+of being functions of fields, and <span class="math notranslate nohighlight">\(\vec{b}\)</span> is the local unit
+vector tangential to the magnetic field.</p>
+<p>The source <span class="math notranslate nohighlight">\(S_n\)</span> should be given by Reactions, with the idea of
+starting off with ionisation only, so it would always be positive in
+this example. For the purpose of Reactions and the Bohm BC, we will
+assume an isothermal plasma here.</p>
+<p>The boundary condition should be set to Neumann in the directions
+perpendicular to the magnetic field, while the parallel component of the
+flux at the boundary</p>
+<div class="math notranslate nohighlight">
+\[\vec{\Gamma}\cdot \vec{b} = n c_s\]</div>
+<p>where <span class="math notranslate nohighlight">\(c_s\)</span> in this case is a constant (isothermal Bohm speed
+<span class="math notranslate nohighlight">\(c_s = \sqrt{kT/m_i}\)</span>).</p>
+<p>Once basic coupling has been done with this, we can add another field.</p>
+</section>
+<section id="two-diffusive-fields-with-particle-and-energy-coupling-with-reactions">
+<h2>Two diffusive fields with particle and energy coupling with Reactions<a class="headerlink" href="#two-diffusive-fields-with-particle-and-energy-coupling-with-reactions" title="Link to this heading">¶</a></h2>
+<p>Same as above for <span class="math notranslate nohighlight">\(n\)</span>-field, with the addition of non-constant
+<span class="math notranslate nohighlight">\(T\)</span>.</p>
+<p>We will ignore all advective and field terms for the first pass, and
+write a pressure equation as</p>
+<div class="math notranslate nohighlight">
+\[\frac{3}{2} \frac{\partial p}{\partial t} + \nabla \cdot \vec{q} = S_E + Q,\]</div>
+<p>where <span class="math notranslate nohighlight">\(p = nkT\)</span> and</p>
+<div class="math notranslate nohighlight">
+\[\vec{q} = \kappa \cdot \nabla T\]</div>
+<p>with the conductivity tensor given as</p>
+<div class="math notranslate nohighlight">
+\[\kappa =  \kappa_\parallel(T) \vec{b}\vec{b} + \kappa_\perp(T) (I-\vec{b}\vec{b})\]</div>
+<p>with parallel and perpendicular conductivities being functions of
+temperature to start off with.</p>
+<p>Energy sinks <span class="math notranslate nohighlight">\(S_E\)</span> should again be supplied by Reactions, with
+some heating <span class="math notranslate nohighlight">\(Q\)</span> in the core being an input parameter.</p>
+<p>At the parallel boundaries, we set the energy outflow to</p>
+<div class="math notranslate nohighlight">
+\[\vec{q}\cdot \vec{b} = \gamma nkTc_s,\]</div>
+<p>where now <span class="math notranslate nohighlight">\(c_s=\sqrt{kT/m_i}\)</span> for both this and the particle BC,
+and <span class="math notranslate nohighlight">\(\gamma \approx 7\)</span>. No outflow/Neumann at perpendicular
+boundaries.</p>
+<p>Only after both of these models have been tested with Reactions coupling
+does it make sense to move towards a model with an explicit momentum
+equation, such as a reduced version of Hermes-3 mean-field equations.</p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">NESO-Tokamak</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">NESO-Tokamak-Reactions coupling minimal equations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#single-field-anisotropic-diffusion-with-sources-and-outflow">Single field anisotropic diffusion with sources and outflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#two-diffusive-fields-with-particle-and-energy-coupling-with-reactions">Two diffusive fields with particle and energy coupling with Reactions</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="../index.html" title="previous chapter">NESO-Tokamak</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, UKAEA.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="../_sources/static_rst/reactions_minimal_coupling.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
