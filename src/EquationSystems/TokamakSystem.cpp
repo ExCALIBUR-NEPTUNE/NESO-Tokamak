@@ -46,7 +46,7 @@ std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
 /**
  * @brief Read the magnetic field from file.
  */
-void TokamakSystem::ReadMagneticField()
+void TokamakSystem::ReadMagneticField(NekDouble time)
 {
     int d;
     int npoints = m_fields[0]->GetNpoints();
@@ -200,9 +200,9 @@ void TokamakSystem::ReadMagneticField()
                 Array<OneD, NekDouble> Br(nq);
                 Array<OneD, NekDouble> Bphi(nq);
 
-                Bxfunc->Evaluate(r, x1, phi, /*time=*/0, Br);
-                Byfunc->Evaluate(r, x1, phi, /*time=*/0, B_in[1]);
-                Bzfunc->Evaluate(r, x1, phi, /*time=*/0, Bphi);
+                Bxfunc->Evaluate(r, x1, phi, time, Br);
+                Byfunc->Evaluate(r, x1, phi, time, B_in[1]);
+                Bzfunc->Evaluate(r, x1, phi, time, Bphi);
 
                 for (int q = 0; q < nq; ++q)
                 {
@@ -214,7 +214,7 @@ void TokamakSystem::ReadMagneticField()
     }
     else if (m_session->DefinesFunction("MagneticField"))
     {
-        GetFunction("MagneticField")->Evaluate(Bstring, B_in);
+        GetFunction("MagneticField")->Evaluate(Bstring, B_in, time);
     }
 
     this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
@@ -235,7 +235,7 @@ void TokamakSystem::ReadMagneticField()
 
     for (d = 0; d < 3; d++)
     {
-        b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
+        this->b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
         for (int k = 0; k < npoints; ++k)
         {
             this->b_unit[d][k] =
@@ -257,8 +257,11 @@ void TokamakSystem::load_params()
     // for quad-based meshes, or you can use a standard convective term if you
     // were fully continuous in space. Default is DG.
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
-
-    ReadMagneticField();
+    std::string transient_field_str;
+    m_session->LoadSolverInfo("MagneticFieldEvolution", transient_field_str,
+                              "Static");
+    this->transient_field = (transient_field_str == "Transient");
+    ReadMagneticField(0);
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
@@ -469,7 +472,6 @@ void TokamakSystem::v_InitObject(bool create_field)
                                              this->B[2]);
         this->particle_sys->setup_evaluate_ne(
             std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-
     }
 }
 
@@ -507,6 +509,11 @@ bool TokamakSystem::v_PreIntegrate(int step)
 {
     this->solver_callback_handler.call_pre_integrate(this);
 
+    if (this->transient_field)
+    {
+        ReadMagneticField(m_time);
+    }
+
     if (this->particles_enabled)
     {
         // Integrate the particle system to the requested time.
@@ -517,7 +524,8 @@ bool TokamakSystem::v_PreIntegrate(int step)
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms(this->src_syms, this->components);
+        this->particle_sys->project_source_terms(this->src_syms,
+                                                 this->components);
     }
 
     return UnsteadySystem::v_PreIntegrate(step);
