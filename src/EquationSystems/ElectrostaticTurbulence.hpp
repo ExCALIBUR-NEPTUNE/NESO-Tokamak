@@ -1,9 +1,12 @@
-#ifndef SINGLEDIFFUSIVEFIELD_HPP
-#define SINGLEDIFFUSIVEFIELD_HPP
+#ifndef ELECTROSTATICTURBULENCE_HPP
+#define ELECTROSTATICTURBULENCE_HPP
 #include "TokamakSystem.hpp"
+#include "../Misc/VariableConverter.hpp"
+
 
 namespace NESO::Solvers::tokamak
 {
+// [n, omega, {mnv, 1.5p}_e, {mnv, 1.5p}_i, ...]
 class ElectrostaticTurbulence : public TokamakSystem
 {
 public:
@@ -36,16 +39,19 @@ protected:
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcDiffTensor();
-    void CalcKappaPar();
-    void CalcKappaPerp();
-    void CalcKappaTensor();
+
+    /// Advection functions
+    void DoAdvection(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                     Array<OneD, Array<OneD, NekDouble>> &outarray,
+                     const NekDouble time,
+                     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+                     const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
     void ComputeE();
+
+    void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray);
 
     Array<OneD, NekDouble> &GetAdvVelNorm(
         Array<OneD, NekDouble> &trace_vel_norm,
@@ -54,13 +60,22 @@ protected:
     Array<OneD, NekDouble> &GetAdvVelNormElec();
 
     // Advective Flux vector
-    void GetFluxVectorElec(
-        const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
+    void GetFluxVector(
+        const Array<OneD, Array<OneD, NekDouble>> &field_vals,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
-    void GetFluxVector(const Array<OneD, Array<OneD, NekDouble>> &fields_vals,
-                       const Array<OneD, Array<OneD, NekDouble>> &adv_vel,
-                       Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &flux);
+    /// Diffusion functions
+    void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                     Array<OneD, Array<OneD, NekDouble>> &outarray,
+                     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+                     const Array<OneD, Array<OneD, NekDouble>> &pBwd);
+
+    void CalcKPar();
+    void CalcKPerp();
+    void CalcDiffTensor();
+    void CalcKappaPar();
+    void CalcKappaPerp();
+    void CalcKappaTensor();
     // Diffusive Flux vector
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -69,15 +84,35 @@ protected:
 
     void load_params() override;
 
+    void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
+                          std::vector<std::string> &variables) override;
+
 private:
+    int num_ion_species;
     /// Hasegawa-Wakatani α
     NekDouble alpha;
     /// Hasegawa-Wakatani κ
     NekDouble kappa;
 
+    // Electric Potential
+    MR::ContFieldSharedPtr phi;
+
+    /// Velocities
     /// Storage for ExB drift velocity
-    Array<OneD, Array<OneD, NekDouble>> ExB_vel;
+    Array<OneD, Array<OneD, NekDouble>> v_ExB;
+    // Electron parallel velocity
+    Array<OneD, NekDouble> v_e_par;
+    // Ion parallel velocities
+    std::vector<Array<OneD, NekDouble>> v_i_par;
+    // Electron diagmagnetic velocity
+    Array<OneD, Array<OneD, NekDouble>> v_de;
+    // Ion diagmagnetic velocities
+    std::vector<Array<OneD, Array<OneD, NekDouble>>> v_di;
+
     StdRegions::VarCoeffMap m_phi_varcoeff;
+
+    /// Whether the Boussinesq approximation is used for the vorticity
+    bool m_boussinesq;
     /// Storage for component of ne advection velocity normal to trace elements
     Array<OneD, NekDouble> norm_vel_elec;
 
@@ -91,6 +126,10 @@ private:
     Array<OneD, NekDouble> m_kappaperp;
     Array<OneD, NekDouble> m_kappapar;
     StdRegions::VarCoeffMap m_kappa;
+
+    std::vector<MR::DisContFieldSharedPtr> density_src_fields;
+
+    VariableConverterSharedPtr m_varConv;
 };
 
 } // namespace NESO::Solvers::tokamak

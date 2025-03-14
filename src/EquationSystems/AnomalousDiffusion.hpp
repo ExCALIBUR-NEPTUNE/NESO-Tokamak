@@ -1,5 +1,5 @@
-#ifndef SINGLEDIFFUSIVEFIELD_HPP
-#define SINGLEDIFFUSIVEFIELD_HPP
+#ifndef ANOMALOUSDIFFUSION_HPP
+#define ANOMALOUSDIFFUSION_HPP
 #include "TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak

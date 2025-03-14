@@ -29,6 +29,9 @@ src/BoundaryConditions/ObliqueOutflowBC.cpp
 src/BoundaryConditions/SheathBC.cpp
 src/ParticleSystems/ParticleSystem.cpp
 src/Forcing/ReactionsCoupling.cpp
+src/Misc/VariableConverter.cpp
+src/Misc/EquationOfState.cpp
+src/Misc/IdealGasEoS.cpp
 )
 
 # ##############################################################################
