@@ -21,14 +21,10 @@ set(SRC_FILES
 src/EquationSystems/TokamakSystem.cpp
 src/EquationSystems/SingleDiffusiveField.cpp
 src/EquationSystems/DoubleDiffusiveField.cpp
-src/EquationSystems/AnomalousDiffusion.cpp
-src/EquationSystems/ElectrostaticTurbulence.cpp
 src/BoundaryConditions/TokamakBndCond.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/ObliqueOutflowBC.cpp
-src/BoundaryConditions/SheathBC.cpp
 src/ParticleSystems/ParticleSystem.cpp
-src/Forcing/ReactionsCoupling.cpp
 )
 
 # ##############################################################################
