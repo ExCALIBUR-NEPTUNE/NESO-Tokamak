@@ -28,11 +28,6 @@ SingleDiffusiveField::SingleDiffusiveField(
     : TokamakSystem(session, graph)
 {
     this->required_fld_names = {"n"};
-
-    if (this->particles_enabled)
-    {
-        // this->required_fld_names = {"n_src"};
-    }
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
