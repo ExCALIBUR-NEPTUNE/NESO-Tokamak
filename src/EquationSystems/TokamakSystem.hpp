@@ -3,7 +3,6 @@
 
 #include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../Diagnostics/GrowthRatesRecorder.hpp"
-#include "../Forcing/ReactionsCoupling.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"

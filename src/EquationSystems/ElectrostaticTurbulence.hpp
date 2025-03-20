@@ -1,12 +1,11 @@
 #ifndef ELECTROSTATICTURBULENCE_HPP
 #define ELECTROSTATICTURBULENCE_HPP
-#include "TokamakSystem.hpp"
 #include "../Misc/VariableConverter.hpp"
-
+#include "TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak
 {
-// [n, omega, {mnv, 1.5p}_e, {mnv, 1.5p}_i, ...]
+// [omega, {n, mnv, 1.5p}_e, {n, mnv, 1.5p}_i, ...]
 class ElectrostaticTurbulence : public TokamakSystem
 {
 public:
@@ -87,8 +86,32 @@ protected:
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
+    struct SpeciesInfo
+    {
+        std::string name;
+        double mass;
+        double charge;
+    };
+    std::map<int, SpeciesInfo> &get_species()
+    {
+        return species_map;
+    }
+
 private:
     int num_ion_species;
+
+    int omega_idx = 0;
+    int ne_idx = 1;
+    int ve_idx = 2;
+    int pe_idx = 3;
+
+    std::vector<int> ni_idx;
+    std::vector<int> vi_idx;
+    std::vector<int> pi_idx;
+
+
+    std::map<int, SpeciesInfo> species_map;
+
     /// Hasegawa-Wakatani α
     NekDouble alpha;
     /// Hasegawa-Wakatani κ
