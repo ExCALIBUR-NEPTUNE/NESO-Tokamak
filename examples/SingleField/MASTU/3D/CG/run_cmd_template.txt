@@ -1,1 +1,1 @@
-mpirun -np <NMPI> <SOLVER_EXEC> tokamak.xml ../../meshes/MASTU/3D/mastu3dl.xml
+mpirun -np <NMPI> <SOLVER_EXEC> single_field.xml mastu3dl.xml
