@@ -1,6 +1,7 @@
 #ifndef DOUBLEDIFFUSIVEFIELD_HPP
 #define DOUBLEDIFFUSIVEFIELD_HPP
 #include "TokamakSystem.hpp"
+#include "../Misc/VariableConverter.hpp"
 
 namespace NESO::Solvers::tokamak
 {
@@ -52,8 +53,6 @@ protected:
 
     void load_params() override;
 
-    bool v_PostIntegrate(int step) override;
-
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
@@ -77,6 +76,8 @@ protected:
 
     std::vector<MR::DisContFieldSharedPtr> density_src_fields;
     std::vector<MR::DisContFieldSharedPtr> energy_src_fields;
+
+    VariableConverterSharedPtr m_varConv;
 };
 
 } // namespace NESO::Solvers::tokamak

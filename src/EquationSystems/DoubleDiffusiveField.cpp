@@ -27,7 +27,7 @@ DoubleDiffusiveField::DoubleDiffusiveField(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->required_fld_names = {"n", "p", "T"};
+    this->required_fld_names = {"n", "p"};
 
     if (this->particles_enabled)
     {
@@ -38,6 +38,10 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+
+    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
+        m_session, m_spacedim, m_graph);
+
     // Setup diffusion object
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -49,16 +53,18 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 
     if (this->particles_enabled)
     {
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        this->src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
+        this->components.push_back(0);
+
         for (auto &[k, v] : this->particle_sys->get_species())
         {
-            this->src_fields.emplace_back(
-                MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
             this->energy_src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
-            this->components.push_back(0);
+
             this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             this->components.push_back(0);
         }
@@ -152,15 +158,99 @@ void DoubleDiffusiveField::DoOdeRhs(
 
     Array<OneD, Array<OneD, NekDouble>> tmp(nvariables);
     tmp = in_arr;
-    Vmath::Vdiv(nPts, tmp[p_idx], 1, tmp[n_idx], 1, tmp[T_idx], 1);
 
-    CalcDiffTensor();
-    m_diffusion->Diffuse(nvariables, m_fields, tmp, out_arr);
+    // Store forwards/backwards space along trace space
+    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        Fwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
+        Bwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
+        m_fields[i]->GetFwdBwdTracePhys(tmp[i], Fwd[i], Bwd[i]);
+    }
+
+    DoDiffusion(tmp, out_arr, Fwd, Bwd);
+
+    if (this->particles_enabled)
+    {
+        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
+        {
+            Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
+                        this->density_src_fields[i]->GetPhys(), 1, out_arr[0],
+                        1);
+            Vmath::Vadd(out_arr[1].size(), out_arr[1], 1,
+                        this->energy_src_fields[i]->GetPhys(), 1, out_arr[1],
+                        1);
+        }
+    }
 
     // Add forcing terms
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, tmp, out_arr, time);
+    }
+}
+
+void DoubleDiffusiveField::DoDiffusion(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray,
+    const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+    const Array<OneD, Array<OneD, NekDouble>> &pBwd)
+{
+    CalcDiffTensor();
+
+    size_t nvariables = inarray.size();
+    size_t npointsIn  = GetNpoints();
+    size_t npointsOut =
+        npointsIn; // If ALE then outarray is in coefficient space
+    size_t nTracePts = GetTraceTotPoints();
+
+    // this should be preallocated
+    Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        outarrayDiff[i] = Array<OneD, NekDouble>(npointsOut, 0.0);
+    }
+
+    // Get primitive variables [n,T]
+    Array<OneD, Array<OneD, NekDouble>> inarrayDiff(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> inFwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> inBwd(nvariables);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        inarrayDiff[i] = Array<OneD, NekDouble>{npointsIn};
+        inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
+        inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
+    }
+    Vmath::Vcopy(npointsIn, inarray[0], 1, inarrayDiff[0], 1);
+
+    // Extract temperature
+    m_varConv->GetElectronTemperature(inarray, inarrayDiff[1]);
+
+    // Repeat calculation for trace space
+    if (pFwd == NullNekDoubleArrayOfArray || pBwd == NullNekDoubleArrayOfArray)
+    {
+        inFwd = NullNekDoubleArrayOfArray;
+        inBwd = NullNekDoubleArrayOfArray;
+    }
+    else
+    {
+        Vmath::Vcopy(npointsIn, pFwd[0], 1, inFwd[0], 1);
+        Vmath::Vcopy(npointsIn, pBwd[0], 1, inBwd[0], 1);
+
+        m_varConv->GetElectronTemperature(pFwd, inFwd[1]);
+        m_varConv->GetElectronTemperature(pBwd, inBwd[1]);
+    }
+
+    m_diffusion->Diffuse(nvariables, m_fields, inarrayDiff, outarrayDiff, inFwd,
+                         inBwd);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        Vmath::Vadd(npointsOut, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
+                    1);
     }
 }
 
@@ -175,25 +265,20 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
     unsigned int nDim = qfield.size();
     unsigned int nPts = qfield[0][0].size();
 
-    int n_idx = this->field_to_index["n"];
-    int p_idx = this->field_to_index["p"];
-    int T_idx = this->field_to_index["T"];
-
     for (unsigned int j = 0; j < nDim; ++j)
     {
-        // Calc diffusion of n with D tensor and n field
-        Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][n_idx], 1,
-                    fluxes[j][n_idx], 1);
-        // Calc diffusion of p with kappa tensor and T field
-        Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1, qfield[0][T_idx], 1,
-                    fluxes[j][p_idx], 1);
+        // Calc n flux
+        Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][0], 1,
+                    fluxes[j][0], 1);
+        // Calc energy flux
+        Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1, qfield[0][1], 1,
+                    fluxes[j][1], 1);
         for (unsigned int k = 1; k < nDim; ++k)
         {
-            Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][n_idx], 1,
-                         fluxes[j][n_idx], 1, fluxes[j][n_idx], 1);
-            Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1,
-                         qfield[k][T_idx], 1, fluxes[j][p_idx], 1,
-                         fluxes[j][p_idx], 1);
+            Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][0], 1,
+                         fluxes[j][0], 1, fluxes[j][0], 1);
+            Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1, qfield[k][1], 1,
+                         fluxes[j][1], 1, fluxes[j][1], 1);
         }
     }
 }
@@ -210,39 +295,58 @@ void DoubleDiffusiveField::load_params()
     m_session->LoadParameter("kappa_perp", this->kappa_perp, 1.0);
 }
 
-bool DoubleDiffusiveField::v_PostIntegrate(int step)
-{
-    unsigned int nPts = GetNpoints();
-    int n_idx         = this->field_to_index["n"];
-    int p_idx         = this->field_to_index["p"];
-    int T_idx         = this->field_to_index["T"];
-    Vmath::Vdiv(nPts, m_fields[p_idx]->GetPhys(), 1, m_fields[n_idx]->GetPhys(),
-                1, m_fields[T_idx]->UpdatePhys(), 1);
-    m_fields[T_idx]->FwdTrans(m_fields[T_idx]->GetPhys(),
-                              m_fields[T_idx]->UpdateCoeffs());
-    return TokamakSystem::v_PostIntegrate(step);
-}
-
 void DoubleDiffusiveField::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
 {
     TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
-    const int nPhys   = m_fields[0]->GetNpoints();
-    const int nCoeffs = m_fields[0]->GetNcoeffs();
-    for (auto s : this->particle_sys->get_species())
-    {
-        variables.push_back(s.second.name + "_SOURCE_DENSITY");
-        Array<OneD, NekDouble> SrcFwd1(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->density_src_fields[s.first]->GetPhys(), SrcFwd1);
-        fieldcoeffs.push_back(SrcFwd1);
 
-        variables.push_back(s.second.name + "_SOURCE_ENERGY");
-        Array<OneD, NekDouble> SrcFwd2(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->energy_src_fields[s.first]->GetPhys(), SrcFwd2);
-        fieldcoeffs.push_back(SrcFwd2);
+    bool extraFields;
+    m_session->MatchSolverInfo("OutputExtraFields", "True", extraFields, true);
+    if (extraFields)
+    {
+        const int nPhys   = m_fields[0]->GetNpoints();
+        const int nCoeffs = m_fields[0]->GetNcoeffs();
+
+        Array<OneD, Array<OneD, NekDouble>> tmp(m_fields.size());
+
+        for (int i = 0; i < m_fields.size(); ++i)
+        {
+            tmp[i] = m_fields[i]->GetPhys();
+        }
+
+        Array<OneD, NekDouble> pressure(nPhys), temperature(nPhys);
+        m_varConv->GetElectronPressure(tmp, pressure);
+        m_varConv->GetElectronTemperature(tmp, temperature);
+
+        Array<OneD, NekDouble> pFwd(nCoeffs), TFwd(nCoeffs);
+
+        m_fields[0]->FwdTransLocalElmt(pressure, pFwd);
+        m_fields[0]->FwdTransLocalElmt(temperature, TFwd);
+
+        variables.push_back("pe");
+        variables.push_back("Te");
+
+        fieldcoeffs.push_back(pFwd);
+        fieldcoeffs.push_back(TFwd);
+
+        if (this->particles_enabled)
+        {
+            for (auto s : this->particle_sys->get_species())
+            {
+                variables.push_back(s.second.name + "_SOURCE_DENSITY");
+                Array<OneD, NekDouble> SrcFwd1(nCoeffs);
+                m_fields[0]->FwdTransLocalElmt(
+                    this->density_src_fields[s.first]->GetPhys(), SrcFwd1);
+                fieldcoeffs.push_back(SrcFwd1);
+
+                variables.push_back(s.second.name + "_SOURCE_ENERGY");
+                Array<OneD, NekDouble> SrcFwd2(nCoeffs);
+                m_fields[0]->FwdTransLocalElmt(
+                    this->energy_src_fields[s.first]->GetPhys(), SrcFwd2);
+                fieldcoeffs.push_back(SrcFwd2);
+            }
+        }
     }
 }
 } // namespace NESO::Solvers::tokamak
