@@ -50,23 +50,25 @@ can be used to speed up compilation
 Note that some of the dependencies (particularly nektar++) can take some time to install and have high memory usage.
 
 ## Running examples
-Configuration files for 2D and 3D examples can be found in the `./examples` directory.
+Configuration files for various different examples can be found in the `./examples` directory.
 An easy way to run the examples is (from the top level of the repository):
+
 ```bash
 # Load the mpich spack module
 spack load mpich
 # Set up and run an example via the helper script
-./scripts/run_eg.sh [example_name] [example_dimension]
+./scripts/run_eg.sh <-n num_MPI> [EquationSystem] [Mesh] [Dimension] [Example]
+# e.g. ./scripts/run_eg.sh -n 16 SingleField MASTU 2D CG
+
 ```
 
-- This will copy `./examples/[example_name]/[example_dimension]` to `./runs/[example_name]/[example_dimension]` and run the solver in that directory with 4 MPI processes by default.
-- To run with a different number of MPI processes, use `<-n num_MPI> `
+- This will copy `./examples/[EquationSystem]/[Mesh]/[Dimension]/[Example]` to `./runs/[EquationSystem]/[Mesh]/[Dimension]/[Example]` and run the solver in that directory with num_MPP MPI processes
 - The solver executable is assumed to be in the most recently modified `spack-build*` directory. To choose a different build location, use `<-b build_dir_path>`.
 
 To change the number of openMP threads used by each process, use
 ```bash
 # Run an example with OMP and MPI
-OMP_NUM_THREADS=[nthreads] ./scripts/run_eg.sh [example_name]
+OMP_NUM_THREADS=[nthreads] ./scripts/run_eg.sh [EquationSystem] [Mesh] [Dimension] [Example]
 ```
 
 ## Postprocessing
@@ -74,8 +76,13 @@ OMP_NUM_THREADS=[nthreads] ./scripts/run_eg.sh [example_name]
 - Fluid output is generated as nektar++ checkpoint files. One way to visualise is them is to convert to .vtu using Nektar's `FieldConvert` tool and then use Paraview:
 ```bash
 # Convert to vtu using FieldConvert (requires xml files as args)
-cd runs/[example_name]/[example_dimension]
+cd runs/[EquationSystem]/[Mesh]/[Dimension]/[Example]
 spack load nektar
 FieldConvert [config_xml] [mesh_xml] [chk_name] [vtu_name]
 # e.g. FieldConvert single_field.xml mastu.xml single_field_100.chk single_field.vtu
-``` 
+```
+
+To convert multiple files at once, the following command can be used:
+```bash
+for i in {0..1000}; do FieldConvert -f single_field.xml mastu.xml single_field_$i.chk single_field_$i.vtu; done;
+```
