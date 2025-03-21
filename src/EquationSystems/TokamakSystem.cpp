@@ -32,10 +32,6 @@ TokamakSystem::TokamakSystem(const LU::SessionReaderSharedPtr &session,
                              const SD::MeshGraphSharedPtr &graph)
     : TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>(session, graph)
 {
-    //  Determine whether energy,enstrophy recording is enabled (output freq is
-    //  set)
-    this->energy_enstrophy_recording_enabled =
-        session->DefinesParameter("growth_rates_recording_step");
 }
 
 std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
@@ -46,7 +42,7 @@ std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
 /**
  * @brief Read the magnetic field from file.
  */
-void TokamakSystem::ReadMagneticField()
+void TokamakSystem::ReadMagneticField(NekDouble time)
 {
     int d;
     int npoints = m_fields[0]->GetNpoints();
@@ -55,7 +51,7 @@ void TokamakSystem::ReadMagneticField()
     {
         B_in[d] = Array<OneD, NekDouble>(npoints);
     }
-    this->B_pol  = Array<OneD, Array<OneD, NekDouble>>(3);
+
     this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
     std::vector<std::string> Bstring;
     Bstring.push_back("Bx");
@@ -68,10 +64,6 @@ void TokamakSystem::ReadMagneticField()
         if (this->m_graph->GetMeshDimension() == 2)
         {
             GetFunction("MagneticMeanField")->Evaluate(Bstring, B_in);
-            for (d = 0; d < 3; ++d)
-            {
-                this->B_pol[d] = B_in[d];
-            }
         }
         else if (this->m_graph->GetMeshDimension() == 3)
         {
@@ -96,7 +88,6 @@ void TokamakSystem::ReadMagneticField()
                 {
                     B3D[d] =
                         Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
-                    // B_pol[d] = Array<OneD, NekDouble>(npoints, 0.0);
                 }
                 Array<OneD, NekDouble> Bx(npoints_2d);
                 Array<OneD, NekDouble> By(npoints_2d);
@@ -129,13 +120,6 @@ void TokamakSystem::ReadMagneticField()
                                  1);
                     Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d],
                                  1);
-
-                    // Vmath::Vcopy(npoints_2d, &B2D[1][0], 1,
-                    //              &B_pol[1][i * npoints_2d], 1);
-                    // Vmath::Vcopy(npoints_2d, &B2D[0][0], 1,
-                    //              &B_pol[0][i * npoints_2d], 1);
-                    // Vmath::Vcopy(npoints_2d, &B2D[2][0], 1,
-                    //              &B_pol[2][i * npoints_2d], 1);
                 }
                 LU::PtsFieldSharedPtr inPts =
                     MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
@@ -168,7 +152,6 @@ void TokamakSystem::ReadMagneticField()
                 interp.Interpolate(inPts, outPts);
                 for (d = 0; d < 3; ++d)
                 {
-                    // outPts->SetPts(d + 3, B_in[d]);
                     B_in[d] = outPts->GetPts(d + 3);
                 }
             }
@@ -200,9 +183,9 @@ void TokamakSystem::ReadMagneticField()
                 Array<OneD, NekDouble> Br(nq);
                 Array<OneD, NekDouble> Bphi(nq);
 
-                Bxfunc->Evaluate(r, x1, phi, /*time=*/0, Br);
-                Byfunc->Evaluate(r, x1, phi, /*time=*/0, B_in[1]);
-                Bzfunc->Evaluate(r, x1, phi, /*time=*/0, Bphi);
+                Bxfunc->Evaluate(r, x1, phi, time, Br);
+                Byfunc->Evaluate(r, x1, phi, time, B_in[1]);
+                Bzfunc->Evaluate(r, x1, phi, time, Bphi);
 
                 for (int q = 0; q < nq; ++q)
                 {
@@ -214,7 +197,7 @@ void TokamakSystem::ReadMagneticField()
     }
     else if (m_session->DefinesFunction("MagneticField"))
     {
-        GetFunction("MagneticField")->Evaluate(Bstring, B_in);
+        GetFunction("MagneticField")->Evaluate(Bstring, B_in, time);
     }
 
     this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
@@ -235,7 +218,7 @@ void TokamakSystem::ReadMagneticField()
 
     for (d = 0; d < 3; d++)
     {
-        b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
+        this->b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
         for (int k = 0; k < npoints; ++k)
         {
             this->b_unit[d][k] =
@@ -257,9 +240,11 @@ void TokamakSystem::load_params()
     // for quad-based meshes, or you can use a standard convective term if you
     // were fully continuous in space. Default is DG.
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
-
-    ReadMagneticField();
-    nSpecies = 2;
+    std::string transient_field_str;
+    m_session->LoadSolverInfo("MagneticFieldEvolution", transient_field_str,
+                              "Static");
+    this->transient_field = (transient_field_str == "Transient");
+    ReadMagneticField(0);
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
@@ -333,44 +318,55 @@ void TokamakSystem::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
 {
-    const int nPhys   = m_fields[0]->GetNpoints();
-    const int nCoeffs = m_fields[0]->GetNcoeffs();
+    bool extraFields;
+    m_session->MatchSolverInfo("OutputEMFields", "True", extraFields, true);
+    if (extraFields)
+    {
+        const int nPhys   = m_fields[0]->GetNpoints();
+        const int nCoeffs = m_fields[0]->GetNcoeffs();
 
-    variables.push_back("Bx");
-    Array<OneD, NekDouble> BxFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
-    fieldcoeffs.push_back(BxFwd);
+        variables.push_back("Bx");
+        Array<OneD, NekDouble> BxFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
+        fieldcoeffs.push_back(BxFwd);
 
-    variables.push_back("By");
-    Array<OneD, NekDouble> ByFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
-    fieldcoeffs.push_back(ByFwd);
+        variables.push_back("By");
+        Array<OneD, NekDouble> ByFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
+        fieldcoeffs.push_back(ByFwd);
 
-    variables.push_back("Bz");
-    Array<OneD, NekDouble> BzFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(B[2]->GetPhys(), BzFwd);
-    fieldcoeffs.push_back(BzFwd);
+        variables.push_back("Bz");
+        Array<OneD, NekDouble> BzFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(B[2]->GetPhys(), BzFwd);
+        fieldcoeffs.push_back(BzFwd);
 
-    variables.push_back("Ex");
-    Array<OneD, NekDouble> ExFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(E[0]->GetPhys(), ExFwd);
-    fieldcoeffs.push_back(ExFwd);
+        variables.push_back("Ex");
+        Array<OneD, NekDouble> ExFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(E[0]->GetPhys(), ExFwd);
+        fieldcoeffs.push_back(ExFwd);
 
-    variables.push_back("Ey");
-    Array<OneD, NekDouble> EyFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
-    fieldcoeffs.push_back(EyFwd);
+        variables.push_back("Ey");
+        Array<OneD, NekDouble> EyFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
+        fieldcoeffs.push_back(EyFwd);
 
-    variables.push_back("Ez");
-    Array<OneD, NekDouble> EzFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
-    fieldcoeffs.push_back(EzFwd);
-
-    variables.push_back("Rank");
-    Array<OneD, NekDouble> Rank(nPhys, this->m_session->GetComm()->GetRank());
-    Array<OneD, NekDouble> RankFwd(nCoeffs);
-    m_fields[0]->FwdTransLocalElmt(Rank, RankFwd);
-    fieldcoeffs.push_back(RankFwd);
+        variables.push_back("Ez");
+        Array<OneD, NekDouble> EzFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
+        fieldcoeffs.push_back(EzFwd);
+    }
+    m_session->MatchSolverInfo("OutputPartitions", "True", extraFields, false);
+    if (extraFields)
+    {
+        const int nPhys   = m_fields[0]->GetNpoints();
+        const int nCoeffs = m_fields[0]->GetNcoeffs();
+        variables.push_back("Rank");
+        Array<OneD, NekDouble> Rank(nPhys,
+                                    this->m_session->GetComm()->GetRank());
+        Array<OneD, NekDouble> RankFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(Rank, RankFwd);
+        fieldcoeffs.push_back(RankFwd);
+    }
 }
 
 void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
@@ -413,7 +409,7 @@ void TokamakSystem::v_InitObject(bool create_field)
                                   m_implHelper);
     }
 
-    // Forcing terms for coupling to Reactions
+    // Forcing terms
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_fields,
                                   m_fields.size());
 
@@ -470,7 +466,6 @@ void TokamakSystem::v_InitObject(bool create_field)
                                              this->B[2]);
         this->particle_sys->setup_evaluate_ne(
             std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-
     }
 }
 
@@ -481,10 +476,6 @@ void TokamakSystem::v_InitObject(bool create_field)
  */
 bool TokamakSystem::v_PostIntegrate(int step)
 {
-    if (energy_enstrophy_recording_enabled)
-    {
-        this->energy_enstrophy_recorder->compute(step);
-    }
 
     this->solver_callback_handler.call_post_integrate(this);
 
@@ -499,14 +490,18 @@ bool TokamakSystem::v_PostIntegrate(int step)
 }
 
 /**
- * @brief Override v_PreIntegrate to do particle system integration, and initial
- * set up for mass recording diagnostic (first call only)
+ * @brief Override v_PreIntegrate to do particle system integration
  *
  * @param step Time step number
  */
 bool TokamakSystem::v_PreIntegrate(int step)
 {
     this->solver_callback_handler.call_pre_integrate(this);
+
+    if (this->transient_field)
+    {
+        ReadMagneticField(m_time);
+    }
 
     if (this->particles_enabled)
     {
@@ -518,7 +513,8 @@ bool TokamakSystem::v_PreIntegrate(int step)
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms(this->src_syms, this->components);
+        this->particle_sys->project_source_terms(this->src_syms,
+                                                 this->components);
     }
 
     return UnsteadySystem::v_PreIntegrate(step);

@@ -393,7 +393,7 @@ protected:
                     k_W.at(0) += deltaweight;
                     // Set value for fluid density source (num / Nektar unit
                     // time)
-                    k_SD.at(0) = -deltaweight * 1e-6 / k_dt;
+                    k_SD.at(0) = -deltaweight  / k_dt;
                 },
                 Access::write(Sym<INT>("PARTICLE_ID")),
                 Access::read(Sym<REAL>("ELECTRON_DENSITY")),
@@ -480,7 +480,7 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")),
             Access::write(Sym<REAL>("TSP")))
             ->execute();
-        ionise(dt_inner);
+        //ionise(dt_inner);
     };
 
     const int particle_remove_key = -1;

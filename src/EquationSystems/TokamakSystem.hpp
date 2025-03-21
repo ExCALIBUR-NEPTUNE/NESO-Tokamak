@@ -2,8 +2,6 @@
 #define TOKAMAKSYSTEM_HPP
 
 #include "../BoundaryConditions/TokamakBndCond.hpp"
-#include "../Diagnostics/GrowthRatesRecorder.hpp"
-#include "../Forcing/ReactionsCoupling.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
@@ -55,9 +53,6 @@ public:
 
     virtual std::shared_ptr<ParticleSystem> GetParticleSystem();
 
-    /// Object to facilitate allows optional recording of energy and enstrophy
-    std::shared_ptr<GrowthRatesRecorder<MR::DisContField>>
-        energy_enstrophy_recorder;
     /// Callback handler to call user-defined callbacks
     SolverCallbackHandler<TokamakSystem> solver_callback_handler;
 
@@ -65,12 +60,12 @@ protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
                   const SD::MeshGraphSharedPtr &graph);
 
+    bool transient_field;
     /// Magnetic field vector
     Array<OneD, MR::DisContFieldSharedPtr> B;
     /// Normalised magnetic field vector
     Array<OneD, Array<OneD, NekDouble>> b_unit;
-    // B in cylindrical polar (r, z, theta)
-    Array<OneD, Array<OneD, NekDouble>> B_pol;
+
     /// Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
     /// Trace of magnetic field
@@ -89,8 +84,6 @@ protected:
 
     /// Sheath potential
     NekDouble lambda;
-
-    int nSpecies;
 
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
@@ -132,7 +125,7 @@ protected:
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    void ReadMagneticField();
+    void ReadMagneticField(NekDouble time = 0);
 
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,

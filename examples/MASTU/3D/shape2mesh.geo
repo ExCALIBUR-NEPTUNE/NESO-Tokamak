@@ -5,7 +5,6 @@ General.NumThreads = 6;
 
 // open brep geometry
 Merge "Revolution_Geometry.brep";
-
 // Characteristic Length
 // no boundary layer settings for this mesh
 // min, max Characteristic Length
@@ -52,10 +51,6 @@ Coherence Mesh; // Remove duplicate vertices
 // to run Gmsh and keep file in Gmsh GUI (with log), run in bash:
 // C:/Program Files/FreeCAD 0.21/bin/gmsh.exe C:\Users\jedge\AppData\Local\Temp\fcfem_ptt_chyr\shape2mesh.geo
 //+
-Physical Volume(153) = {1};
+Physical Volume(1) = {1};
 //+
-Physical Surface(154) = {21, 20};
-//+
-Physical Surface(155) = {20, 19, 18, 21, 17, 31, 32, 30, 33, 29, 34, 35, 28, 36, 37, 16, 27, 38, 39, 40, 26, 41, 42, 22, 15, 25, 14, 24, 43, 23, 46, 44, 13, 45, 47, 48, 12, 49, 51, 50, 11, 10, 53, 52, 55, 9, 54, 59, 8, 56, 57, 60, 61, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 7, 74, 75, 76, 77, 78, 79, 1, 6, 2, 3, 5, 4};
-//+
-Physical Volume(156) = {1};
+Physical Surface(0) = {20, 19, 18, 21, 17, 31, 32, 30, 33, 29, 34, 35, 28, 36, 37, 16, 27, 38, 39, 40, 26, 41, 42, 22, 15, 25, 14, 24, 43, 23, 46, 44, 13, 45, 47, 48, 12, 49, 51, 50, 11, 10, 53, 52, 55, 9, 54, 59, 8, 56, 57, 60, 61, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 7, 74, 75, 76, 77, 78, 79, 1, 6, 2, 3, 5, 4};

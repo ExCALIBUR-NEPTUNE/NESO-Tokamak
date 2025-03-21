@@ -5,29 +5,34 @@ A NESO-based solver for modelling MAST-U.
 The easiest way to build the app is to use the [Spack package manager](https://spack.readthedocs.io/en/latest/index.html).
 The build process has been tested with **Spack v0.24.0**; later versions may also work, but aren't recommended.
 
-1. Install Spack v0.24.0, via the [official instructions](https://spack.readthedocs.io/en/latest/getting_started.html#installation).
+### Install Spack v0.24.0, via the [official instructions](https://spack.readthedocs.io/en/latest/getting_started.html#installation).
 On Debian-based systems (e.g. Ubuntu) the following should work:
 
 ```bash
-$ git clone -c feature.manyFiles=true --depth=2 https://github.com/spack/spack.git
+git clone -b releases/v0.23 --single-branch https://github.com/spack/spack.git
+
+# Initialise spack
+export SPACK_ROOT=$HOME/.spack
+source $SPACK_ROOT/share/spack/setup-env.sh
 
 # Optionally modify .bashrc such that spack is always initialised in new shells
 echo 'export SPACK_ROOT=$HOME/.spack' >> $HOME/.bashrc
 echo 'source $SPACK_ROOT/share/spack/setup-env.sh' >> $HOME/.bashrc
-export SPACK_ROOT=$HOME/.spack
-source $SPACK_ROOT/share/spack/setup-env.sh
 ```
-2. Install intel compilers
+
+### Install intel compilers
 ```bash
 spack install intel-oneapi-compilers
+spack compiler add `spack location -i intel-oneapi-compilers`/compiler/latest/bin
 ```
-Or if they are already installed elsewhere, add them
+
+Or if they are already installed elsewhere and version < 2024, add them
 ```bash
 spack compiler add `spack location -i intel-oneapi-compilers`/compiler/latest/linux/bin/intel64
 spack compiler add `spack location -i intel-oneapi-compilers`/compiler/latest/linux/bin
 ```
 
-3. Build and clone NESO-Tokamak:
+### Build and clone NESO-Tokamak:
 ```bash
 cd ..
 git clone https://github.com/ExCALIBUR-NEPTUNE/NESO-Tokamak.git
