@@ -4,7 +4,7 @@
 # Helper functions
 echo_usage() {
     echo "Usage:"
-    echo "    $0 [example_name] [2/3D] <-n num_MPI> <-b build_dir>"
+    echo "    $0 <EquationSystem> <Mesh> <2D/3D> <ExampleName> <-n num_MPI> <-b build_dir>"
 }
 
 execute() {
@@ -22,7 +22,6 @@ generate_run_dir() {
     local eg_dir="$1"
     local run_dir="$2"
     
-    run_dir="$REPO_ROOT/runs/$eg_name/$dim"
     if [ -e "$run_dir" ]; then
         read -p "Overwrite existing run directory at $run_dir? (Y/N): " choice && [[ $choice == [yY] || $choice == [yY][eE][sS] ]] || exit 5
         \rm -rf "$run_dir"
@@ -45,8 +44,8 @@ parse_args() {
     case $1 in
         -b|--build-dir)
         if [ -z "$2" ]; then
-            echo "Empty build dir supplied"
-            exit 7
+            echo "Error: Empty build dir supplied"
+            exit 2
         fi
         build_dir=$(realpath "$2")
         shift 2
@@ -56,8 +55,8 @@ parse_args() {
         shift 2
         ;;
         -*|--*)
-        echo "Unknown option $1"
-        exit 2
+        echo "Error: Unknown option $1"
+        exit 3
         ;;
         *)
         # Save positional args in an array
@@ -69,16 +68,21 @@ parse_args() {
 
     # Restore and extract positional args
     set -- "${POSITIONAL_ARGS[@]}"
-    eg_name=$1
-    dim=$2
+    eq_sys=$1
+    mesh=$2
+    dim=$3
+    eg_name=$4
 }
 
 report_options() {
-    #echo "--------------------------------------------------"
+    echo "--------------------------------------------------"
     echo "Options:"
-    echo "      e.g. : $eg_name"
-    echo "     n MPI : $nmpi"
-    echo ""
+    echo "      EquationSystem : $eq_sys"
+    echo "      Mesh : $mesh"
+    echo "      Dimension : $dim"
+    echo "      Example : $eg_name"
+    echo "      n MPI : $nmpi"
+    echo "--------------------------------------------------"
 }
 
 set_run_cmd() {
@@ -90,34 +94,68 @@ set_run_cmd() {
         run_cmd=$(sed -e 's|<SOLVER_EXEC>|'"$solver_exec"'|g' -e 's|<NMPI>|'"$nmpi"'|g'< "$run_cmd_file")
         \rm "$run_cmd_file"
     else
-        echo "Can't read template run command from $run_cmd_file."
-        exit 6
+        echo "Error: Can't read template run command from $run_cmd_file."
+        exit 4
     fi
 }
 
 validate_paths() {
     local build_dir=$1
     local solver_exec=$2
-    local eg_dir=$3
 
     if [ -z "$build_dir" ]; then
         # default build dir wasn't found and none was supplied
-        echo "No build directory at ./build-*/spack-build-*"
+        echo "Error: No build directory at ./build-*/spack-build-*"
         echo "Set solver location with '-b <build_dir>'"
-        exit 4
+        echo "--------------------------------------------------"
+        exit 5
     fi
 
     if [ ! -f "$solver_exec" ]; then
-        echo "No solver found at $solver_exec"
-        exit 3
+        echo "Error: No solver found at $solver_exec"
+        echo "--------------------------------------------------"
+        exit 6
     fi
-    if [ ! -d "$eg_dir" ]; then
-        echo "No example directory found at $eg_dir"
+
+}
+
+validate_eg() {
+    local eq_sys=$1
+    local mesh=$2
+    local dim=$3
+    local eg_name=$4
+
+    if [ ! -d "$REPO_ROOT/examples/$eq_sys" ]; then
+        echo "Error: No examples found for $eq_sys"
         echo
-        echo "Valid example names are:"
+        echo "Valid equation systems are:"
         echo "$(find $REPO_ROOT/examples -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
-        echo "Valid example dimensions are: 2D, 3D"
-        exit 4
+        echo "--------------------------------------------------"
+        exit 7
+    fi
+    if [ ! -d "$REPO_ROOT/examples/$eq_sys/$mesh" ]; then
+        echo "Error: No examples found for $eq_sys/$mesh"
+        echo
+        echo "Valid meshes for $eq_sys are:"
+        echo "$(find $REPO_ROOT/examples/$eq_sys -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
+        echo "--------------------------------------------------"
+        exit 8
+    fi
+    if [ ! -d "$REPO_ROOT/examples/$eq_sys/$mesh/$dim" ]; then
+        echo "Error: No examples found for $eq_sys/$mesh/$dim"
+        echo
+        echo "Valid dimensions for $eq_sys/$mesh are:"
+        echo "$(find $REPO_ROOT/examples/$eq_sys/$mesh -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
+        echo "--------------------------------------------------"
+        exit 9
+    fi
+    if [ ! -d "$REPO_ROOT/examples/$eq_sys/$mesh/$dim/$eg_name" ]; then
+        echo "Error: No examples found for $eq_sys/$mesh/$dim/$eg_name"
+        echo
+        echo "Valid example cases for $eq_sys/$mesh/$dim are:"
+        echo "$(find $REPO_ROOT/examples/$eq_sys/$mesh/$dim -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"
+        echo "--------------------------------------------------"
+        exit 10
     fi
 }
 #--------------------------------------------------------------------------------------------------
@@ -126,8 +164,10 @@ REPO_ROOT=$( cd -- "$(realpath $( dirname -- "${BASH_SOURCE[0]}" )/..)" &> /dev/
 
 # Default options
 solver_name="tokamak"
-eg_name='Not set'
+eq_sys='Not set'
+mesh='Not set'
 dim='Not set'
+eg_name='Not set'
 nmpi='4'
 build_dir='Not set'
 set_default_build_dir
@@ -138,12 +178,13 @@ report_options
 
 # Set paths to the solver executable and example directory
 solver_exec="$build_dir/$solver_name"
-eg_dir="$REPO_ROOT/examples/$eg_name/$dim"
 # Validate exec, examples paths
-validate_paths "$build_dir" "$solver_exec" "$eg_dir"
+validate_paths "$build_dir" "$solver_exec"
+validate_eg "$eq_sys" "$mesh" "$dim" "$eg_name"
 
 # Set up run directory, confirming overwrite if it already exists
-run_dir="$REPO_ROOT/runs/$eg_name/$dim"
+eg_dir="$REPO_ROOT/examples/$eq_sys/$mesh/$dim/$eg_name"
+run_dir="$REPO_ROOT/runs/$eq_sys/$mesh/$dim/$eg_name"
 generate_run_dir "$eg_dir" "$run_dir"
 
 # Read run command template and populate it

@@ -1,0 +1,1 @@
+mpirun -np <NMPI> <SOLVER_EXEC> two_field.xml mastulinear.xml

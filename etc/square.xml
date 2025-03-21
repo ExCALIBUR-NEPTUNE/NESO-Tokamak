@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<NEKTAR>
+    <GEOMETRY DIM="2" SPACE="2">
+        <VERTEX COMPRESSED="B64Z-LittleEndian" BITSIZE="64">eJxlll1LFGEUgLVSK7fSLW0zzbQt8yt3/cg082yp1Zp9EYRCl31slDdC5JX/IIoo6iaJ/AV1EV4keiGBkWl00UJBAy40xAjbugwjRLXvmfOe9ThzcZ5lH87MnHfOe2ZyctYeBhCn9T+5xLsBFRMev4E4Xub6Ab9inP3Gdee/HpB+EzEeUtH0nD+PeLnJ9SGfzM8n9kZVtDz5BUSrx/Vl+TJ/M/E+Xj/pyd9CXK5f67P5W4kvgyqmPPmFxOYq15ur/zLHV/Y+4h1cl7QnfxuxutT1n1Zk/nZiG57I9uTvIBYXun5yWeYX5aw9HE9+8To//lPm+4mfy1VMwDNch0X2O0W+AXMh6XcRPzSqaMKtgPQlxOfdKlrQ6pO+lBirUTEJbj9l/W7ibIWKKZjA+19gHyDG8UbTEFmQfg/Rwkaw4ftb6ctEfQ6Mjku/l5hbqWIC3g0rzrAvF/kGXHksfQWxt0FFE+qj0u8jRjrwLmn9s76SuFStol6frN9PvIqFpOAH1jfNvor4EBshDZPD0lcTP+JGsuFRUPoDoj4HYt/+Ch8khvFCCZifz9jgyJT2B0W+ATiPwqPsDxGn6lQ0YXYsc/pQjH0N0WxR0QL/+8z1Q4PsDxOHcCHd/R35XXpc+1qdj42WgrySzB2EB09oX0fsw42WhsFr6v5i7OuJEziIbAhkGnImOMK+QdTn6PrYNxJv4EIm9PqC9kdEvqHXl30TsR0LMfXzYx8iPsETWfr5sw8Tv+BG4P5h30y8h/snpfuPfQvxD+7btO5f9q3EMZzLNkwPS98m6nP0/mB/lPgUGyWh9yf7dpFv6P3J/hjxNTaKqfc/+w5iF66fpecH+05iFAcVzx/2upEKcNCmwJ3TWd9FfIMvkjTcDEivG2EIX4S2nq/su0V9jp6v7PWPOawvoec/+4jIN/R8Z3+SWIsbzYTFFelPEZewPy34tSp9D3EW60+C+70QZ99LfIHrktLvZ/Z9xNs4X9LQ7JP+NLEVF96Gfr/0Z0R9jv7+YH+WuIrPl79v2EdFvuHx/cRX+FxMjz9HfIDzxfL4AWIn1pX0+PPEOnz/pDz+ArES1y3t8ReJRfghZnv8JVGf4/H/ASBqmPYA</VERTEX>
+        <EDGE COMPRESSED="B64Z-LittleEndian" BITSIZE="64">eJx1lFV3U1EYBQPF3TWFIMEKwQnSQnCKOxR3a5EWLVDcpfzlPnTPA7PWzcusu2afm2Sfc75SafAzpPT/h+ehBc9NBc8lPQ8Tec9wET9C78WPlCc/qsCPLlg/RuvIj9U6/Ditx48veN8EvQ8/Uevxk/Q95Cfre/BTtB4/Vd9Pfpq+Hz9d6/Ez9LvIz9Tvws/Sevxs/V72c45+L35u2CRf1v9gP5u1Hj8v5P+xb/OVw1dC/jf7s0A5/MKQPtiHRcrhF4f0RN9V5fBLQvqj16XK4ZeF9Er/y5XDrwjpm/5awrL8ytD7sSpkH+i1pvX41aH3Z41y+LUh+0av65TDrw8rIb1uUA6/MWSf6XWTcvh6yP7T62bl8FtCzgX9b1UOvy3kvNBfa1iVbwvL8ttDzhG97tB6fCPkfNHrTuXwu0LOHb3uVg6/J+Q8VsK9yuH3hZxTet2vHP5AyPml13bl8AdDzjX9H1IOfzjkvNPfkbAmfzSsyh8LuQf0elzr8SdC7ge9nlQOfyrk3tDraeXwZ0LuE72eVQ5/LuSe0et55fAdIfePXi8oh78Yci/p/5Jy+Msh95X+roR1+athTf5ayD2m1+taj78Rcr/p9aZy+Fsh955ebyuHvxMyD+j1rnL4eyFzgl7vK4d/EDI/6LVTOXxXyFyh/4fK4R+FzBv6exw25J+EdfnukDlErz1aj38aMp/o9Zly+Ochc4teXyiHfxkyz+j1lXL43pA5R6+vlcO/CZl/9PpWOXxfyFyk/3fK4d+HzEv6+xC2y38MG/KfQuYovX7WevyXkPlKr1+Vw38Lmbv0+l05/I+QeUyvP5XD/wqZ0/T6Wzn8n5D5Ta9/lcP3h8x1+v+nHH4AvP1VDQAA</EDGE>
+        <ELEMENT>
+            <Q COMPRESSED="B64Z-LittleEndian" BITSIZE="64">eJx1lFlXjmEYRhNFIVMokYwhNIgyZJ7HKEMoSsaiyBipzEP4y072Puhaq072WtX+3vfbz/3cBQXTf2bBQjg7fj8HFsHiGby5cB4sCc/PLYXz4YLwfN5CWAYXhefnLoZL4NLwfN9lsBwuD8/3XwFXworwfE+/dyVcBaug39/nr4ZrwiuN/6+Ga8PLXjVwXXj+3V7r4Ybw7GuvjXBTeHa012ZYG57Ps9cWuDU8z8te22Ad3A49F3vtgDvD8/3tVQ8bwvP87dUIm8LznO21CzaHZw977YZ7wnOe7NUCW8Nz3uy1F+4Lz7722g8PwDbofNnrIDwUnudgr8PwSHjOtb2OwmPhOa/2Og5PhOe52uskPBWec22v0/BMeJ6/vc7Cc+HVQHudhxfgReic2OsSbA/Pe2Kvy/BKeM6TvTpgZ3jeJ3tdhdfCc+7sdR3eCM97Z68ueDM859Net+Dt8LzX9uqGPfAOdI7tdRf2huc9tlcfvBee826vfng/PPeHvR7Ah+G5F+z1CD4Oz/tjrydwIDz3h70G4dPwvGf2egaH4DB0z9jrOXwRnvfRXiPwZXjuI3u9gq/D897a6w18G557y17v4Gh43m97vYcfwnO/2WsMfgzPPWCvcTgBJ6H7016f4Ofw3Bf2+gK/hue+tNc3+D0894q9fsCf4bmn7fUL/g7P/WuvKfgnPPeUvf7Cf+H9B4G0Tv4A</Q>
+        </ELEMENT>
+        <COMPOSITE>
+            <C ID="1"> Q[0-63] </C>
+            <C ID="5"> E[3,27,44,61,78,95,112,129] </C>
+            <C ID="6"> E[128,131,133,135,137,139,141,143] </C>
+            <C ID="7"> E[142,125,108,91,74,57,40,23] </C>
+            <C ID="8"> E[22,19,16,13,10,7,4,0] </C>
+        </COMPOSITE>
+        <DOMAIN>
+            <D ID="0"> C[1] </D>
+        </DOMAIN>
+    </GEOMETRY>
+    <Metadata>
+        <Provenance>
+            <GitBranch></GitBranch>
+            <GitSHA1></GitSHA1>
+            <Hostname>jedge-XPS-16-9640</Hostname>
+            <NektarVersion>5.7.0</NektarVersion>
+            <Timestamp>04-Mar-2025 10:28:49</Timestamp>
+        </Provenance>
+        <NekMeshCommandLine>square.msh square.xml </NekMeshCommandLine>
+    </Metadata>
+    <EXPANSIONS>
+        <E COMPOSITE="C[1]" NUMMODES="4" TYPE="MODIFIED" FIELDS="u" />
+    </EXPANSIONS>
+</NEKTAR>
