@@ -19,7 +19,7 @@ ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
         std::dynamic_pointer_cast<TransformationStrategy>(remove_transform));
 
     auto merge_transform =
-        make_transformation_strategy<MergeTransformationStrategy<2>>(
+        make_transformation_strategy<MergeTransformationStrategy<3>>(
             Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"), Sym<REAL>("VELOCITY"));
     merge_transform_wrapper = std::make_shared<TransformationWrapper>(
         std::vector<std::shared_ptr<MarkingStrategy>>{

@@ -29,7 +29,8 @@ public:
     inline void init_spec() override
     {
         ParticleSystem::init_spec();
-        this->particle_spec.push(ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
 
@@ -37,7 +38,7 @@ public:
     {
         auto prop_map = default_map;
 
-        for (const auto &[k, v] : session->get_reactions())
+        for (const auto &[k, v] : this->config->get_reactions())
         {
             if (std::get<0>(v) == "Ionisation")
             {
@@ -50,7 +51,7 @@ public:
 
                 auto test_data = FixedRateData(1.0);
                 auto reaction =
-                    ElectronImpactIonisation<FixedRateData, FixedRateData>(
+                    ElectronImpactIonisation<FixedRateData, FixedRateData, 3>(
                         particle_group->sycl_target,
                         Sym<REAL>(
                             prop_map[default_properties.tot_reaction_rate]),
@@ -108,7 +109,7 @@ public:
                     species_map[std::get<1>(v)[1]].mass,
                     species_map[std::get<1>(v)[1]].charge);
 
-                auto cx_kernel = CXReactionKernels<2>(
+                auto cx_kernel = CXReactionKernels<3>(
                     target_species, projectile_species, prop_map);
                 auto rate_data    = FixedRateData(1.0);
                 auto vx_beam_data = FixedRateData(1.0);
@@ -118,13 +119,13 @@ public:
                     DataCalculator<FixedRateData, FixedRateData>(
                         particle_spec, vx_beam_data, vy_beam_data);
                 auto reaction = LinearReactionBase<
-                    1, FixedRateData, CXReactionKernels<2>,
+                    1, FixedRateData, CXReactionKernels<3>,
                     DataCalculator<FixedRateData, FixedRateData>>(
                     particle_group->sycl_target,
                     Sym<REAL>(prop_map[default_properties.tot_reaction_rate]),
                     Sym<REAL>(prop_map[default_properties.weight]),
                     projectile_species.get_id(),
-                    std::array<int, 1>{target_species.get_id()}, rate_data,
+                    std::array<int, 1>{(int)target_species.get_id()}, rate_data,
                     cx_kernel, particle_spec, data_calculator);
 
                 reaction_controller->add_reaction(
@@ -133,9 +134,10 @@ public:
         }
     }
 
-    inline void integrate_inner(const double dt_inner) override
+    inline void integrate_inner(ParticleSubGroupSharedPtr sg,
+                                const double dt_inner) override
     {
-        ParticleSystem::integrate_inner(dt_inner);
+        ParticleSystem::integrate_inner(sg, dt_inner);
         reaction_controller->apply_reactions(this->particle_group, dt_inner);
     }
 
@@ -159,7 +161,7 @@ protected:
                 src_fields, particle_group, cell_id_translation);
         }
 
-        void transform(ParticleSubGroupSharedPtr sub_group)
+        void transform(ParticleSubGroupSharedPtr sub_group) override
         {
             this->field_project->project(sub_group, syms, components);
         }
