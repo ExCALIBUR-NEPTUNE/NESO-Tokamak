@@ -86,16 +86,19 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
     }
     if (this->particles_enabled)
     {
+        std::vector<Sym<REAL>> src_syms;
+        std::vector<int> src_components;
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
         }
 
-        this->particle_sys->setup_project(this->src_fields);
+        this->particle_sys->finish_setup(this->src_fields, src_syms,
+                                          src_components);
     }
 }
 void SingleDiffusiveField::ImplicitTimeIntCG(

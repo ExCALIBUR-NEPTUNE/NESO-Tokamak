@@ -53,6 +53,8 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 
     if (this->particles_enabled)
     {
+        std::vector<Sym<REAL>> src_syms;
+        std::vector<int> src_components;
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             this->src_fields.emplace_back(
@@ -61,16 +63,16 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             this->energy_src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
-            this->components.push_back(0);
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+            src_components.push_back(0);
         }
         std::vector<MR::DisContFieldSharedPtr> src_fields =
             this->density_src_fields;
         src_fields.insert(src_fields.end(), this->energy_src_fields.begin(),
                           this->energy_src_fields.end());
-        this->particle_sys->setup_project(src_fields);
+        this->particle_sys->finish_setup(src_fields, src_syms, src_components);
     }
 }
 

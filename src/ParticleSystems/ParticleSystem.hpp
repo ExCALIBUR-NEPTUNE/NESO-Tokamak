@@ -115,19 +115,6 @@ public:
         this->transfer_particles();
         pre_advection(particle_sub_group(this->particle_group));
         apply_boundary_conditions(particle_sub_group(this->particle_group));
-
-        std::vector<Sym<REAL>> src_syms;
-        for (auto &[k, v] : species_map)
-        {
-            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
-            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
-        }
-
-        init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
-                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"), Sym<REAL>("B0"),
-                    Sym<REAL>("B1"), Sym<REAL>("B2"),
-                    Sym<REAL>("ELECTRON_DENSITY"), src_syms,
-                    Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
     virtual void set_up_particles() override
     {
@@ -185,30 +172,38 @@ public:
     }
 
     /**
-     * Setup the projection object to use the following fields.
+     * Setup the projection object to use the src fields from the eqnsys.
      *
-     * @param rho_src Nektar++ fields to project ionised particle data onto.
+     * @param src_fields Nektar++ fields to project ionised particle data onto.
+     * @param syms Corresponding Particle Syms
+     * @param syms Corresponding components
      */
-    inline void setup_project(
-        std::vector<std::shared_ptr<DisContField>> &src_fields)
+    inline virtual void finish_setup(
+        std::vector<std::shared_ptr<DisContField>> &src_fields,
+        std::vector<Sym<REAL>> &syms, std::vector<int> &components)
     {
-
-        this->field_project = std::make_shared<FieldProject<DisContField>>(
+        this->src_syms       = syms;
+        this->src_components = components;
+        this->field_project  = std::make_shared<FieldProject<DisContField>>(
             src_fields, this->particle_group, this->cell_id_translation);
+        init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
+                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"), Sym<REAL>("B0"),
+                    Sym<REAL>("B1"), Sym<REAL>("B2"),
+                    Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
+                    Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
     }
 
     /**
      *  Project the plasma source and momentum contributions from particle data
      *  onto field data.
      */
-    inline void project_source_terms(std::vector<Sym<REAL>> &src_syms,
-                                     std::vector<int> &components)
+    inline void project_source_terms()
     {
         NESOASSERT(this->field_project != nullptr,
                    "Field project object is null. Was setup_project called?");
 
-        this->field_project->project(this->particle_group, src_syms,
-                                     components);
+        this->field_project->project(this->particle_group, this->src_syms,
+                                     this->src_components);
 
         // remove fully ionised particles from the simulation
         remove_marked_particles();
@@ -393,7 +388,7 @@ protected:
                     k_W.at(0) += deltaweight;
                     // Set value for fluid density source (num / Nektar unit
                     // time)
-                    k_SD.at(0) = -deltaweight  / k_dt;
+                    k_SD.at(0) = -deltaweight / k_dt;
                 },
                 Access::write(Sym<INT>("PARTICLE_ID")),
                 Access::read(Sym<REAL>("ELECTRON_DENSITY")),
@@ -480,13 +475,16 @@ protected:
             Access::write(Sym<REAL>("VELOCITY")),
             Access::write(Sym<REAL>("TSP")))
             ->execute();
-        //ionise(dt_inner);
+        // ionise(dt_inner);
     };
 
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
     std::map<int, SpeciesInfo> species_map;
+
+    std::vector<Sym<REAL>> src_syms;
+    std::vector<int> src_components;
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
