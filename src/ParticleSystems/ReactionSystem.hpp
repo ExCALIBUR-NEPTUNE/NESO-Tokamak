@@ -50,17 +50,32 @@ public:
                     species_map[std::get<1>(v)[0]].charge);
 
                 auto test_data = FixedRateData(1.0);
-                auto reaction =
-                    ElectronImpactIonisation<FixedRateData, FixedRateData, 3>(
+                if (this->ndim == 2)
+                {
+                    auto reaction = ElectronImpactIonisation<FixedRateData,
+                                                             FixedRateData, 2>(
                         particle_group->sycl_target,
                         Sym<REAL>(
                             prop_map[default_properties.tot_reaction_rate]),
                         Sym<REAL>(prop_map[default_properties.weight]),
                         test_data, test_data, target_species, electron_species,
                         particle_spec);
-
-                reaction_controller->add_reaction(
-                    std::make_shared<decltype(reaction)>(reaction));
+                    reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
+                else if (this->ndim == 3)
+                {
+                    auto reaction = ElectronImpactIonisation<FixedRateData,
+                                                             FixedRateData, 3>(
+                        particle_group->sycl_target,
+                        Sym<REAL>(
+                            prop_map[default_properties.tot_reaction_rate]),
+                        Sym<REAL>(prop_map[default_properties.weight]),
+                        test_data, test_data, target_species, electron_species,
+                        particle_spec);
+                    reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
             }
             else if (std::get<0>(v) == "Recombination")
             {
@@ -109,28 +124,51 @@ public:
                     species_map[std::get<1>(v)[1]].mass,
                     species_map[std::get<1>(v)[1]].charge);
 
-                auto cx_kernel = CXReactionKernels<3>(
-                    target_species, projectile_species, prop_map);
                 auto rate_data    = FixedRateData(1.0);
                 auto vx_beam_data = FixedRateData(1.0);
                 auto vy_beam_data = FixedRateData(-1.0);
-
                 auto data_calculator =
                     DataCalculator<FixedRateData, FixedRateData>(
                         particle_spec, vx_beam_data, vy_beam_data);
-                auto reaction = LinearReactionBase<
-                    1, FixedRateData, CXReactionKernels<3>,
-                    DataCalculator<FixedRateData, FixedRateData>>(
-                    particle_group->sycl_target,
-                    Sym<REAL>(prop_map[default_properties.tot_reaction_rate]),
-                    Sym<REAL>(prop_map[default_properties.weight]),
-                    projectile_species.get_id(),
-                    std::array<int, 1>{
-                        static_cast<int>(target_species.get_id())},
-                    rate_data, cx_kernel, particle_spec, data_calculator);
 
-                reaction_controller->add_reaction(
-                    std::make_shared<decltype(reaction)>(reaction));
+                if (this->ndim == 2)
+                {
+                    auto cx_kernel = CXReactionKernels<2>(
+                        target_species, projectile_species, prop_map);
+
+                    auto reaction = LinearReactionBase<
+                        1, FixedRateData, CXReactionKernels<2>,
+                        DataCalculator<FixedRateData, FixedRateData>>(
+                        particle_group->sycl_target,
+                        Sym<REAL>(
+                            prop_map[default_properties.tot_reaction_rate]),
+                        Sym<REAL>(prop_map[default_properties.weight]),
+                        projectile_species.get_id(),
+                        std::array<int, 1>{
+                            static_cast<int>(target_species.get_id())},
+                        rate_data, cx_kernel, particle_spec, data_calculator);
+                    reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
+                else if (this->ndim == 3)
+                {
+                    auto cx_kernel = CXReactionKernels<3>(
+                        target_species, projectile_species, prop_map);
+
+                    auto reaction = LinearReactionBase<
+                        1, FixedRateData, CXReactionKernels<3>,
+                        DataCalculator<FixedRateData, FixedRateData>>(
+                        particle_group->sycl_target,
+                        Sym<REAL>(
+                            prop_map[default_properties.tot_reaction_rate]),
+                        Sym<REAL>(prop_map[default_properties.weight]),
+                        projectile_species.get_id(),
+                        std::array<int, 1>{
+                            static_cast<int>(target_species.get_id())},
+                        rate_data, cx_kernel, particle_spec, data_calculator);
+                    reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
             }
         }
     }
