@@ -10,7 +10,6 @@ ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph)
     : ParticleSystem(session, graph)
 {
-
 }
 
 } // namespace NESO::Solvers::tokamak
