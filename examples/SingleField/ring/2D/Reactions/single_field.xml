@@ -116,14 +116,14 @@
                     <E VAR="n" VALUE="sin(x)"/>
                 </FUNCTION>
             </S>
-            <!-- <S ID="1" NAME="Ne"> -->
-                <!-- <P> Mass = 1.0 </P> -->
-                <!-- <P> Charge = 1.0 </P> -->
-                <!-- <P> Number = 1 </P> -->
-                <!-- <FUNCTION NAME = "InitialDistribution"> -->
-                    <!-- <E VAR="n" VALUE="sin(x)"/> -->
-                <!-- </FUNCTION> -->
-            <!-- </S> -->
+            <S ID="1" NAME="Ne">
+                <P> Mass = 1.0 </P>
+                <P> Charge = 1.0 </P>
+                <P> Number = 1 </P>
+                <FUNCTION NAME = "InitialDistribution">
+                    <E VAR="n" VALUE="sin(x)"/>
+                </FUNCTION>
+            </S>
         </SPECIES>
 
         <BOUNDARYINTERACTION>
@@ -141,20 +141,20 @@
             <R ID="0" TYPE="Ionisation" SPECIES="0">
                 <P VAR="Rate" VALUE="1.0"/>
             </R>
-            <!-- <R ID="0" TYPE="Ionisation" SPECIES="1"> -->
-                <!-- <P VAR="Rate" VALUE="1.0"/> -->
-            <!-- </R> -->
-<!--  -->
-            <!-- <R ID="1" TYPE="Recombination" SPECIES="0"> -->
-                <!-- <P VAR="Rate" VALUE="1.0"/> -->
-            <!-- </R> -->
-            <!-- <R ID="1" TYPE="Recombination" SPECIES="1"> -->
-                <!-- <P VAR="Rate" VALUE="1.0"/> -->
-            <!-- </R> -->
-<!--  -->
-            <!-- <R ID="0" TYPE="ChargeExchange" SPECIES="0,1"> -->
-                <!-- <P VAR="Rate" VALUE="1.0"/> -->
-            <!-- </R> -->
+            <R ID="1" TYPE="Ionisation" SPECIES="1">
+                <P VAR="Rate" VALUE="1.0"/>
+            </R>
+            
+            <R ID="2" TYPE="Recombination" SPECIES="0">
+                <P VAR="Rate" VALUE="1.0"/>
+            </R>
+            <R ID="3" TYPE="Recombination" SPECIES="1">
+                <P VAR="Rate" VALUE="1.0"/>
+            </R>
+            <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
+                <P VAR="Rate" VALUE="1.0"/>
+            </R>
+            
         </REACTIONS>
 
     </PARTICLES>

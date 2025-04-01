@@ -47,7 +47,6 @@ public:
         {
             if (std::get<0>(v) == "Ionisation")
             {
-
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto target_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
@@ -88,7 +87,7 @@ public:
             {
                 // NESOASSERT(false, "Recombination kernels not yet
                 // implemented");
-                auto test_normalised_potential_energy = 13.6;
+                auto normalised_potential_energy = 13.6;
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto neutral_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
@@ -99,27 +98,68 @@ public:
                 auto marker_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
                             this->species_map[std::get<1>(v)[0]].mass,
-                            this->species_map[std::get<1>(v)[0]].charge - 1,
-                            std::get<1>(v)[0]);
+                            this->species_map[std::get<1>(v)[0]].charge,
+                            -1 - std::get<1>(v)[0]);
                 auto recomb_data = FixedRateData(1.0);
 
                 auto data1 = FixedRateData(1.0);
                 auto data2 = FixedRateData(-1.0);
 
                 auto data_calculator =
-                    DataCalculator<FixedRateData, FixedRateData>(particle_spec,
-                                                                 data1, data2);
+                    DataCalculator<FixedRateData, FixedRateData, FixedRateData>(
+                        particle_spec, data1, data1, data2);
 
-                auto reaction = Recombination<decltype(recomb_data),
-                                              decltype(data_calculator)>(
-                    this->particle_group->sycl_target,
-                    Sym<REAL>("TOT_REACTION_RATE"), Sym<REAL>("WEIGHT"),
-                    recomb_data, data_calculator, marker_species,
-                    electron_species, neutral_species, this->particle_spec,
-                    test_normalised_potential_energy);
-
-                this->reaction_controller->add_reaction(
-                    std::make_shared<decltype(reaction)>(reaction));
+                if (this->ndim == 2)
+                {
+                    auto recomb_reaction_kernel = RecombReactionKernels<2>(
+                        marker_species, electron_species,
+                        normalised_potential_energy);
+                    auto reaction =
+                        LinearReactionBase<1, decltype(recomb_data),
+                                           decltype(recomb_reaction_kernel),
+                                           decltype(data_calculator)>(
+                            particle_group->sycl_target,
+                            Sym<REAL>(
+                                prop_map[default_properties.tot_reaction_rate]),
+                            Sym<REAL>(prop_map[default_properties.weight]),
+                            marker_species.get_id(),
+                            std::array<int, 1>{
+                                static_cast<int>(neutral_species.get_id())},
+                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            data_calculator);
+                    // auto reaction = Recombination<decltype(recomb_data),
+                    //                               decltype(data_calculator)>(
+                    //     this->particle_group->sycl_target,
+                    //     Sym<REAL>(prop_map[default_properties.tot_reaction_rate]),
+                    //     Sym<REAL>(prop_map[default_properties.weight]),
+                    //     recomb_data, data_calculator, marker_species,
+                    //     electron_species, neutral_species,
+                    //     this->particle_spec,
+                    //     normalised_potential_energy);
+                    this->reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
+                else if (this->ndim == 3)
+                {
+                    auto recomb_reaction_kernel = RecombReactionKernels<3>(
+                        marker_species, electron_species,
+                        normalised_potential_energy);
+                    auto reaction =
+                        LinearReactionBase<1, decltype(recomb_data),
+                                           decltype(recomb_reaction_kernel),
+                                           decltype(data_calculator)>(
+                            particle_group->sycl_target,
+                            Sym<REAL>(
+                                prop_map[default_properties.tot_reaction_rate]),
+                            Sym<REAL>(prop_map[default_properties.weight]),
+                            marker_species.get_id(),
+                            std::array<int, 1>{
+                                static_cast<int>(neutral_species.get_id())},
+                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            data_calculator);
+                    this->reaction_controller->add_reaction(
+                        std::make_shared<decltype(reaction)>(reaction));
+                }
             }
 
             else if (std::get<0>(v) == "ChargeExchange")
@@ -146,9 +186,8 @@ public:
                 {
                     auto cx_kernel = CXReactionKernels<2>(
                         target_species, projectile_species, prop_map);
-
                     auto reaction = LinearReactionBase<
-                        1, FixedRateData, CXReactionKernels<2>,
+                        1, FixedRateData, decltype(cx_kernel),
                         DataCalculator<FixedRateData, FixedRateData>>(
                         this->particle_group->sycl_target,
                         Sym<REAL>(
@@ -166,9 +205,8 @@ public:
                 {
                     auto cx_kernel = CXReactionKernels<3>(
                         target_species, projectile_species, prop_map);
-
                     auto reaction = LinearReactionBase<
-                        1, FixedRateData, CXReactionKernels<3>,
+                        1, FixedRateData, decltype(cx_kernel),
                         DataCalculator<FixedRateData, FixedRateData>>(
                         this->particle_group->sycl_target,
                         Sym<REAL>(
@@ -222,17 +260,18 @@ public:
                 remove_transform));
 
         std::shared_ptr<TransformationStrategy> merge_transform;
-        if (this->ndim == 3)
-        {
-            merge_transform =
-                make_transformation_strategy<MergeTransformationStrategy<3>>(
-                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
-                    Sym<REAL>("VELOCITY"));
-        }
-        else if (this->ndim == 2)
+
+        if (this->ndim == 2)
         {
             merge_transform =
                 make_transformation_strategy<MergeTransformationStrategy<2>>(
+                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
+                    Sym<REAL>("VELOCITY"));
+        }
+        else if (this->ndim == 3)
+        {
+            merge_transform =
+                make_transformation_strategy<MergeTransformationStrategy<3>>(
                     Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
                     Sym<REAL>("VELOCITY"));
         }

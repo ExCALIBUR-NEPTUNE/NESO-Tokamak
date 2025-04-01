@@ -236,19 +236,23 @@ void DoubleDiffusiveField::v_ExtraFldOutput(
     TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
     const int nPhys   = m_fields[0]->GetNpoints();
     const int nCoeffs = m_fields[0]->GetNcoeffs();
-    for (auto s : this->particle_sys->get_species())
+    if (this->particles_enabled)
     {
-        variables.push_back(s.second.name + "_SOURCE_DENSITY");
-        Array<OneD, NekDouble> SrcFwd1(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->density_src_fields[s.first]->GetPhys(), SrcFwd1);
-        fieldcoeffs.push_back(SrcFwd1);
+        int i = 0;
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            variables.push_back(v.name + "_SOURCE_DENSITY");
+            Array<OneD, NekDouble> SrcFwd1(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(
+                this->density_src_fields[i]->GetPhys(), SrcFwd1);
+            fieldcoeffs.push_back(SrcFwd1);
 
-        variables.push_back(s.second.name + "_SOURCE_ENERGY");
-        Array<OneD, NekDouble> SrcFwd2(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->energy_src_fields[s.first]->GetPhys(), SrcFwd2);
-        fieldcoeffs.push_back(SrcFwd2);
+            variables.push_back(v.name + "_SOURCE_ENERGY");
+            Array<OneD, NekDouble> SrcFwd2(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(
+                this->energy_src_fields[i]->GetPhys(), SrcFwd2);
+            fieldcoeffs.push_back(SrcFwd2);
+        }
     }
 }
 } // namespace NESO::Solvers::tokamak

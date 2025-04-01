@@ -28,14 +28,6 @@ SingleDiffusiveField::SingleDiffusiveField(
     : TokamakSystem(session, graph)
 {
     this->required_fld_names = {"n"};
-
-    // if (this->particles_enabled)
-    // {
-    //     for (auto &[k, v] : particle_sys->get_species())
-    //     {
-    //         this->required_fld_names.push_back(v.name + "_src");
-    //     }
-    // }
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
@@ -98,7 +90,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
         }
 
         this->particle_sys->finish_setup(this->src_fields, src_syms,
-                                          src_components);
+                                         src_components);
     }
 }
 void SingleDiffusiveField::ImplicitTimeIntCG(
@@ -282,9 +274,10 @@ void SingleDiffusiveField::v_ExtraFldOutput(
     TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
     const int nPhys   = m_fields[0]->GetNpoints();
     const int nCoeffs = m_fields[0]->GetNcoeffs();
-    int i             = 0;
+
     if (this->particles_enabled)
     {
+        int i = 0; 
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             variables.push_back(v.name + "_SOURCE_DENSITY");
