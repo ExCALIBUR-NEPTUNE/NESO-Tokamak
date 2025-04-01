@@ -8,6 +8,7 @@ using namespace Reactions;
 
 namespace NESO::Solvers::tokamak
 {
+
 class ReactionSystem : public ParticleSystem
 {
 
@@ -34,6 +35,10 @@ public:
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
 
+    inline void project_source_terms() override
+    {
+    }
+
     inline void set_up_reactions()
     {
         auto prop_map = default_map;
@@ -46,9 +51,9 @@ public:
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto target_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
-                            std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
-                            this->species_map[std::get<1>(v)[0]].charge);
+                            this->species_map[std::get<1>(v)[0]].charge,
+                            std::get<1>(v)[0]);
 
                 auto test_data = FixedRateData(1.0);
                 if (this->ndim == 2)
@@ -60,7 +65,8 @@ public:
                             prop_map[default_properties.tot_reaction_rate]),
                         Sym<REAL>(prop_map[default_properties.weight]),
                         test_data, test_data, target_species, electron_species,
-                        particle_spec);
+                        this->particle_spec);
+
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
                 }
@@ -73,7 +79,7 @@ public:
                             prop_map[default_properties.tot_reaction_rate]),
                         Sym<REAL>(prop_map[default_properties.weight]),
                         test_data, test_data, target_species, electron_species,
-                        particle_spec);
+                        this->particle_spec);
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
                 }
@@ -86,15 +92,15 @@ public:
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto neutral_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
-                            std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
-                            this->species_map[std::get<1>(v)[0]].charge);
+                            this->species_map[std::get<1>(v)[0]].charge,
+                            std::get<1>(v)[0]);
 
                 auto marker_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
-                            std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
-                            this->species_map[std::get<1>(v)[0]].charge - 1);
+                            this->species_map[std::get<1>(v)[0]].charge - 1,
+                            std::get<1>(v)[0]);
                 auto recomb_data = FixedRateData(1.0);
 
                 auto data1 = FixedRateData(1.0);
@@ -109,7 +115,7 @@ public:
                     this->particle_group->sycl_target,
                     Sym<REAL>("TOT_REACTION_RATE"), Sym<REAL>("WEIGHT"),
                     recomb_data, data_calculator, marker_species,
-                    electron_species, neutral_species, particle_spec,
+                    electron_species, neutral_species, this->particle_spec,
                     test_normalised_potential_energy);
 
                 this->reaction_controller->add_reaction(
@@ -120,14 +126,14 @@ public:
             {
                 auto projectile_species =
                     Species(this->species_map[std::get<1>(v)[0]].name,
-                            std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
-                            this->species_map[std::get<1>(v)[0]].charge);
+                            this->species_map[std::get<1>(v)[0]].charge,
+                            std::get<1>(v)[0]);
                 auto target_species =
                     Species(this->species_map[std::get<1>(v)[1]].name,
-                            std::get<1>(v)[1],
                             this->species_map[std::get<1>(v)[1]].mass,
-                            this->species_map[std::get<1>(v)[1]].charge);
+                            this->species_map[std::get<1>(v)[1]].charge,
+                            std::get<1>(v)[1]);
 
                 auto rate_data    = FixedRateData(1.0);
                 auto vx_beam_data = FixedRateData(1.0);
@@ -151,7 +157,8 @@ public:
                         projectile_species.get_id(),
                         std::array<int, 1>{
                             static_cast<int>(target_species.get_id())},
-                        rate_data, cx_kernel, particle_spec, data_calculator);
+                        rate_data, cx_kernel, this->particle_spec,
+                        data_calculator);
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
                 }
@@ -170,7 +177,8 @@ public:
                         projectile_species.get_id(),
                         std::array<int, 1>{
                             static_cast<int>(target_species.get_id())},
-                        rate_data, cx_kernel, particle_spec, data_calculator);
+                        rate_data, cx_kernel, this->particle_spec,
+                        data_calculator);
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
                 }
@@ -199,9 +207,10 @@ public:
         auto project_transform = std::make_shared<ProjectTransformation>(
             src_fields, this->src_syms, this->src_components,
             this->particle_group, this->cell_id_translation);
-        auto project_transform_wrapper = std::make_shared<TransformationWrapper>(
-            std::dynamic_pointer_cast<TransformationStrategy>(
-                project_transform));
+        auto project_transform_wrapper =
+            std::make_shared<TransformationWrapper>(
+                std::dynamic_pointer_cast<TransformationStrategy>(
+                    project_transform));
 
         auto remove_transform =
             std::make_shared<SimpleRemovalTransformationStrategy>();
@@ -212,10 +221,22 @@ public:
             std::dynamic_pointer_cast<TransformationStrategy>(
                 remove_transform));
 
-        auto merge_transform =
-            make_transformation_strategy<MergeTransformationStrategy<3>>(
-                Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
-                Sym<REAL>("VELOCITY"));
+        std::shared_ptr<TransformationStrategy> merge_transform;
+        if (this->ndim == 3)
+        {
+            merge_transform =
+                make_transformation_strategy<MergeTransformationStrategy<3>>(
+                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
+                    Sym<REAL>("VELOCITY"));
+        }
+        else if (this->ndim == 2)
+        {
+            merge_transform =
+                make_transformation_strategy<MergeTransformationStrategy<2>>(
+                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
+                    Sym<REAL>("VELOCITY"));
+        }
+
         auto merge_transform_wrapper = std::make_shared<TransformationWrapper>(
             std::vector<std::shared_ptr<MarkingStrategy>>{make_marking_strategy<
                 ComparisonMarkerSingle<REAL, LessThanComp>>(Sym<REAL>("WEIGHT"),
@@ -224,19 +245,19 @@ public:
 
         this->reaction_controller = std::make_shared<ReactionController>(
             std::vector<std::shared_ptr<TransformationWrapper>>{
-                remove_transform_wrapper, merge_transform_wrapper},
+                merge_transform_wrapper, remove_transform_wrapper},
             std::vector<std::shared_ptr<TransformationWrapper>>{
-                project_transform_wrapper, remove_transform_wrapper,
-                merge_transform_wrapper},
+                project_transform_wrapper, merge_transform_wrapper,
+                remove_transform_wrapper},
             Sym<INT>("INTERNAL_STATE"), Sym<REAL>("TOT_REACTION_RATE"));
 
         set_up_reactions();
 
         init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
-                    Sym<INT>("CELL_ID"), Sym<REAL>("VELOCITY"), Sym<REAL>("B0"),
-                    Sym<REAL>("B1"), Sym<REAL>("B2"),
-                    Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
-                    Sym<REAL>("COMPUTATIONAL_WEIGHT"), Sym<INT>("PARTICLE_ID"));
+                    Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
+                    Sym<REAL>("VELOCITY"), Sym<REAL>("B0"), Sym<REAL>("B1"),
+                    Sym<REAL>("B2"), Sym<REAL>("ELECTRON_DENSITY"),
+                    this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"));
     }
 
 protected:
