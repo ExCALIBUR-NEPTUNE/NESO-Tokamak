@@ -111,18 +111,22 @@
             <S ID="0" NAME="Ar">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 1 </P>
-                <FUNCTION NAME = "InitialDistribution">
+                <INITIAL N="1">
                     <E VAR="n" VALUE="sin(x)"/>
-                </FUNCTION>
+                </INITIAL>
+                <SOURCE N="1">
+                    <E VAR="n" VALUE="sin(x)"/>
+                </SOURCE>
             </S>
             <S ID="1" NAME="Ne">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
-                <P> Number = 1 </P>
-                <FUNCTION NAME = "InitialDistribution">
+                <INITIAL N="1">
                     <E VAR="n" VALUE="sin(x)"/>
-                </FUNCTION>
+                </INITIAL>
+                <SOURCE N="1">
+                    <E VAR="n" VALUE="sin(x)"/>
+                </SOURCE>
             </S>
         </SPECIES>
 

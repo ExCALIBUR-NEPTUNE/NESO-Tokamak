@@ -167,9 +167,9 @@ public:
         while (time_tmp < time_end)
         {
             const double dt_inner = std::min(dt, time_end - time_tmp);
-            // this->integrate_inner(dt_inner);
-            apply_timestep(static_particle_sub_group(this->particle_group),
-                           dt_inner);
+            this->add_sources(time_tmp, dt_inner);
+            this->apply_timestep(
+                static_particle_sub_group(this->particle_group), dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -199,6 +199,8 @@ public:
                     Sym<REAL>("B2"), Sym<REAL>("ELECTRON_DENSITY"),
                     this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"));
     }
+
+    void add_sources(double time, double dt);
 
     /**
      *  Project the plasma source and momentum contributions from particle data
@@ -530,6 +532,7 @@ protected:
         // ionise(dt_inner);
     };
 
+    uint64_t total_num_particles_added;
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 

@@ -37,6 +37,7 @@ public:
 
     inline void project_source_terms() override
     {
+        // Do nothing since projection is handled by the ProjectTransformation
     }
 
     inline void set_up_reactions()
