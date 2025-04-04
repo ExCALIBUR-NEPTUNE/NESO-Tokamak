@@ -203,10 +203,10 @@ void TokamakSystem::ReadMagneticField(NekDouble time)
     this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (d = 0; d < 3; ++d)
     {
-        B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        this->B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        B[d]->UpdatePhys() = B_in[d];
-        B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
+        this->B[d]->UpdatePhys() = B_in[d];
+        this->B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
     }
 
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
@@ -327,32 +327,32 @@ void TokamakSystem::v_ExtraFldOutput(
 
         variables.push_back("Bx");
         Array<OneD, NekDouble> BxFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[0]->GetPhys(), BxFwd);
         fieldcoeffs.push_back(BxFwd);
 
         variables.push_back("By");
         Array<OneD, NekDouble> ByFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[1]->GetPhys(), ByFwd);
         fieldcoeffs.push_back(ByFwd);
 
         variables.push_back("Bz");
         Array<OneD, NekDouble> BzFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[2]->GetPhys(), BzFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[2]->GetPhys(), BzFwd);
         fieldcoeffs.push_back(BzFwd);
 
         variables.push_back("Ex");
         Array<OneD, NekDouble> ExFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[0]->GetPhys(), ExFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[0]->GetPhys(), ExFwd);
         fieldcoeffs.push_back(ExFwd);
 
         variables.push_back("Ey");
         Array<OneD, NekDouble> EyFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[1]->GetPhys(), EyFwd);
         fieldcoeffs.push_back(EyFwd);
 
         variables.push_back("Ez");
         Array<OneD, NekDouble> EzFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[2]->GetPhys(), EzFwd);
         fieldcoeffs.push_back(EzFwd);
     }
     m_session->MatchSolverInfo("OutputPartitions", "True", extraFields, false);
@@ -513,8 +513,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms(this->src_syms,
-                                                 this->components);
+        this->particle_sys->project_source_terms();
     }
 
     return UnsteadySystem::v_PreIntegrate(step);
