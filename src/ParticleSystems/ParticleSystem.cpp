@@ -9,14 +9,14 @@ std::string ParticleSystem::class_name =
 
 ParticleSystem::ParticleSystem(ParticleReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph, MPI_Comm comm)
-    : PartSysBase(session, graph, comm), simulation_time(0.0) {
-      };
+    : PartSysBase(session, graph, comm), simulation_time(0.0) {};
 
 void ParticleSystem::set_up_species()
 {
     // get seed from file
     std::srand(std::time(nullptr));
     int seed;
+
     this->config->load_parameter("particle_position_seed", seed, std::rand());
     double particle_B_scaling;
     this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
@@ -27,85 +27,271 @@ void ParticleSystem::set_up_species()
     double particle_velocity_B_scaling;
     this->config->load_parameter("particle_velocity_B_scaling",
                                  particle_velocity_B_scaling, 0.0);
+    const long rank = this->sycl_target->comm_pair.rank_parent;
+    std::mt19937 rng_phasespace(seed + rank);
+    for (const auto &[k, v] : this->config->get_species())
+    {
+        std::string name = std::get<0>(v);
+        double particle_mass, particle_charge;
+        this->config->load_species_parameter(k, "Mass", particle_mass);
+        this->config->load_species_parameter(k, "Charge", particle_charge);
+        int particle_number = this->config->get_species_initial_N(k);
+
+        if (particle_number > 0)
+        {
+            std::vector<std::vector<double>> positions, velocities;
+            std::vector<int> cells;
+            auto neqn = this->config->get_species_initial(k, "n");
+            rng_phasespace =
+                dist_within_extents(this->graph, neqn, 0, particle_number,
+                                    positions, cells, 1.0e-10, rng_phasespace);
+            // auto veqn  = this->config->get_species_initial(k, "v");
+            int N         = cells.size();
+            int id_offset = 0;
+            MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM,
+                              this->sycl_target->comm));
+            if (N > 0)
+            {
+
+                velocities = NESO::Particles::normal_distribution(
+                    N, this->ndim, 0.0, particle_thermal_velocity,
+                    rng_phasespace);
+                ParticleSet initial_distribution(
+                    N, this->particle_group->get_particle_spec());
+
+                for (int px = 0; px < N; px++)
+                {
+                    for (int dimx = 0; dimx < this->graph->GetMeshDimension();
+                         dimx++)
+                    {
+                        initial_distribution[Sym<REAL>("POSITION")][px][dimx] =
+                            positions[dimx][px];
+                        initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
+                            velocities[dimx][px];
+
+                        initial_distribution[Sym<REAL>(
+                            "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
+                    }
+                    initial_distribution[Sym<REAL>("Q")][px][0] =
+                        particle_charge;
+                    initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
+                    initial_distribution[Sym<INT>("ID")][px][0] =
+                        px + id_offset + this->total_num_particles_added;
+                    initial_distribution[Sym<INT>("CELL_ID")][px][0] =
+                        cells.at(px);
+                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = 1.0;
+                    initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
+                                        [0] = 0.0;
+                    initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
+                        0.0;
+                    initial_distribution[Sym<REAL>("ELECTRON_SOURCE_ENERGY")]
+                                        [px][0] = 0.0;
+                    initial_distribution[Sym<REAL>("ELECTRON_SOURCE_DENSITY")]
+                                        [px][0] = 0.0;
+                }
+
+                this->particle_group->add_particles_local(initial_distribution);
+                this->total_num_particles_added += N;
+            }
+        }
+
+        int s = k;
+        ParticleSubGroupSharedPtr sub_group =
+            std::make_shared<ParticleSubGroup>(
+                this->particle_group, [s](auto sid) { return sid[0] == s; },
+                Access::read(Sym<INT>("INTERNAL_STATE")));
+        species_map[k] =
+            SpeciesInfo{name, particle_mass, particle_charge, sub_group};
+    }
+}
+
+void ParticleSystem::add_sources(double time, double dt)
+{
+    // get seed from file
+    std::srand(std::time(nullptr));
+    int seed;
+
+    this->config->load_parameter("particle_position_seed", seed, std::rand());
+    double particle_B_scaling;
+    this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
+
+    double particle_thermal_velocity;
+    this->config->load_parameter("particle_thermal_velocity",
+                                 particle_thermal_velocity, 0.0);
+    double particle_velocity_B_scaling;
+    this->config->load_parameter("particle_velocity_B_scaling",
+                                 particle_velocity_B_scaling, 0.0);
+    const long rank = this->sycl_target->comm_pair.rank_parent;
+    std::mt19937 rng_phasespace(seed + rank);
 
     for (const auto &[k, v] : this->config->get_species())
     {
         std::string name = std::get<0>(v);
-        double particle_mass, particle_charge, particle_number;
-        this->config->load_species_parameter(k, "Mass", particle_mass);
-        this->config->load_species_parameter(k, "Charge", particle_charge);
-        this->config->load_species_parameter(k, "Number", particle_number);
-        long rstart, rend;
-        const long size = this->sycl_target->comm_pair.size_parent;
-        const long rank = this->sycl_target->comm_pair.rank_parent;
-        get_decomp_1d(size, (long)particle_number, rank, &rstart, &rend);
-        // const long N = rend - rstart;
-        std::mt19937 rng_phasespace(seed + rank);
 
-        this->particle_remover =
-            std::make_shared<ParticleRemover>(this->sycl_target);
-        // Report param values (later in the initialisation)
-        report_param("Random seed", seed);
-        report_param("Mass", particle_mass);
-        report_param("Charge", particle_charge);
-        report_param("Thermal velocity", particle_thermal_velocity);
-        report_param("B scaling", particle_B_scaling);
-        report_param("Velocity scaling", particle_velocity_B_scaling);
-        std::vector<std::vector<double>> positions, velocities;
-        std::normal_distribution d{0.0, particle_thermal_velocity};
+        double particle_mass   = species_map[k].mass;
+        double particle_charge = species_map[k].charge;
 
-        // positions = NESO::Particles::normal_distribution(N, this->ndim, 0,
-        // 0.05,
-        //                                                  rng_phasespace);
-        std::vector<int> cells;
-
-        rng_phasespace = uniform_within_elements(
-            graph, particle_number, positions, cells, 1.0e-10, rng_phasespace);
-
-        std::vector<double> offsets = {1, 0.0, 0.0};
-        const long N                = cells.size();
-        velocities                  = NESO::Particles::normal_distribution(
-            N, this->ndim, 0.0, particle_thermal_velocity, rng_phasespace);
-        int id_offset = 0;
-        MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD));
-        if (N > 0)
+        for (auto &source : this->config->get_species_sources(k))
         {
-            ParticleSet initial_distribution(
-                N, this->particle_group->get_particle_spec());
-
-            for (int px = 0; px < N; px++)
+            int particle_number = source.first;
+            if (particle_number > 0)
             {
-                for (int dimx = 0; dimx < this->graph->GetMeshDimension();
-                     dimx++)
+                std::vector<std::vector<double>> positions, velocities;
+                std::vector<int> cells;
+                LU::EquationSharedPtr neqn =
+                    source.second.at(std::pair("n", 0)).m_expression;
+                rng_phasespace = dist_within_extents(
+                    this->graph, neqn, time, particle_number, positions, cells,
+                    1.0e-10, rng_phasespace);
+                // auto veqn  = this->config->get_species_initial(k, "v");
+                int N         = cells.size();
+                int id_offset = 0;
+                MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM,
+                                  this->sycl_target->comm));
+                if (N > 0)
                 {
-                    // Create the position in dimx
 
-                    const REAL pos_tmp =
-                        /*offsets[dimx] + */ positions[dimx][px];
-                    initial_distribution[Sym<REAL>("POSITION")][px][dimx] =
-                        pos_tmp;
-                    initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
-                        velocities[dimx][px];
+                    velocities = NESO::Particles::normal_distribution(
+                        N, this->ndim, 0.0, particle_thermal_velocity,
+                        rng_phasespace);
+                    ParticleSet src_distribution(
+                        N, this->particle_group->get_particle_spec());
+
+                    for (int px = 0; px < N; px++)
+                    {
+                        for (int dimx = 0;
+                             dimx < this->graph->GetMeshDimension(); dimx++)
+                        {
+                            src_distribution[Sym<REAL>("POSITION")][px][dimx] =
+                                positions[dimx][px];
+                            src_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
+                                velocities[dimx][px];
+
+                            src_distribution[Sym<REAL>(
+                                "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
+                        }
+                        src_distribution[Sym<REAL>("Q")][px][0] =
+                            particle_charge;
+                        src_distribution[Sym<REAL>("M")][px][0] = particle_mass;
+                        src_distribution[Sym<INT>("ID")][px][0] =
+                            px + id_offset + this->total_num_particles_added;
+                        src_distribution[Sym<INT>("CELL_ID")][px][0] =
+                            cells.at(px);
+                        src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 1.0;
+                        src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
+                                        [0] = 0.0;
+                        src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
+                            0.0;
+                        src_distribution[Sym<REAL>("ELECTRON_SOURCE_ENERGY")]
+                                        [px][0] = 0.0;
+                        src_distribution[Sym<REAL>("ELECTRON_SOURCE_DENSITY")]
+                                        [px][0] = 0.0;
+                    }
+
+                    this->particle_group->add_particles_local(src_distribution);
+                    this->total_num_particles_added += N;
                 }
-                initial_distribution[Sym<REAL>("Q")][px][0] = particle_charge;
-                initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
-                initial_distribution[Sym<INT>("PARTICLE_ID")][px][0] =
-                    px + id_offset;
-                initial_distribution[Sym<INT>("CELL_ID")][px][0] = cells.at(px);
-                initial_distribution[Sym<INT>("SPECIES")][px][0] = k;
-                initial_distribution[Sym<REAL>("COMPUTATIONAL_WEIGHT")][px][0] =
-                    1.0;
             }
-
-            this->particle_group->add_particles_local(initial_distribution);
         }
+        int s = k;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
-                this->particle_group, [k](auto sid) { return sid[0] == k; },
-                Access::read(Sym<INT>("SPECIES")));
+                this->particle_group, [s](auto sid) { return sid[0] == s; },
+                Access::read(Sym<INT>("INTERNAL_STATE")));
         species_map[k] =
             SpeciesInfo{name, particle_mass, particle_charge, sub_group};
     }
+}
+
+void ParticleSystem::add_sinks(double time, double dt)
+{
+    // get seed from file
+    std::srand(std::time(nullptr));
+    int seed;
+
+    const long rank = this->sycl_target->comm_pair.rank_parent;
+    std::mt19937 rng_phasespace(seed + rank);
+
+    std::uniform_real_distribution<> rng_dist(0, 1);
+
+    Array<OneD, Array<OneD, NekDouble>> posarr(3);
+    for (int dimx = 0; dimx < 3; dimx++)
+    {
+        posarr[dimx] = Array<OneD, NekDouble>(
+            this->particle_group->get_npart_local(), 0.0);
+    }
+
+    // for each cell
+    const int cell_count = this->domain->mesh->get_cell_count();
+    for (int particle_index = 0, cellx = 0; cellx < cell_count; cellx++)
+    {
+        // for each particle in the cell
+
+        auto cells =
+            (*particle_group)[Sym<INT>("CELL_ID")]->cell_dat.get_cell(cellx);
+        const int nrow = cells->nrow;
+        // many cells will be empty so we check before issuing more
+        // copies
+        if (nrow > 0)
+        {
+            auto phys_positions =
+                (*particle_group)[Sym<REAL>("POSITION")]->cell_dat.get_cell(
+                    cellx);
+
+            for (int rowx = 0; rowx < nrow; rowx++)
+            {
+                // copy the particle data into the store of points
+                for (int dimx = 0; dimx < ndim; dimx++)
+                {
+                    posarr[dimx][particle_index] =
+                        (*phys_positions)[dimx][rowx];
+                }
+                particle_index++;
+            }
+        }
+    }
+    for (const auto &[k, v] : this->config->get_species())
+    {
+        for (auto &sink : this->config->get_species_sinks(k))
+        {
+            LU::EquationSharedPtr neqn =
+                sink.at(std::pair("n", 0)).m_expression;
+            Array<OneD, NekDouble> eqnarr(
+                this->particle_group->get_npart_local());
+
+            neqn->Evaluate(posarr[0], posarr[1], posarr[2], time, eqnarr);
+
+            for (int particle_index = 0, cellx = 0; cellx < cell_count; cellx++)
+            {
+                auto cells =
+                    (*particle_group)[Sym<INT>("CELL_ID")]->cell_dat.get_cell(
+                        cellx);
+                const int nrow = cells->nrow;
+                if (nrow > 0)
+                {
+                    auto id =
+                        (*particle_group)[Sym<INT>("ID")]->cell_dat.get_cell(
+                            cellx);
+                    auto is = (*particle_group)[Sym<INT>("INTERNAL_STATE")]
+                                  ->cell_dat.get_cell(cellx);
+                    for (int rowx = 0; rowx < nrow; rowx++)
+                    {
+                        if (eqnarr[particle_index] > rng_dist(rng_phasespace) &&
+                            k == (*is)[0][rowx])
+                        {
+                            (*id)[0][rowx] = particle_remove_key;
+                        }
+                        particle_index++;
+                    }
+                    (*particle_group)[Sym<INT>("ID")]->cell_dat.set_cell(cellx,
+                                                                         id);
+                }
+            }
+        }
+    }
+    remove_marked_particles();
 }
 
 void ParticleSystem::set_up_boundaries()
