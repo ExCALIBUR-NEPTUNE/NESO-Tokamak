@@ -35,10 +35,10 @@ public:
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
 
-    inline void project_source_terms() override
-    {
-        // Do nothing since projection is handled by the ProjectTransformation
-    }
+    // inline void project_source_terms() override
+    // {
+    // // Do nothing since projection is handled by the ProjectTransformation
+    // }
 
     inline void set_up_reactions()
     {
@@ -241,8 +241,12 @@ public:
         std::vector<std::shared_ptr<DisContField>> &src_fields,
         std::vector<Sym<REAL>> &syms, std::vector<int> &components) override
     {
-        this->src_syms         = syms;
-        this->src_components   = components;
+        this->src_syms       = syms;
+        this->src_components = components;
+
+        this->field_project = std::make_shared<FieldProject<DisContField>>(
+            src_fields, this->particle_group, this->cell_id_translation);
+
         auto project_transform = std::make_shared<ProjectTransformation>(
             src_fields, this->src_syms, this->src_components,
             this->particle_group, this->cell_id_translation);

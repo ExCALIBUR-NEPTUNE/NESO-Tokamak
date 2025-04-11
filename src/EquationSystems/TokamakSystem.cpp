@@ -480,11 +480,7 @@ bool TokamakSystem::v_PostIntegrate(int step)
     this->solver_callback_handler.call_post_integrate(this);
 
     // Writes a step of the particle trajectory.
-    if (this->particles_enabled && particle_output_freq > 0 &&
-        (step % particle_output_freq) == 0)
-    {
-        this->particle_sys->write(step + 1);
-    }
+
     return TimeEvoEqnSysBase<SU::UnsteadySystem,
                              ParticleSystem>::v_PostIntegrate(step);
 }
@@ -507,9 +503,9 @@ bool TokamakSystem::v_PreIntegrate(int step)
     {
         // Integrate the particle system to the requested time.
         this->particle_sys->evaluate_fields();
-        if (step == 0)
+        if (particle_output_freq > 0 && (step % particle_output_freq) == 0)
         {
-            this->particle_sys->write(0);
+            this->particle_sys->write(step);
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);

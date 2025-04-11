@@ -168,8 +168,9 @@ public:
         {
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
-            this->apply_timestep(
-                static_particle_sub_group(this->particle_group), dt_inner);
+            this->add_sinks(time_tmp, dt_inner);
+            this->apply_timestep(particle_sub_group(this->particle_group),
+                                 dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -197,10 +198,11 @@ public:
                     Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
                     Sym<REAL>("VELOCITY"), Sym<REAL>("B0"), Sym<REAL>("B1"),
                     Sym<REAL>("B2"), Sym<REAL>("ELECTRON_DENSITY"),
-                    this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"));
+                    this->src_syms, Sym<INT>("ID"));
     }
 
     void add_sources(double time, double dt);
+    void add_sinks(double time, double dt);
 
     /**
      *  Project the plasma source and momentum contributions from particle data
@@ -532,7 +534,8 @@ protected:
         // ionise(dt_inner);
     };
 
-    uint64_t total_num_particles_added;
+    uint64_t total_num_particles_added = 0;
+    ;
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
@@ -585,7 +588,7 @@ protected:
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
     {
-        return static_particle_sub_group(
+        return particle_sub_group(
             this->particle_group, [=](auto TSP) { return TSP.at(0) < dt; },
             Access::read(Sym<REAL>("TSP")));
     };
