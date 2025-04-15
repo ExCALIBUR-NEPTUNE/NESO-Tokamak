@@ -5,11 +5,11 @@
 spack:
   # add package specs to the `specs` list
   specs:
-  - neso-tokamak%gcc
-  - neso-tokamak%oneapi
+  - neso-tokamak%gcc ^adaptivecpp
+  - neso-tokamak%oneapi ^dpcpp
   view:
     gcc-adaptivecpp:
-      root: views/adaptivecpp
+      root: views/gcc-adaptivecpp
       select: ['%gcc']
       link_type: symlink
     oneapi:
