@@ -248,7 +248,7 @@ void TokamakSystem::load_params()
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
-                              "Upwind");
+                              "MultiFieldUpwind");
 
     // Particle-related parameters
     m_session->LoadParameter("particle_output_freq", particle_output_freq, 0);

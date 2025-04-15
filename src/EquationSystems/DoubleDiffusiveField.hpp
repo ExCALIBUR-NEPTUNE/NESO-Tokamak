@@ -74,9 +74,6 @@ protected:
     NekDouble m_gamma;
     NekDouble m_k_B;
 
-    std::vector<MR::DisContFieldSharedPtr> density_src_fields;
-    std::vector<MR::DisContFieldSharedPtr> energy_src_fields;
-
     VariableConverterSharedPtr m_varConv;
 };
 

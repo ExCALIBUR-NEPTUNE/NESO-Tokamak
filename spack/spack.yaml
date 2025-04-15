@@ -5,8 +5,8 @@
 spack:
   # add package specs to the `specs` list
   specs:
-  - neso-tokamak%gcc ^adaptivecpp
-  - neso-tokamak%oneapi ^dpcpp
+  - neso-tokamak%gcc ^adaptivecpp ^neso+libonly ^neso-particles~build_tests
+  - neso-tokamak%oneapi ^dpcpp ^neso+libonly ^neso-particles~build_tests
   view:
     gcc-adaptivecpp:
       root: views/gcc-adaptivecpp

@@ -53,26 +53,39 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 
     if (this->particles_enabled)
     {
+        std::vector<Sym<REAL>> src_syms;
+        std::vector<int> src_components;
         this->src_fields.emplace_back(
             MemoryManager<MR::DisContField>::AllocateSharedPtr(
                 *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-        this->src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
-        this->components.push_back(0);
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
+        src_components.push_back(0);
+
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGYY"));
+        src_components.push_back(0);
 
         for (auto &[k, v] : this->particle_sys->get_species())
         {
-            this->energy_src_fields.emplace_back(
+            this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
 
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
+
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+            src_components.push_back(0);
         }
-        std::vector<MR::DisContFieldSharedPtr> src_fields =
-            this->density_src_fields;
-        src_fields.insert(src_fields.end(), this->energy_src_fields.begin(),
-                          this->energy_src_fields.end());
-        this->particle_sys->setup_project(src_fields);
+
+        this->particle_sys->finish_setup(this->src_fields, src_syms,
+                                         src_components);
     }
 }
 
@@ -177,10 +190,9 @@ void DoubleDiffusiveField::DoOdeRhs(
         for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
             Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
-                        this->density_src_fields[i]->GetPhys(), 1, out_arr[0],
-                        1);
+                        this->src_fields[2 * i]->GetPhys(), 1, out_arr[0], 1);
             Vmath::Vadd(out_arr[1].size(), out_arr[1], 1,
-                        this->energy_src_fields[i]->GetPhys(), 1, out_arr[1],
+                        this->src_fields[2 * i + 1]->GetPhys(), 1, out_arr[1],
                         1);
         }
     }
@@ -332,19 +344,21 @@ void DoubleDiffusiveField::v_ExtraFldOutput(
 
         if (this->particles_enabled)
         {
+            int i = 0;
             for (auto s : this->particle_sys->get_species())
             {
                 variables.push_back(s.second.name + "_SOURCE_DENSITY");
                 Array<OneD, NekDouble> SrcFwd1(nCoeffs);
                 m_fields[0]->FwdTransLocalElmt(
-                    this->density_src_fields[s.first]->GetPhys(), SrcFwd1);
+                    this->src_fields[2 * i + 2]->GetPhys(), SrcFwd1);
                 fieldcoeffs.push_back(SrcFwd1);
 
                 variables.push_back(s.second.name + "_SOURCE_ENERGY");
                 Array<OneD, NekDouble> SrcFwd2(nCoeffs);
                 m_fields[0]->FwdTransLocalElmt(
-                    this->energy_src_fields[s.first]->GetPhys(), SrcFwd2);
+                    this->src_fields[2 * i + 3]->GetPhys(), SrcFwd2);
                 fieldcoeffs.push_back(SrcFwd2);
+                ++i;
             }
         }
     }

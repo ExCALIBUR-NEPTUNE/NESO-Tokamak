@@ -52,11 +52,7 @@ protected:
 
     void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray);
 
-    Array<OneD, NekDouble> &GetAdvVelNorm(
-        Array<OneD, NekDouble> &trace_vel_norm,
-        const Array<OneD, Array<OneD, NekDouble>> &adv_vel);
-
-    Array<OneD, NekDouble> &GetAdvVelNormElec();
+    Array<OneD, Array<OneD, NekDouble>> &GetAdvVelNorm();
 
     // Advective Flux vector
     void GetFluxVector(
@@ -101,16 +97,19 @@ private:
     int num_ion_species;
 
     int omega_idx = 0;
-    int ne_idx = 1;
-    int ve_idx = 2;
-    int pe_idx = 3;
+    int ne_idx    = 1;
+    int ve_idx    = 2;
+    int pe_idx    = 3;
 
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
     std::vector<int> pi_idx;
 
-
     std::map<int, SpeciesInfo> species_map;
+
+    std::vector<int> ni_src_idx;
+    std::vector<int> vi_src_idx;
+    std::vector<int> pi_src_idx;
 
     /// Hasegawa-Wakatani α
     NekDouble alpha;
@@ -132,12 +131,14 @@ private:
     // Ion diagmagnetic velocities
     std::vector<Array<OneD, Array<OneD, NekDouble>>> v_di;
 
+    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel;
+
     StdRegions::VarCoeffMap m_phi_varcoeff;
 
     /// Whether the Boussinesq approximation is used for the vorticity
     bool m_boussinesq;
     /// Storage for component of ne advection velocity normal to trace elements
-    Array<OneD, NekDouble> norm_vel_elec;
+    Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;

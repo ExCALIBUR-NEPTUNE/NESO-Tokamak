@@ -64,41 +64,49 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
                                this);
     m_diffusion->InitObject(m_session, m_fields);
 
-    // Create storage for ExB vel
+    // Create storage for velocities
     int npts = GetNpoints();
 
     this->v_e_par = Array<OneD, NekDouble>(npts, 0.0);
-    for (int d = 0; d < m_graph->GetSpaceDimension(); ++d)
+    for (int d = 0; d < m_spacedim; ++d)
     {
-        this->v_ExB[d] = Array<OneD, NekDouble>(npts, 0.0);
-        this->v_de[d]  = Array<OneD, NekDouble>(npts, 0.0);
+        this->v_ExB[d]           = Array<OneD, NekDouble>(npts, 0.0);
+        this->v_de[d]            = Array<OneD, NekDouble>(npts, 0.0);
+        this->adv_vel[ne_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
     for (int s = 0; s < num_ion_species; ++s)
     {
         ni_idx.push_back(4 + 3 * s);
         vi_idx.push_back(5 + 3 * s);
         pi_idx.push_back(6 + 3 * s);
+
         this->v_i_par[s] = Array<OneD, NekDouble>(npts, 0.0);
         for (int d = 0; d < m_graph->GetSpaceDimension(); ++d)
         {
-            this->v_di[s][d] = Array<OneD, NekDouble>(npts, 0.0);
+            this->v_di[s][d]            = Array<OneD, NekDouble>(npts, 0.0);
+            this->adv_vel[ni_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
+            this->adv_vel[vi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
+            this->adv_vel[pi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
         }
     }
 
-    // Define the normal velocity fields.
-    // These are populated at each step (by reference) in calls to GetVnAdv()
     if (m_fields[0]->GetTrace())
     {
-        auto nTrace         = GetTraceNpoints();
-        this->norm_vel_elec = Array<OneD, NekDouble>(nTrace);
+        auto nTrace = GetTraceNpoints();
+        this->trace_vel_norm =
+            Array<OneD, Array<OneD, NekDouble>>(adv_vel.size());
+        for (int i = 0; i < this->trace_vel_norm.size(); ++i)
+        {
+            this->trace_vel_norm[i] = Array<OneD, NekDouble>(nTrace, 0.0);
+        }
     }
 
     // Create Riemann solvers (one per advection object) and set normal velocity
     // callback functions
     this->riemann_solver = SU::GetRiemannSolverFactory().CreateInstance(
         this->riemann_solver_type, m_session);
-    this->riemann_solver->SetScalar(
-        "Vn", &ElectrostaticTurbulence::GetAdvVelNormElec, this);
+    this->riemann_solver->SetVector(
+        "Vn", &ElectrostaticTurbulence::GetAdvVelNorm, this);
 
     // Setup advection object
     m_advection = SU::GetAdvectionFactory().CreateInstance(this->adv_type,
@@ -110,34 +118,63 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     if (this->particles_enabled)
     {
-        this->src_fields.emplace_back(
-            MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-        this->src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
-        this->components.push_back(0);
+        std::vector<Sym<REAL>> src_syms;
+        std::vector<int> src_components;
 
         this->src_fields.emplace_back(
             MemoryManager<MR::DisContField>::AllocateSharedPtr(
                 *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-        this->src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGY"));
-        this->components.push_back(0);
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
+        src_components.push_back(0);
 
-        for (auto &[k, v] : this->particle_sys->get_species())
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGY"));
+        src_components.push_back(0);
+
+        for (int d = 0; d < this->m_spacedim; ++d)
         {
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            this->src_syms.push_back(Sym<REAL>(v.name + "ION_SOURCE_DENSITY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_MOMENTUM"));
+            src_components.push_back(d);
+        }
+
+        int s = 0;
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            ni_src_idx.push_back((s + 1) * (2 + m_spacedim));
+            pi_src_idx.push_back((s + 1) * (2 + m_spacedim) + 1);
+            vi_src_idx.push_back((s + 1) * (2 + m_spacedim) + 2);
+
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
 
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
 
-            this->src_syms.push_back(Sym<REAL>(v.name + "ION_SOURCE_ENERGY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+            src_components.push_back(0);
+
+            for (int d = 0; d < this->m_spacedim; ++d)
+            {
+                this->src_fields.emplace_back(
+                    MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                        *std::dynamic_pointer_cast<MR::DisContField>(
+                            m_fields[0])));
+                src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_MOMENTUM"));
+                src_components.push_back(d);
+            }
+            ++s;
         }
-        this->particle_sys->setup_project(src_fields);
+        this->particle_sys->finish_setup(this->src_fields, src_syms,
+                                         src_components);
     }
 }
 
@@ -268,32 +305,46 @@ void ElectrostaticTurbulence::DoOdeRhs(
 
     if (this->particles_enabled)
     {
-        // src_fields [n_e, E_e, n_i, E_i, ...]
+        // src_fields [n_e, E_e, mv_e n_i, E_i, mv_i, ...]
         //  Add contribution to electron density
         Vmath::Vadd(npts, out_arr[ne_idx], 1, this->src_fields[0]->GetPhys(), 1,
                     out_arr[ne_idx], 1);
         // Add contribution to electron energy
         Vmath::Vadd(npts, out_arr[pe_idx], 1, this->src_fields[1]->GetPhys(), 1,
                     out_arr[pe_idx], 1);
+        // Add contribution to parallel momentum
 
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vvtvp(npts, this->b_unit[d], 1,
+                         this->src_fields[2 + d]->GetPhys(), 1, out_arr[ve_idx],
+                         1, out_arr[ve_idx], 1);
+        }
         for (int s = 0; s < this->particle_sys->get_species().size(); ++s)
         {
             //  Add contribution to ion density
             Vmath::Vadd(npts, out_arr[ni_idx[s]], 1,
-                        this->src_fields[2 + 2 * s]->GetPhys(), 1,
+                        this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
                         out_arr[ni_idx[s]], 1);
 
             // Add contribution to ion energy
             Vmath::Vadd(npts, out_arr[pi_idx[s]], 1,
-                        this->src_fields[3 + 2 * s]->GetPhys(), 1,
+                        this->src_fields[pi_src_idx[s]]->GetPhys(), 1,
                         out_arr[pi_idx[s]], 1);
             // Add number density source contribution to ion energy
             Array<OneD, NekDouble> dynamic_energy(npts);
             m_varConv->GetIonDynamicEnergy(s, species_map[s].mass, tmp,
                                            dynamic_energy);
             Vmath::Vvtvp(npts, dynamic_energy, 1,
-                         this->src_fields[ni_idx[s]]->GetPhys(), 1,
+                         this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
                          out_arr[pi_idx[s]], 1, out_arr[pi_idx[s]], 1);
+
+            for (int d = 0; d < m_spacedim; ++d)
+            {
+                Vmath::Vvtvp(npts, this->b_unit[d], 1,
+                             this->src_fields[vi_src_idx[s] + d]->GetPhys(), 1,
+                             out_arr[vi_idx[s]], 1, out_arr[vi_idx[s]], 1);
+            }
         }
     }
 
@@ -504,34 +555,27 @@ void ElectrostaticTurbulence::CalcVelocities(
  * @param[in,out] trace_vel_norm Trace normal velocities for each field
  * @param         adv_vel        Advection velocities for each field
  */
-Array<OneD, NekDouble> &ElectrostaticTurbulence::GetAdvVelNorm(
-    Array<OneD, NekDouble> &trace_vel_norm,
-    const Array<OneD, Array<OneD, NekDouble>> &adv_vel)
+Array<OneD, Array<OneD, NekDouble>> &ElectrostaticTurbulence::GetAdvVelNorm()
 {
     // Number of trace (interface) points
     int num_trace_pts = GetTraceNpoints();
     // Auxiliary variable to compute normal velocities
     Array<OneD, NekDouble> tmp(num_trace_pts);
 
-    // Ensure output array is zeroed
-    Vmath::Zero(num_trace_pts, trace_vel_norm, 1);
-
     // Compute advection vel dot trace normals and store
-    for (int i = 0; i < adv_vel.size(); ++i)
+    for (int j = 0; j < this->adv_vel.size();)
     {
-        m_fields[0]->ExtractTracePhys(adv_vel[i], tmp);
-        Vmath::Vvtvp(num_trace_pts, m_traceNormals[i], 1, tmp, 1,
-                     trace_vel_norm, 1, trace_vel_norm, 1);
+        // Ensure output array is zeroed
+        Vmath::Zero(num_trace_pts, this->trace_vel_norm[j], 1);
+        for (int d = 0; d < this->adv_vel[j].size(); ++d)
+        {
+            m_fields[0]->ExtractTracePhys(this->adv_vel[j][d], tmp);
+            Vmath::Vvtvp(num_trace_pts, m_traceNormals[d], 1, tmp, 1,
+                         this->trace_vel_norm[j], 1, this->trace_vel_norm[j],
+                         1);
+        }
     }
     return trace_vel_norm;
-}
-
-/**
- *  @brief Compute trace-normal advection velocities for the plasma density.
- */
-Array<OneD, NekDouble> &ElectrostaticTurbulence::GetAdvVelNormElec()
-{
-    return GetAdvVelNorm(this->norm_vel_elec, this->v_adv_vel);
 }
 
 /**

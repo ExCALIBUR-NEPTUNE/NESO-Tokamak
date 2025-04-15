@@ -31,6 +31,7 @@ src/ParticleSystems/ParticleSystem.cpp
 src/Misc/VariableConverter.cpp
 src/Misc/EquationOfState.cpp
 src/Misc/IdealGasEoS.cpp
+src/RiemannSolvers/MultiFieldUpwind.cpp
 )
 
 # ##############################################################################
