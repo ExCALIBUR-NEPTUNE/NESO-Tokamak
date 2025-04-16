@@ -126,19 +126,19 @@ private:
     Array<OneD, NekDouble> v_e_par;
     // Ion parallel velocities
     std::vector<Array<OneD, NekDouble>> v_i_par;
-    // Electron diagmagnetic velocity
+    // Electron diagmagnetic drift velocity
     Array<OneD, Array<OneD, NekDouble>> v_de;
-    // Ion diagmagnetic velocities
+    // Ion diagmagnetic drift velocities
     std::vector<Array<OneD, Array<OneD, NekDouble>>> v_di;
-
+    // Per field advection velocities
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel;
+    // Per field advection velocities normal to trace elements
+    Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
 
     StdRegions::VarCoeffMap m_phi_varcoeff;
 
     /// Whether the Boussinesq approximation is used for the vorticity
     bool m_boussinesq;
-    /// Storage for component of ne advection velocity normal to trace elements
-    Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
 
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
@@ -150,8 +150,6 @@ private:
     Array<OneD, NekDouble> m_kappaperp;
     Array<OneD, NekDouble> m_kappapar;
     StdRegions::VarCoeffMap m_kappa;
-
-    std::vector<MR::DisContFieldSharedPtr> density_src_fields;
 
     VariableConverterSharedPtr m_varConv;
 };

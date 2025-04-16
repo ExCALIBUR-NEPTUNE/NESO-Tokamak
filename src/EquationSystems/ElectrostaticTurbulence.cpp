@@ -26,7 +26,7 @@ static SU::EquationSystemSharedPtr create(
 ElectrostaticTurbulence::ElectrostaticTurbulence(
     const LU::SessionReaderSharedPtr &session,
     const SD::MeshGraphSharedPtr &graph)
-    : TokamakSystem(session, graph), v_ExB(graph->GetSpaceDimension())
+    : TokamakSystem(session, graph)
 {
     this->required_fld_names = {"w", "ne", "mnevepar", "1.5pe"};
     this->int_fld_names      = {"w", "ne", "mnevepar", "1.5pe"};
@@ -66,14 +66,34 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     // Create storage for velocities
     int npts = GetNpoints();
-
+    
+    //ExB velocity
+    this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
+    
+    // Parallel velocities
     this->v_e_par = Array<OneD, NekDouble>(npts, 0.0);
+    this->v_i_par = std::vector<Array<OneD, NekDouble>>(num_ion_species);
+
+    // Drift velocities
+    this->v_de  = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
+    this->v_di  = std::vector<Array<OneD, Array<OneD, NekDouble>>>(num_ion_species);
+
+    //Per-field advection velocities
+    this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
+        4 + 3 * num_ion_species);
+        
+    for (int i = 0; i < this->adv_vel.size(); ++i)
+    {
+        this->adv_vel[i] = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
+    }
+
     for (int d = 0; d < m_spacedim; ++d)
     {
         this->v_ExB[d]           = Array<OneD, NekDouble>(npts, 0.0);
         this->v_de[d]            = Array<OneD, NekDouble>(npts, 0.0);
         this->adv_vel[ne_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
+
     for (int s = 0; s < num_ion_species; ++s)
     {
         ni_idx.push_back(4 + 3 * s);
@@ -81,6 +101,7 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
         pi_idx.push_back(6 + 3 * s);
 
         this->v_i_par[s] = Array<OneD, NekDouble>(npts, 0.0);
+        this->v_di[s] = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
         for (int d = 0; d < m_graph->GetSpaceDimension(); ++d)
         {
             this->v_di[s][d]            = Array<OneD, NekDouble>(npts, 0.0);
