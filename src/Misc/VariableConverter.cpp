@@ -165,4 +165,40 @@ void VariableConverter::GetIonTemperature(
     }
 }
 
+void VariableConverter::GetIonSoundSpeed(
+    const int s, const double mass, const int Z,
+    const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+    Array<OneD, NekDouble> &soundspeed)
+{
+    size_t nPts = physfield[0].size();
+
+    Array<OneD, NekDouble> energy(nPts);
+    GetIonInternalEnergy(s, mass, physfield, energy);
+
+    for (size_t i = 0; i < nPts; ++i)
+    {
+        soundspeed[i] = m_eos->GetSoundSpeed(physfield[0][i], energy[i]);
+    }
+}
+
+void VariableConverter::GetSystemSoundSpeed(
+    const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+    Array<OneD, NekDouble> &soundspeed)
+{
+    size_t nPts = physfield[0].size();
+    Array<OneD, NekDouble> tmp(nPts);
+
+    for (int p = 0; p < nPts; ++p)
+    {
+        for (int s = 0; s < ni_idx.size(); ++s)
+        {
+            tmp[p] += physfield[ni_idx[s]][p] *
+                      m_eos->GetTemperature(physfield[ne_idx][p],
+                                            physfield[pe_idx][p]) /
+                      (physfield[ne_idx][p] * mass[s]);
+        }
+        soundspeed[p] = std::sqrt(tmp[p]);
+    }
+}
+
 } // namespace NESO::Solvers::tokamak

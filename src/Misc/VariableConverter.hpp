@@ -100,7 +100,15 @@ public:
         T energy = GetIonInternalEnergy(s, mass, physfield);
         return m_eos->GetPressure(physfield[0], energy);
     }
-
+    void GetIonSoundSpeed(const int s, const double mass, const int Z,
+        const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+        Array<OneD, NekDouble> &soundspeed);
+    void GetInternalEnergy(
+        const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+        Array<OneD, NekDouble> &energy);
+    void GetSystemSoundSpeed(
+        const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+        Array<OneD, NekDouble> &soundspeed);
     const EquationOfStateSharedPtr Geteos()
     {
         return m_eos;
