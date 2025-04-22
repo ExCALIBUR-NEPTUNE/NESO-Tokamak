@@ -8,7 +8,9 @@ NESO-Tokamak documentation
    :caption: Contents:
    :glob:
 
-   static_rst/*
+   static_rst/intro.rst
+   static_rst/equation_systems/*
+   static_rst/particle_systems/*
 
 Indices and tables
 ==================
