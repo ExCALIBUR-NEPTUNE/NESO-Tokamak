@@ -2,6 +2,13 @@
 Double diffusive field with neutrals
 ====================================
 
+Solves a system of :math:`2+2S` fields representing :math:`S` ion species.
+This equation system is used by specifying
+
+```xml
+<I PROPERTY="EQTYPE"                       VALUE="DoubleDiffusiveField"/>
+```
+in the `<SOLVERINFO>`field.
 
 Here the density field from the single field system is used alongside an energy field,
 from which is derived the temperature.
@@ -11,7 +18,7 @@ write a pressure equation as
 
 .. math:: \frac{3}{2} \frac{\partial p}{\partial t} + \nabla \cdot \vec{q} = S_E + Q,
 
-where :math:`p = nkT` and the flux:
+where :math:`p = nk_BT` and the flux:
 
 .. math:: \vec{q} = \kappa \cdot \nabla T
 
@@ -20,23 +27,10 @@ with the conductivity tensor given as:
 .. math:: \kappa =  \kappa_\parallel(T) \vec{b}\vec{b} + \kappa_\perp(T) (I-\vec{b}\vec{b})
 
 with parallel and perpendicular conductivities being functions of
-temperature to start off with.
+temperature.
 
 Energy sinks :math:`S_E` should again be supplied by VANTAGE, with
 some heating :math:`Q` in the core being an input parameter.
-
-
-
-Only after both of these models have been tested with Reactions coupling
-does it make sense to move towards a model with an explicit momentum
-equation, such as a reduced version of Hermes-3 mean-field equations.
-Solves a system of :math:`2+2S` fields representing :math:`S` ion species.
-This equation system is used by specifying
-
-```xml
-<I PROPERTY="EQTYPE"                       VALUE="DoubleDiffusiveField"/>
-```
-in the `<SOLVERINFO>`field
 
 Electrons are always present, and at least one ion species must be present.
 Explicitly the fields are:

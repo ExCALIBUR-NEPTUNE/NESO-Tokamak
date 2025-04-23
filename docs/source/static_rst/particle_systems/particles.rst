@@ -17,7 +17,7 @@ Initial Conditions
 
 The species initial conditions are specified in the `<INITIAL N="num">`field.
 
-The density field can be specified by an analytic function for a probability distribution.
+The density field can be specified by an analytic function for a probability distribution (everywhere between 0 and 1).
 During initialisation, `num` particles are created using adaptive rejection sampling over this distribution.
 
 Sources
@@ -32,6 +32,11 @@ Sinks
 Sinks are specified under a `SINK` field.  Multiple sinks can be created for each species.
 The specified function indicates the probability that a particle is removed at each timestep.
 The probability function is evaluated at each particle's position, which is then marked for removal with that probability.
+
+Boundary Conditions
+-------------------
+
+The particles may interact with the boundary regions by either reflecting, being absorbed, or taking part in a surface reaction.
 
 
 
