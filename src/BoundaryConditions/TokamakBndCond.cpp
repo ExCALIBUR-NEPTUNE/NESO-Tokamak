@@ -30,7 +30,8 @@ TokamakBndCond::TokamakBndCond(
     m_fields[0]->GetBndElmtExpansion(m_bcRegion, m_bndElmtExp, false);
 
     m_fields[0]->GetBoundaryNormals(m_bcRegion, m_normals);
-
+    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(m_session,
+        m_spacedim);
     m_diffusionAveWeight = 1.0;
 }
 
