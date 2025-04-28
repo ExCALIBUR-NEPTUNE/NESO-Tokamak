@@ -47,10 +47,12 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
     void CalcInitPhi();
-    void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr);
+    void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                  [[maybe_unused]] const Array<OneD, NekDouble> &ne);
     void ComputeE();
 
-    void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray);
+    void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                        const Array<OneD, NekDouble> &ne);
 
     Array<OneD, Array<OneD, NekDouble>> &GetAdvVelNorm();
 
@@ -82,30 +84,14 @@ protected:
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
-    struct SpeciesInfo
-    {
-        std::string name;
-        double mass;
-        double charge;
-    };
-    std::map<int, SpeciesInfo> &get_species()
-    {
-        return species_map;
-    }
-
 private:
-    int num_ion_species;
 
     int omega_idx = 0;
-    int ne_idx    = 1;
-    int ve_idx    = 2;
-    int pe_idx    = 3;
+    int pe_idx    = 1;
 
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
     std::vector<int> pi_idx;
-
-    std::map<int, SpeciesInfo> species_map;
 
     std::vector<int> ni_src_idx;
     std::vector<int> vi_src_idx;

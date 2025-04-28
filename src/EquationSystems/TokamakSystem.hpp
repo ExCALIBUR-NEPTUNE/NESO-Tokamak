@@ -85,6 +85,15 @@ protected:
     /// Sheath potential
     NekDouble lambda;
 
+    struct FluidInfo
+    {
+        NekDouble charge;
+        NekDouble mass;
+        std::string name;
+    };
+
+    std::map<int, FluidInfo> fluid_map;
+
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
      */

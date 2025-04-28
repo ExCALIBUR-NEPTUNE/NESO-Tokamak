@@ -24,16 +24,20 @@ public:
 
     ~VariableConverter() = default;
 
-    void GetElectronDynamicEnergy(
+    void GetElectronDensity(
         const Array<OneD, const Array<OneD, NekDouble>> &physfield,
-        Array<OneD, NekDouble> &energy);
-    void GetElectronInternalEnergy(
-        const Array<OneD, const Array<OneD, NekDouble>> &physfield,
-        Array<OneD, NekDouble> &energy);
+        Array<OneD, NekDouble> &density);
 
-    void GetElectronParallelVelocity(
-        const Array<OneD, Array<OneD, NekDouble>> &physfield,
+    void GetElectronVelocity(
+        const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+        const Array<OneD, NekDouble> &current,
+        const Array<OneD, NekDouble> &density,
         Array<OneD, NekDouble> &velocity);
+
+    void GetElectronDynamicEnergy(
+        const Array<OneD, NekDouble> &velocity,
+        const Array<OneD, NekDouble>& density,
+        Array<OneD, NekDouble> &energy);
 
     // Transformations depending on the equation of state
     void GetElectronTemperature(
@@ -100,7 +104,8 @@ public:
         T energy = GetIonInternalEnergy(s, mass, physfield);
         return m_eos->GetPressure(physfield[0], energy);
     }
-    void GetIonSoundSpeed(const int s, const double mass, const int Z,
+    void GetIonSoundSpeed(
+        const int s, const double mass, const int Z,
         const Array<OneD, const Array<OneD, NekDouble>> &physfield,
         Array<OneD, NekDouble> &soundspeed);
     void GetInternalEnergy(
@@ -115,13 +120,13 @@ public:
     }
 
     int omega_idx = 0;
-    int ne_idx    = 1;
-    int ve_idx    = 2;
-    int pe_idx    = 3;
+    int pe_idx    = 1;
 
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
     std::vector<int> pi_idx;
+    std::map<int, double> mass;
+    std::map<int, double> charge;
 
 protected:
     LU::SessionReaderSharedPtr m_session;

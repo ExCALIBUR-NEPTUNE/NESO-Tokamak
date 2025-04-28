@@ -20,42 +20,46 @@ VariableConverter::VariableConverter(const LU::SessionReaderSharedPtr &pSession,
     m_eos = GetEquationOfStateFactory().CreateInstance(eosType, m_session);
 }
 
-void VariableConverter::GetElectronDynamicEnergy(
+void VariableConverter::GetElectronDensity(
     const Array<OneD, const Array<OneD, NekDouble>> &physfield,
-    Array<OneD, NekDouble> &energy)
+    Array<OneD, NekDouble> &density)
 {
     size_t nPts = physfield[0].size();
-    Vmath::Zero(nPts, energy, 1);
+
+    for (int s = 0; s < ni_idx.size(); ++s)
+    {
+        Vmath::Svtvp(nPts, charge[s], physfield[ni_idx[s]], 1, density, 1,
+                     density, 1);
+    }
+}
+
+void VariableConverter::GetElectronVelocity(
+    const Array<OneD, const Array<OneD, NekDouble>> &physfield,
+    const Array<OneD, NekDouble> &current,
+    const Array<OneD, NekDouble> &density, Array<OneD, NekDouble> &velocity)
+{
+    size_t nPts = physfield[0].size();
+
+    for (int s = 0; s < ni_idx.size(); ++s)
+    {
+        Vmath::Svtvp(nPts, charge[s], physfield[vi_idx[s]], 1, velocity, 1,
+                     velocity, 1);
+    }
+    Vmath::Vsub(nPts, velocity, 1, current, 1, velocity, 1);
+    Vmath::Vdiv(nPts, velocity, 1, density, 1, velocity, 1);
+}
+
+void VariableConverter::GetElectronDynamicEnergy(
+    const Array<OneD, NekDouble> &velocity,
+    const Array<OneD, NekDouble> &density, Array<OneD, NekDouble> &energy)
+{
+    size_t nPts = velocity.size();
 
     // tmp = (rho * u_i)^2
-    Vmath::Vvtvp(nPts, physfield[ve_idx], 1, physfield[ve_idx], 1, energy, 1,
-                 energy, 1);
+    Vmath::Vvtvp(nPts, velocity, 1, velocity, 1, energy, 1, energy, 1);
     // Divide by rho and multiply by 0.5 --> tmp = 0.5 * rho * u^2
-    Vmath::Vdiv(nPts, energy, 1, physfield[ne_idx], 1, energy, 1);
+    Vmath::Vdiv(nPts, energy, 1, density, 1, energy, 1);
     Vmath::Smul(nPts, 0.5, energy, 1, energy, 1);
-}
-
-void VariableConverter::GetElectronInternalEnergy(
-    const Array<OneD, const Array<OneD, NekDouble>> &physfield,
-    Array<OneD, NekDouble> &energy)
-{
-    size_t nPts = physfield[0].size();
-    Array<OneD, NekDouble> tmp(nPts);
-
-    GetElectronDynamicEnergy(physfield, tmp);
-
-    // Calculate rhoe = E - rho*V^2/2
-    Vmath::Vsub(nPts, physfield[pe_idx], 1, tmp, 1, energy, 1);
-    // Divide by rho
-    Vmath::Vdiv(nPts, energy, 1, physfield[ne_idx], 1, energy, 1);
-}
-
-void VariableConverter::GetElectronParallelVelocity(
-    const Array<OneD, Array<OneD, NekDouble>> &physfield,
-    Array<OneD, NekDouble> &velocity)
-{
-    const size_t nPts = physfield[0].size();
-    Vmath::Vdiv(nPts, physfield[ve_idx], 1, physfield[ne_idx], 1, velocity, 1);
 }
 
 void VariableConverter::GetElectronPressure(
@@ -63,13 +67,12 @@ void VariableConverter::GetElectronPressure(
     Array<OneD, NekDouble> &pressure)
 {
     size_t nPts = physfield[0].size();
-
-    Array<OneD, NekDouble> energy(nPts);
-    GetElectronInternalEnergy(physfield, energy);
+    Array<OneD, NekDouble> ne(nPts);
+    GetElectronDensity(physfield, ne);
 
     for (size_t i = 0; i < nPts; ++i)
     {
-        pressure[i] = m_eos->GetPressure(physfield[ne_idx][i], energy[i]);
+        pressure[i] = m_eos->GetPressure(ne[i], physfield[pe_idx][i]);
     }
 }
 
@@ -80,11 +83,12 @@ void VariableConverter::GetElectronTemperature(
     size_t nPts = physfield[0].size();
 
     Array<OneD, NekDouble> energy(nPts);
-    GetElectronInternalEnergy(physfield, energy);
+    Array<OneD, NekDouble> ne(nPts);
+    GetElectronDensity(physfield, ne);
 
     for (size_t i = 0; i < nPts; ++i)
     {
-        temperature[i] = m_eos->GetTemperature(physfield[ne_idx][i], energy[i]);
+        temperature[i] = m_eos->GetTemperature(ne[i], energy[i]);
     }
 }
 
@@ -187,15 +191,17 @@ void VariableConverter::GetSystemSoundSpeed(
 {
     size_t nPts = physfield[0].size();
     Array<OneD, NekDouble> tmp(nPts);
+    Array<OneD, NekDouble> ne(nPts);
+
+    GetElectronDensity(physfield, ne);
 
     for (int p = 0; p < nPts; ++p)
     {
         for (int s = 0; s < ni_idx.size(); ++s)
         {
             tmp[p] += physfield[ni_idx[s]][p] *
-                      m_eos->GetTemperature(physfield[ne_idx][p],
-                                            physfield[pe_idx][p]) /
-                      (physfield[ne_idx][p] * mass[s]);
+                      m_eos->GetTemperature(ne[p], physfield[pe_idx][p]) /
+                      (ne[p] * mass[s]);
         }
         soundspeed[p] = std::sqrt(tmp[p]);
     }
