@@ -14,7 +14,7 @@ class ReactionSystem : public ParticleSystem
 
 public:
     static std::string class_name;
-    static ParticleSystemSharedPtr create(const ParticleReaderSharedPtr session,
+    static ParticleSystemSharedPtr create(const NESOReaderSharedPtr session,
                                           const SD::MeshGraphSharedPtr graph)
     {
         ParticleSystemSharedPtr p =
@@ -22,8 +22,7 @@ public:
         return p;
     }
 
-    ReactionSystem(ParticleReaderSharedPtr session,
-                   SD::MeshGraphSharedPtr graph);
+    ReactionSystem(NESOReaderSharedPtr session, SD::MeshGraphSharedPtr graph);
 
     ~ReactionSystem() override = default;
 
@@ -34,11 +33,6 @@ public:
             ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
     }
-
-    // inline void project_source_terms() override
-    // {
-    // // Do nothing since projection is handled by the ProjectTransformation
-    // }
 
     inline void set_up_reactions()
     {
@@ -60,12 +54,8 @@ public:
                 {
                     auto reaction = ElectronImpactIonisation<FixedRateData,
                                                              FixedRateData, 2>(
-                        this->particle_group->sycl_target,
-                        Sym<REAL>(
-                            prop_map[default_properties.tot_reaction_rate]),
-                        Sym<REAL>(prop_map[default_properties.weight]),
-                        test_data, test_data, target_species, electron_species,
-                        this->particle_spec);
+                        this->particle_group->sycl_target, test_data, test_data,
+                        target_species, electron_species, this->particle_spec);
 
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
@@ -74,12 +64,8 @@ public:
                 {
                     auto reaction = ElectronImpactIonisation<FixedRateData,
                                                              FixedRateData, 3>(
-                        this->particle_group->sycl_target,
-                        Sym<REAL>(
-                            prop_map[default_properties.tot_reaction_rate]),
-                        Sym<REAL>(prop_map[default_properties.weight]),
-                        test_data, test_data, target_species, electron_species,
-                        this->particle_spec);
+                        this->particle_group->sycl_target, test_data, test_data,
+                        target_species, electron_species, this->particle_spec);
                     this->reaction_controller->add_reaction(
                         std::make_shared<decltype(reaction)>(reaction));
                 }
@@ -120,9 +106,6 @@ public:
                                            decltype(recomb_reaction_kernel),
                                            decltype(data_calculator)>(
                             particle_group->sycl_target,
-                            Sym<REAL>(
-                                prop_map[default_properties.tot_reaction_rate]),
-                            Sym<REAL>(prop_map[default_properties.weight]),
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
@@ -150,9 +133,6 @@ public:
                                            decltype(recomb_reaction_kernel),
                                            decltype(data_calculator)>(
                             particle_group->sycl_target,
-                            Sym<REAL>(
-                                prop_map[default_properties.tot_reaction_rate]),
-                            Sym<REAL>(prop_map[default_properties.weight]),
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
@@ -191,9 +171,6 @@ public:
                         1, FixedRateData, decltype(cx_kernel),
                         DataCalculator<FixedRateData, FixedRateData>>(
                         this->particle_group->sycl_target,
-                        Sym<REAL>(
-                            prop_map[default_properties.tot_reaction_rate]),
-                        Sym<REAL>(prop_map[default_properties.weight]),
                         projectile_species.get_id(),
                         std::array<int, 1>{
                             static_cast<int>(target_species.get_id())},
@@ -210,9 +187,6 @@ public:
                         1, FixedRateData, decltype(cx_kernel),
                         DataCalculator<FixedRateData, FixedRateData>>(
                         this->particle_group->sycl_target,
-                        Sym<REAL>(
-                            prop_map[default_properties.tot_reaction_rate]),
-                        Sym<REAL>(prop_map[default_properties.weight]),
                         projectile_species.get_id(),
                         std::array<int, 1>{
                             static_cast<int>(target_species.get_id())},
@@ -230,11 +204,6 @@ public:
     {
         ParticleSystem::integrate_inner(sg, dt_inner);
         reaction_controller->apply_reactions(this->particle_group, dt_inner);
-    }
-
-    void set_up_particles() override
-    {
-        ParticleSystem::set_up_particles();
     }
 
     inline void finish_setup(
@@ -269,16 +238,12 @@ public:
         if (this->ndim == 2)
         {
             merge_transform =
-                make_transformation_strategy<MergeTransformationStrategy<2>>(
-                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
-                    Sym<REAL>("VELOCITY"));
+                make_transformation_strategy<MergeTransformationStrategy<2>>();
         }
         else if (this->ndim == 3)
         {
             merge_transform =
-                make_transformation_strategy<MergeTransformationStrategy<3>>(
-                    Sym<REAL>("POSITION"), Sym<REAL>("WEIGHT"),
-                    Sym<REAL>("VELOCITY"));
+                make_transformation_strategy<MergeTransformationStrategy<3>>();
         }
 
         auto merge_transform_wrapper = std::make_shared<TransformationWrapper>(
@@ -292,8 +257,7 @@ public:
                 merge_transform_wrapper, remove_transform_wrapper},
             std::vector<std::shared_ptr<TransformationWrapper>>{
                 project_transform_wrapper, merge_transform_wrapper,
-                remove_transform_wrapper},
-            Sym<INT>("INTERNAL_STATE"), Sym<REAL>("TOT_REACTION_RATE"));
+                remove_transform_wrapper});
 
         set_up_reactions();
 

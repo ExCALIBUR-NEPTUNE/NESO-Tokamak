@@ -7,7 +7,7 @@ std::string ParticleSystem::class_name =
     GetParticleSystemFactory().RegisterCreatorFunction(
         "ParticleSystem", ParticleSystem::create, "Particle System");
 
-ParticleSystem::ParticleSystem(ParticleReaderSharedPtr session,
+ParticleSystem::ParticleSystem(NESOReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph, MPI_Comm comm)
     : PartSysBase(session, graph, comm), simulation_time(0.0) {};
 

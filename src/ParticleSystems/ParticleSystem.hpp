@@ -29,7 +29,7 @@ public:
      * @brief Create an instance of this class and initialise it.
      */
     static ParticleSystemSharedPtr create(
-        const ParticleReaderSharedPtr &session,
+        const NESOReaderSharedPtr &session,
         const SD::MeshGraphSharedPtr &graph)
     {
         ParticleSystemSharedPtr p =
@@ -46,7 +46,7 @@ public:
      *  @param comm (optional) MPI communicator to use - default MPI_COMM_WORLD.
      *
      */
-    ParticleSystem(ParticleReaderSharedPtr session,
+    ParticleSystem(NESOReaderSharedPtr session,
                    SD::MeshGraphSharedPtr graph,
                    MPI_Comm comm = MPI_COMM_WORLD);
 
@@ -94,19 +94,9 @@ public:
 
     virtual void init_object() override
     {
-        this->config->read_particles();
-        this->init_spec();
-        this->read_params();
-        this->particle_group = std::make_shared<ParticleGroup>(
-            this->domain, this->particle_spec, this->sycl_target);
-        this->cell_id_translation = std::make_shared<CellIDTranslation>(
-            this->sycl_target, this->particle_group->cell_id_dat,
-            this->particle_mesh_interface);
+        PartSysBase::init_object();
         this->particle_remover =
             std::make_shared<ParticleRemover>(this->sycl_target);
-        this->set_up_species();
-        this->set_up_boundaries();
-        // PartSysBase::init_object();
 
         // parallel_advection_initialisation(this->particle_group);
         // parallel_advection_store(this->particle_group);
@@ -122,10 +112,6 @@ public:
         this->transfer_particles();
         pre_advection(particle_sub_group(this->particle_group));
         apply_boundary_conditions(particle_sub_group(this->particle_group));
-    }
-    virtual void set_up_particles() override
-    {
-        PartSysBase::set_up_particles();
     }
 
     virtual void set_up_species() override;
@@ -158,7 +144,7 @@ public:
         // Get the current simulation time.
         NESOASSERT(time_end >= this->simulation_time,
                    "Cannot integrate backwards in time.");
-        if (time_end == this->simulation_time || this->num_parts_tot == 0)
+        if (time_end == this->simulation_time)
         {
             return;
         }
@@ -535,7 +521,7 @@ protected:
     };
 
     uint64_t total_num_particles_added = 0;
-    ;
+    
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 

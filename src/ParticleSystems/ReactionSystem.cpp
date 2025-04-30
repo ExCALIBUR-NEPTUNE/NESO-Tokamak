@@ -6,7 +6,7 @@ std::string ReactionSystem::class_name =
     GetParticleSystemFactory().RegisterCreatorFunction(
         "ReactionSystem", ReactionSystem::create, "Reaction System");
 
-ReactionSystem::ReactionSystem(ParticleReaderSharedPtr session,
+ReactionSystem::ReactionSystem(NESOReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph)
     : ParticleSystem(session, graph)
 {
