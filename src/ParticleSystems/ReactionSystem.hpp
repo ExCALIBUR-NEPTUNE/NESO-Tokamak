@@ -32,6 +32,10 @@ public:
         this->particle_spec.push(
             ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("REACTIONS_PANIC_FLAG"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("PARTICLE_REACTED_FLAG"), 1));
     }
 
     inline void set_up_reactions()
