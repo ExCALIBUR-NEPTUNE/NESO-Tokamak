@@ -162,9 +162,6 @@
                 <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
                     <P VAR="Rate" VALUE="1.0"/>
                 </R>
-                <R ID="4" TYPE="ChargeExchange" SPECIES="1,0">
-                    <P VAR="Rate" VALUE="1.0"/>
-                </R>
                 
             </REACTIONS>    
 
