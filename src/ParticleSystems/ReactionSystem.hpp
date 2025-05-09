@@ -69,7 +69,7 @@ public:
 
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
 
-                if (std::get<2>(v) == "Fixed")
+                if (std::get<2>(v).first == "Fixed")
                 {
                     auto ionise_data        = FixedRateData(1.0);
                     auto ionise_energy_data = FixedRateData(1.0);
@@ -90,7 +90,7 @@ public:
                                 electron_species, this->particle_spec);
                     }
                 }
-                else if (std::get<2>(v) == "AMJUEL")
+                else if (std::get<2>(v).first == "AMJUEL")
                 {
                     auto ionise_data        = AMJUEL::ionise_data;
                     auto ionise_energy_data = AMJUEL::ionise_energy_data;
@@ -127,7 +127,7 @@ public:
                             this->species_map[std::get<1>(v)[0]].charge - 1,
                             -1 - std::get<1>(v)[0]);
 
-                if (std::get<2>(v) == "Fixed")
+                if (std::get<2>(v).first == "Fixed")
                 {
                     auto recomb_data = FixedRateData(1.0);
                     auto data1       = FixedRateData(1.0);
@@ -169,7 +169,7 @@ public:
                             data_calculator);
                     }
                 }
-                else if (std::get<2>(v) == "AMJUEL")
+                else if (std::get<2>(v).first == "AMJUEL")
                 {
                     auto recomb_data        = AMJUEL::recomb_data;
                     auto recomb_energy_data = AMJUEL::recomb_energy_data;
@@ -240,7 +240,7 @@ public:
                 auto reduced_mass =
                     (parent_mass * child_mass) / (parent_mass + child_mass);
 
-                if (std::get<2>(v) == "Fixed")
+                if (std::get<2>(v).first == "Fixed")
                 {
                     auto rate_data              = FixedRateData(1.0);
                     auto vx_beam_data           = FixedRateData(1.0);
@@ -285,7 +285,7 @@ public:
                             data_calculator);
                     }
                 }
-                else if (std::get<2>(v) == "AMJUEL")
+                else if (std::get<2>(v).first == "AMJUEL")
                 {
                     auto rate_data =
                         AMJUEL::cx_rate_data(parent_mass, child_mass);
