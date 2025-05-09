@@ -1,3 +1,6 @@
 [submodule "NESO"]
 	path = NESO
 	url = https://github.com/ExCALIBUR-NEPTUNE/NESO.git
+[submodule "Reactions"]
+	path = Reactions
+	url = git@github.com:UKAEA-Edge-Code/Reactions.git
