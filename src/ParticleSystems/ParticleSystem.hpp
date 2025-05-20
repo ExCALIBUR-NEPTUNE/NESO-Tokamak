@@ -28,9 +28,8 @@ public:
     /**
      * @brief Create an instance of this class and initialise it.
      */
-    static ParticleSystemSharedPtr create(
-        const NESOReaderSharedPtr &session,
-        const SD::MeshGraphSharedPtr &graph)
+    static ParticleSystemSharedPtr create(const NESOReaderSharedPtr &session,
+                                          const SD::MeshGraphSharedPtr &graph)
     {
         ParticleSystemSharedPtr p =
             MemoryManager<ParticleSystem>::AllocateSharedPtr(session, graph);
@@ -46,8 +45,7 @@ public:
      *  @param comm (optional) MPI communicator to use - default MPI_COMM_WORLD.
      *
      */
-    ParticleSystem(NESOReaderSharedPtr session,
-                   SD::MeshGraphSharedPtr graph,
+    ParticleSystem(NESOReaderSharedPtr session, SD::MeshGraphSharedPtr graph,
                    MPI_Comm comm = MPI_COMM_WORLD);
 
     virtual ~ParticleSystem() override = default;
@@ -65,7 +63,6 @@ public:
             ParticleProp(Sym<INT>("CELL_ID"), 1, true),
             ParticleProp(Sym<INT>("ID"), 1),
             ParticleProp(Sym<INT>("INTERNAL_STATE"), 1),
-
             ParticleProp(Sym<REAL>("M"), 1),
             ParticleProp(Sym<REAL>("Q"), 1),
             ParticleProp(Sym<REAL>("ELECTRON_DENSITY"), 1),
@@ -90,6 +87,18 @@ public:
             this->particle_spec.push(
                 ParticleProp(Sym<REAL>(name + "_SOURCE_MOMENTUM"), this->ndim));
         }
+        this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("REACTIONS_PANIC_FLAG"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("PARTICLE_REACTED_FLAG"), 1));
+        this->particle_spec.push(ParticleProp(Sym<REAL>("FLUID_DENSITY"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>("FLUID_TEMPERATURE"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>("FLUID_FLOW_SPEED"), this->ndim));
     }
 
     virtual void init_object() override
@@ -261,10 +270,20 @@ public:
         this->fields["B2"] = B2;
     }
 
+    inline virtual void setup_evaluate_fields(
+        Array<OneD, std::shared_ptr<DisContField>> &E,
+        Array<OneD, std::shared_ptr<DisContField>> &B,
+        std::shared_ptr<DisContField> ne)
+    {
+        setup_evaluate_B(B[0], B[1], B[2]);
+        setup_evaluate_E(E[0], E[1], E[2]);
+        setup_evaluate_ne(ne);
+    }
+
     /**
      * Evaluate E and B at the particle locations.
      */
-    inline void evaluate_fields()
+    inline virtual void evaluate_fields()
     {
         NESOASSERT(this->field_evaluate_E0 != nullptr,
                    "FieldEvaluate not setup.");
@@ -521,7 +540,7 @@ protected:
     };
 
     uint64_t total_num_particles_added = 0;
-    
+
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 

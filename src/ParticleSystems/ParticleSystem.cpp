@@ -16,7 +16,7 @@ void ParticleSystem::set_up_species()
     // get seed from file
     std::srand(std::time(nullptr));
     int seed;
-
+    
     this->config->load_parameter("particle_position_seed", seed, std::rand());
     double particle_B_scaling;
     this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);

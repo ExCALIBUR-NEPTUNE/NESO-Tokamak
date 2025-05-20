@@ -459,12 +459,8 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     if (this->particles_enabled)
     {
-        // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(this->E[0], this->E[1],
-                                             this->E[2]);
-        this->particle_sys->setup_evaluate_B(this->B[0], this->B[1],
-                                             this->B[2]);
-        this->particle_sys->setup_evaluate_ne(
+        this->particle_sys->setup_evaluate_fields(
+            this->E, this->B,
             std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
 }
