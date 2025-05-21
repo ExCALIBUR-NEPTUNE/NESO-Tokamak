@@ -85,6 +85,10 @@ protected:
     /// Sheath potential
     NekDouble lambda;
 
+    MR::DisContFieldSharedPtr ne;
+    MR::DisContFieldSharedPtr Te;
+    Array<OneD, MR::DisContFieldSharedPtr> ve;
+
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
      */

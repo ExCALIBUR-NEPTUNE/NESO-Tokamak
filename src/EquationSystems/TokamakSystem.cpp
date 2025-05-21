@@ -459,9 +459,8 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     if (this->particles_enabled)
     {
-        this->particle_sys->setup_evaluate_fields(
-            this->E, this->B,
-            std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
+                                                  this->Te, this->ve);
     }
 }
 
@@ -498,7 +497,8 @@ bool TokamakSystem::v_PreIntegrate(int step)
     if (this->particles_enabled)
     {
         // Integrate the particle system to the requested time.
-        this->particle_sys->evaluate_fields();
+        this->particle_sys->evaluate_fields(this->E, this->B, this->ne,
+                                            this->Te, this->ve);
         if (particle_output_freq > 0 && (step % particle_output_freq) == 0)
         {
             this->particle_sys->write(step);
@@ -522,7 +522,8 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                                               dump_ICs, domain);
     if (this->particle_sys)
     {
-        this->particle_sys->initialise_particles_from_fields();
+        this->particle_sys->initialise_particles_from_fields(
+            this->E, this->B, this->ne, this->Te, this->ve);
     }
 }
 

@@ -27,94 +27,6 @@ public:
 
     ~ReactionSystem() override = default;
 
-    // inline void init_spec() override
-    // {
-    //     ParticleSystem::init_spec();
-    //     this->particle_spec.push(
-    //         ParticleProp(Sym<REAL>("TOT_REACTION_RATE"), 1));
-    //     this->particle_spec.push(
-    //         ParticleProp(Sym<INT>("REACTIONS_PANIC_FLAG"), 1));
-    //     this->particle_spec.push(
-    //         ParticleProp(Sym<INT>("PARTICLE_REACTED_FLAG"), 1));
-    //     this->particle_spec.push(ParticleProp(Sym<REAL>("FLUID_DENSITY"),
-    //     1)); this->particle_spec.push(
-    //         ParticleProp(Sym<REAL>("FLUID_TEMPERATURE"), 1));
-    //     this->particle_spec.push(
-    //         ParticleProp(Sym<REAL>("FLUID_FLOW_SPEED"), this->ndim));
-    // }
-
-    std::shared_ptr<FunctionEvaluateBasis<DisContField>>
-        field_evaluate_fluid_density;
-    std::shared_ptr<FunctionEvaluateBasis<DisContField>>
-        field_evaluate_fluid_temperature;
-    std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>
-        field_evaluate_fluid_flow_speed;
-    int ncoeffs;
-    std::shared_ptr<DisContField> density;
-    std::shared_ptr<DisContField> temperature;
-    std::vector<std::shared_ptr<DisContField>> flow_speed;
-
-    inline void setup_evaluate_fluid()
-    {
-        this->ncoeffs = density->GetNcoeffs();
-
-        auto mesh = std::dynamic_pointer_cast<ParticleMeshInterface>(
-            particle_group->domain->mesh);
-
-        this->field_evaluate_fluid_density =
-            std::make_shared<FunctionEvaluateBasis<DisContField>>(
-                this->density, mesh, this->cell_id_translation);
-
-        this->field_evaluate_fluid_temperature =
-            std::make_shared<FunctionEvaluateBasis<DisContField>>(
-                this->temperature, mesh, this->cell_id_translation);
-        for (int d = 0; d < this->ndim; ++d)
-        {
-            this->field_evaluate_fluid_flow_speed.emplace_back(
-                std::make_shared<FunctionEvaluateBasis<DisContField>>(
-                    this->flow_speed[d], mesh, this->cell_id_translation));
-        }
-    }
-
-    inline void setup_evaluate_fields(
-        Array<OneD, std::shared_ptr<DisContField>> &E,
-        Array<OneD, std::shared_ptr<DisContField>> &B,
-        std::shared_ptr<DisContField> ne) override
-    {
-        ParticleSystem::setup_evaluate_fields(E, B, ne);
-        this->density     = MemoryManager<DisContField>::AllocateSharedPtr(*ne);
-        this->temperature = MemoryManager<DisContField>::AllocateSharedPtr(*ne);
-        for (int d = 0; d < this->ndim; ++d)
-        {
-            this->flow_speed.emplace_back(
-                MemoryManager<DisContField>::AllocateSharedPtr(*ne));
-        }
-        setup_evaluate_fluid();
-    }
-    inline void evaluate_fields() override
-    {
-        ParticleSystem::evaluate_fields();
-        NESOASSERT(this->field_evaluate_fluid_density != nullptr,
-                   "FieldEvaluate not setup.");
-        NESOASSERT(this->field_evaluate_fluid_temperature != nullptr,
-                   "FieldEvaluate not setup.");
-
-        this->field_evaluate_fluid_density->evaluate(
-            this->particle_group, Sym<REAL>("FLUID_DENSITY"), 0,
-            this->density->GetCoeffs());
-        this->field_evaluate_fluid_density->evaluate(
-            this->particle_group, Sym<REAL>("FLUID_TEMPERATURE"), 0,
-            this->temperature->GetCoeffs());
-        for (int d = 0; d < this->ndim; ++d)
-        {
-            NESOASSERT(this->field_evaluate_fluid_flow_speed[d] != nullptr,
-                       "FieldEvaluate not setup.");
-            this->field_evaluate_fluid_flow_speed[d]->evaluate(
-                this->particle_group, Sym<REAL>("FLUID_FLOW_SPEED"), d,
-                this->flow_speed[d]->GetCoeffs());
-        }
-    }
-
     inline void set_up_reactions()
     {
         auto prop_map = default_map;
@@ -143,7 +55,7 @@ public:
                             this->species_map[std::get<1>(v)[0]].charge,
                             std::get<1>(v)[0]);
 
-                auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
+                auto electron_species = Species("ELECTRON");
 
                 if (std::get<2>(v).first == "Fixed")
                 {
@@ -170,6 +82,7 @@ public:
                 {
                     auto ionise_data        = AMJUEL::ionise_data;
                     auto ionise_energy_data = AMJUEL::ionise_energy_data;
+
                     if (this->ndim == 2)
                     {
                         reaction = std::make_shared<ElectronImpactIonisation<
@@ -492,7 +405,9 @@ public:
                     Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
                     Sym<REAL>("VELOCITY"), Sym<REAL>("B0"), Sym<REAL>("B1"),
                     Sym<REAL>("B2"), Sym<REAL>("ELECTRON_DENSITY"),
-                    this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"));
+                    this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"),
+                    Sym<REAL>("TOT_REACTION_RATE"), Sym<REAL>("FLUID_DENSITY"),
+                    Sym<REAL>("FLUID_TEMPERATURE"));
     }
 
 protected:
