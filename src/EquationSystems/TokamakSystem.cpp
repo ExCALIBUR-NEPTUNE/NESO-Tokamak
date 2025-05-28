@@ -203,10 +203,10 @@ void TokamakSystem::ReadMagneticField(NekDouble time)
     this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (d = 0; d < 3; ++d)
     {
-        B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        this->B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        B[d]->UpdatePhys() = B_in[d];
-        B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
+        this->B[d]->UpdatePhys() = B_in[d];
+        this->B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
     }
 
     this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
@@ -244,7 +244,6 @@ void TokamakSystem::load_params()
     m_session->LoadSolverInfo("MagneticFieldEvolution", transient_field_str,
                               "Static");
     this->transient_field = (transient_field_str == "Transient");
-    ReadMagneticField(0);
 
     // Type of Riemann solver to use. Default = "Upwind"
     m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
@@ -319,6 +318,30 @@ void TokamakSystem::v_ExtraFldOutput(
     std::vector<std::string> &variables)
 {
     bool extraFields;
+    m_session->MatchSolverInfo("OutputSpeciesFields", "True", extraFields,
+                               true);
+    if (extraFields)
+    {
+        const int nPhys   = m_fields[0]->GetNpoints();
+        const int nCoeffs = m_fields[0]->GetNcoeffs();
+        for (const auto &[k, v] : this->neso_config->get_species())
+        {
+            std::string name = std::get<0>(v);
+
+            for (int f = 0; f < this->n_fields_per_species; ++f)
+            {
+                variables.push_back(m_session->GetVariable(f) + "_" + name);
+                Array<OneD, NekDouble> Fwd(nCoeffs);
+                m_fields[0]->FwdTransLocalElmt(
+                    this->m_allfields[m_fields.size() + f +
+                                      k * this->n_fields_per_species]
+                        ->GetPhys(),
+                    Fwd);
+                fieldcoeffs.push_back(Fwd);
+            }
+        }
+    }
+
     m_session->MatchSolverInfo("OutputEMFields", "True", extraFields, true);
     if (extraFields)
     {
@@ -327,32 +350,32 @@ void TokamakSystem::v_ExtraFldOutput(
 
         variables.push_back("Bx");
         Array<OneD, NekDouble> BxFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[0]->GetPhys(), BxFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[0]->GetPhys(), BxFwd);
         fieldcoeffs.push_back(BxFwd);
 
         variables.push_back("By");
         Array<OneD, NekDouble> ByFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[1]->GetPhys(), ByFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[1]->GetPhys(), ByFwd);
         fieldcoeffs.push_back(ByFwd);
 
         variables.push_back("Bz");
         Array<OneD, NekDouble> BzFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(B[2]->GetPhys(), BzFwd);
+        m_fields[0]->FwdTransLocalElmt(this->B[2]->GetPhys(), BzFwd);
         fieldcoeffs.push_back(BzFwd);
 
         variables.push_back("Ex");
         Array<OneD, NekDouble> ExFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[0]->GetPhys(), ExFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[0]->GetPhys(), ExFwd);
         fieldcoeffs.push_back(ExFwd);
 
         variables.push_back("Ey");
         Array<OneD, NekDouble> EyFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[1]->GetPhys(), EyFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[1]->GetPhys(), EyFwd);
         fieldcoeffs.push_back(EyFwd);
 
         variables.push_back("Ez");
         Array<OneD, NekDouble> EzFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(E[2]->GetPhys(), EzFwd);
+        m_fields[0]->FwdTransLocalElmt(this->E[2]->GetPhys(), EzFwd);
         fieldcoeffs.push_back(EzFwd);
     }
     m_session->MatchSolverInfo("OutputPartitions", "True", extraFields, false);
@@ -396,22 +419,61 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
+    ReadMagneticField(0);
+    int n_species = 1;
+
+    m_allfields = Array<OneD, MR::ExpListSharedPtr>(
+        m_fields.size() + n_species * n_fields_per_species);
+    m_indfields = Array<OneD, MR::ExpListSharedPtr>(
+        n_indep_fields + n_species * n_fields_per_species);
+    for (int i = 0; i < m_fields.size(); ++i)
+    {
+        m_allfields[i] = m_fields[i];
+    }
+    for (int i = 0; i < n_indep_fields; ++i)
+    {
+        m_indfields[i] = m_fields[i];
+    }
+
+    for (const auto &[k, v] : this->neso_config->get_species())
+    {
+        std::string name = std::get<0>(v);
+        for (int f = 0; f < this->n_fields_per_species; ++f)
+        {
+            if (m_projectionType == MR::eGalerkin ||
+                m_projectionType == MR::eMixed_CG_Discontinuous)
+            {
+                m_indfields[n_indep_fields + k * n_fields_per_species + f] =
+                    MemoryManager<MR::ContField>::AllocateSharedPtr(
+                        *std::dynamic_pointer_cast<MR::ContField>(m_fields[f]),
+                        m_graph, m_session->GetVariable(f), true,
+                        m_checkIfSystemSingular[f]);
+            }
+            else
+            {
+                m_indfields[n_indep_fields + k * n_fields_per_species + f] =
+                    MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                        *std::dynamic_pointer_cast<MR::DisContField>(
+                            m_fields[f]),
+                        m_graph, m_session->GetVariable(f));
+            }
+        }
+    }
 
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
-    int nConvectiveFields = m_fields.size();
-    if (m_projectionType == MultiRegions::eDiscontinuous)
+    if (m_projectionType == MR::eDiscontinuous)
     {
         m_implHelper = std::make_shared<ImplicitHelper>(
-            m_session, m_fields, m_ode, nConvectiveFields);
+            m_session, m_indfields, m_ode, m_indfields.size());
         m_implHelper->InitialiseNonlinSysSolver();
         m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
                                   m_implHelper);
     }
 
     // Forcing terms
-    m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_fields,
-                                  m_fields.size());
+    m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_indfields,
+                                  m_indfields.size());
 
     Array<OneD, const SD::BoundaryConditionShPtr> BndConds =
         m_fields[0]->GetBndConditions();
@@ -459,13 +521,8 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     if (this->particles_enabled)
     {
-        // Set up object to evaluate density field
-        this->particle_sys->setup_evaluate_E(this->E[0], this->E[1],
-                                             this->E[2]);
-        this->particle_sys->setup_evaluate_B(this->B[0], this->B[1],
-                                             this->B[2]);
-        this->particle_sys->setup_evaluate_ne(
-            std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
+                                                  this->Te, this->ve);
     }
 }
 
@@ -480,11 +537,7 @@ bool TokamakSystem::v_PostIntegrate(int step)
     this->solver_callback_handler.call_post_integrate(this);
 
     // Writes a step of the particle trajectory.
-    if (this->particles_enabled && particle_output_freq > 0 &&
-        (step % particle_output_freq) == 0)
-    {
-        this->particle_sys->write(step + 1);
-    }
+
     return TimeEvoEqnSysBase<SU::UnsteadySystem,
                              ParticleSystem>::v_PostIntegrate(step);
 }
@@ -506,18 +559,49 @@ bool TokamakSystem::v_PreIntegrate(int step)
     if (this->particles_enabled)
     {
         // Integrate the particle system to the requested time.
-        this->particle_sys->evaluate_fields();
-        if (step == 0)
+        this->particle_sys->evaluate_fields(this->E, this->B, this->ne,
+                                            this->Te, this->ve);
+        if (particle_output_freq > 0 && (step % particle_output_freq) == 0)
         {
-            this->particle_sys->write(0);
+            this->particle_sys->write(step);
         }
 
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms(this->src_syms,
-                                                 this->components);
+        this->particle_sys->project_source_terms();
     }
 
     return UnsteadySystem::v_PreIntegrate(step);
+}
+
+NESOSessionFunctionSharedPtr TokamakSystem::get_species_function(
+    int s, std::string name, const MR::ExpListSharedPtr &field, bool cache)
+{
+    MR::ExpListSharedPtr vField = field;
+    if (!field)
+    {
+        vField = m_fields[0];
+    }
+
+    if (cache)
+    {
+        if ((m_nesoSessionFunctions[s].find(name) ==
+             m_nesoSessionFunctions[s].end()) ||
+            (m_nesoSessionFunctions[s][name]->GetSession() !=
+             this->neso_config) ||
+            (m_nesoSessionFunctions[s][name]->GetExpansion() != vField))
+        {
+            m_nesoSessionFunctions[s][name] =
+                MemoryManager<NESOSessionFunction>::AllocateSharedPtr(
+                    s, this->neso_config, vField, name, cache);
+        }
+
+        return m_nesoSessionFunctions[s][name];
+    }
+    else
+    {
+        return std::make_shared<NESOSessionFunction>(s, this->neso_config,
+                                                     vField, name, cache);
+    }
 }
 
 /**
@@ -529,9 +613,48 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
     TimeEvoEqnSysBase<SU::UnsteadySystem,
                       ParticleSystem>::v_SetInitialConditions(init_time,
                                                               dump_ICs, domain);
+    for (int s = 0; s < this->n_species; ++s)
+    {
+        if (this->neso_config->defines_species_function(s, "InitialConditions"))
+        {
+            this->get_species_function(s, "InitialConditions")
+                ->Evaluate(m_session->GetVariables(), m_fields, m_time, domain);
+            // Enforce C0 Continutiy of initial condiiton
+            if ((m_projectionType == MultiRegions::eGalerkin) ||
+                (m_projectionType == MultiRegions::eMixed_CG_Discontinuous))
+            {
+                for (int f = 0; f < this->n_fields_per_species; ++f)
+                {
+                    int fi = m_fields.size() + f + s * n_fields_per_species;
+                    m_allfields[fi]->LocalToGlobal();
+                    m_allfields[fi]->GlobalToLocal();
+                    m_allfields[fi]->BwdTrans(m_allfields[fi]->GetCoeffs(),
+                                              m_allfields[fi]->UpdatePhys());
+                }
+            }
+            else
+            {
+                int nq = m_fields[0]->GetNpoints();
+                for (int f = 0; f < this->n_fields_per_species; f++)
+                {
+                    int fi = m_fields.size() + f + s * n_fields_per_species;
+                    Vmath::Zero(nq, m_allfields[fi]->UpdatePhys(), 1);
+                    m_allfields[fi]->SetPhysState(true);
+                    Vmath::Zero(m_allfields[fi]->GetNcoeffs(),
+                                m_allfields[fi]->UpdateCoeffs(), 1);
+                }
+            }
+        }
+    }
+    if (dump_ICs && m_checksteps && m_nchk == 0 && !m_comm->IsParallelInTime())
+    {
+        Checkpoint_Output(m_nchk);
+    }
+
     if (this->particle_sys)
     {
-        this->particle_sys->initialise_particles_from_fields();
+        this->particle_sys->initialise_particles_from_fields(
+            this->E, this->B, this->ne, this->Te, this->ve);
     }
 }
 
