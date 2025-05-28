@@ -74,7 +74,7 @@ public:
             ParticleProp(Sym<REAL>("MAGNETIC_FIELD"), 3),
             ParticleProp(Sym<REAL>("TSP"), 2)};
 
-        for (auto &[k, v] : this->config->get_species())
+        for (auto &[k, v] : this->config->get_particle_species())
         {
             std::string name = std::get<0>(v);
             this->particle_spec.push(
@@ -104,20 +104,12 @@ public:
         this->particle_remover =
             std::make_shared<ParticleRemover>(this->sycl_target);
 
-        // parallel_advection_initialisation(this->particle_group);
-        // parallel_advection_store(this->particle_group);
-        // const int num_steps = 20;
-        // for (int stepx = 0; stepx < num_steps; stepx++)
-        // {
-
-        //     parallel_advection_step(this->particle_group, num_steps, stepx);
-        //     this->transfer_particles();
-        // }
-        // parallel_advection_restore(this->particle_group);
-        //  Move particles to the owning ranks and correct cells.
         this->transfer_particles();
-        pre_advection(particle_sub_group(this->particle_group));
-        apply_boundary_conditions(particle_sub_group(this->particle_group));
+        for (auto &[k, v] : this->get_species())
+        {
+            pre_advection(k, v.sub_group);
+            apply_boundary_conditions(k, v.sub_group);
+        }
     }
 
     virtual void set_up_species() override;
@@ -129,13 +121,17 @@ public:
         double charge;
 
         std::shared_ptr<ParticleSubGroup> sub_group;
+
+        /// Reflective Boundary Conditions
+        std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
+        std::vector<int> reflection_composites;
     };
     virtual std::map<int, SpeciesInfo> &get_species()
     {
         return species_map;
     }
 
-    virtual void set_up_boundaries() override;
+    void set_up_boundaries();
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -161,8 +157,7 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(particle_sub_group(this->particle_group),
-                                 dt_inner);
+            this->apply_timestep(dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -224,11 +219,9 @@ public:
         this->field_evaluate_ne =
             std::make_shared<FunctionEvaluateBasis<DisContField>>(
                 ne, mesh, this->cell_id_translation);
-        this->fields["ne"] = ne;
         this->field_evaluate_Te =
             std::make_shared<FunctionEvaluateBasis<DisContField>>(
                 Te, mesh, this->cell_id_translation);
-        this->fields["Te"] = Te;
         for (int d = 0; d < this->ndim; ++d)
         {
             this->field_evaluate_ve.emplace_back(
@@ -295,18 +288,6 @@ public:
         this->particle_remover->remove(this->particle_group,
                                        (*this->particle_group)[Sym<INT>("ID")],
                                        this->particle_remove_key);
-    }
-
-    inline void pre_integration()
-    {
-        reflection->pre_advection(particle_sub_group(this->particle_group));
-    }
-    /**
-     * Apply boundary conditions.
-     */
-    inline void boundary_conditions()
-    {
-        this->reflection->execute(particle_sub_group(this->particle_group));
     }
 
     /**
@@ -491,12 +472,8 @@ protected:
     std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>
         field_evaluate_B;
 
-    std::map<std::string, std::shared_ptr<DisContField>> fields;
     /// Simulation time
     double simulation_time;
-
-    /// Reflective Boundary Conditions
-    std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 
     inline void apply_timestep_reset(ParticleSubGroupSharedPtr sg)
     {
@@ -511,20 +488,26 @@ protected:
             ->execute();
     }
 
-    void pre_advection(ParticleSubGroupSharedPtr sg)
+    void pre_advection(int k, ParticleSubGroupSharedPtr sg)
     {
-        reflection->pre_advection(sg);
+        if (auto r = this->species_map[k].reflection)
+        {
+            r->pre_advection(sg);
+        }
     };
 
-    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
+    void apply_boundary_conditions(int k, ParticleSubGroupSharedPtr sg)
     {
-        reflection->execute(sg);
+        if (auto r = this->species_map[k].reflection)
+        {
+            r->execute(sg);
+        }
     };
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
     {
         return particle_sub_group(
-            this->particle_group, [=](auto TSP) { return TSP.at(0) < dt; },
+            sg, [=](auto TSP) { return TSP.at(0) < dt; },
             Access::read(Sym<REAL>("TSP")));
     };
 
@@ -537,19 +520,23 @@ protected:
         return size_global > 0;
     };
 
-    inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
+    inline void apply_timestep(const double dt)
     {
-        apply_timestep_reset(sg);
-        pre_advection(sg);
-        integrate_inner(sg, dt);
-        apply_boundary_conditions(sg);
-        sg = find_partial_moves(sg, dt);
-        while (partial_moves_remaining(sg))
+        for (auto &[k, v] : this->get_species())
         {
-            pre_advection(sg);
+            auto sg = v.sub_group;
+            apply_timestep_reset(sg);
+            pre_advection(k, sg);
             integrate_inner(sg, dt);
-            apply_boundary_conditions(sg);
+            apply_boundary_conditions(k, sg);
             sg = find_partial_moves(sg, dt);
+            while (partial_moves_remaining(sg))
+            {
+                pre_advection(k, sg);
+                integrate_inner(sg, dt);
+                apply_boundary_conditions(k, sg);
+                sg = find_partial_moves(sg, dt);
+            }
         }
     }
     /**

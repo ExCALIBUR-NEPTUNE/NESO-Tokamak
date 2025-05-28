@@ -29,19 +29,20 @@ void ParticleSystem::set_up_species()
                                  particle_velocity_B_scaling, 0.0);
     const long rank = this->sycl_target->comm_pair.rank_parent;
     std::mt19937 rng_phasespace(seed + rank);
-    for (const auto &[k, v] : this->config->get_species())
+    for (const auto &[k, v] : this->config->get_particle_species())
     {
         std::string name = std::get<0>(v);
         double particle_mass, particle_charge;
-        this->config->load_species_parameter(k, "Mass", particle_mass);
-        this->config->load_species_parameter(k, "Charge", particle_charge);
-        int particle_number = this->config->get_species_initial_N(k);
+        this->config->load_particle_species_parameter(k, "Mass", particle_mass);
+        this->config->load_particle_species_parameter(k, "Charge",
+                                                      particle_charge);
+        int particle_number = this->config->get_particle_species_initial_N(k);
 
         if (particle_number > 0)
         {
             std::vector<std::vector<double>> positions, velocities;
             std::vector<int> cells;
-            auto neqn = this->config->get_species_initial(k, "n");
+            auto neqn = this->config->get_particle_species_initial(k, "n");
             rng_phasespace =
                 dist_within_extents(this->graph, neqn, 0, particle_number,
                                     positions, cells, 1.0e-10, rng_phasespace);
@@ -82,7 +83,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = 1;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -112,6 +113,7 @@ void ParticleSystem::set_up_species()
         species_map[k] =
             SpeciesInfo{name, particle_mass, particle_charge, sub_group};
     }
+    set_up_boundaries();
 }
 
 void ParticleSystem::add_sources(double time, double dt)
@@ -133,14 +135,14 @@ void ParticleSystem::add_sources(double time, double dt)
     const long rank = this->sycl_target->comm_pair.rank_parent;
     std::mt19937 rng_phasespace(seed + rank);
 
-    for (const auto &[k, v] : this->config->get_species())
+    for (const auto &[k, v] : this->config->get_particle_species())
     {
         std::string name = std::get<0>(v);
 
         double particle_mass   = species_map[k].mass;
         double particle_charge = species_map[k].charge;
 
-        for (auto &source : this->config->get_species_sources(k))
+        for (auto &source : this->config->get_particle_species_sources(k))
         {
             int particle_number = source.first;
             if (particle_number > 0)
@@ -268,9 +270,9 @@ void ParticleSystem::add_sinks(double time, double dt)
             }
         }
     }
-    for (const auto &[k, v] : this->config->get_species())
+    for (const auto &[k, v] : this->config->get_particle_species())
     {
-        for (auto &sink : this->config->get_species_sinks(k))
+        for (auto &sink : this->config->get_particle_species_sinks(k))
         {
             LU::EquationSharedPtr neqn =
                 sink.at(std::pair("n", 0)).m_expression;
@@ -312,29 +314,31 @@ void ParticleSystem::add_sinks(double time, double dt)
 
 void ParticleSystem::set_up_boundaries()
 {
-    auto config = std::make_shared<ParameterStore>();
-    config->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-    config->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-    config->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-    config->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
-    config->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
-                      1.0e-6);
+    auto store = std::make_shared<ParameterStore>();
+    store->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
+    store->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
+    store->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
+    store->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
+    store->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
+                     1.0e-6);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-    std::vector<int> reflection_composites;
 
-    for (auto &[k, v] : this->config->get_boundaries())
+    for (auto &[k, v] : this->get_species())
     {
-        for (auto &[sk, sv] : v)
+        for (auto &[sk, sv] : this->config->get_particle_species_boundary(k))
         {
             if (sv == ParticleBoundaryConditionType::eReflective)
             {
-                reflection_composites.push_back(k);
+                v.reflection_composites.push_back(sk);
             }
         }
+        if (!v.reflection_composites.empty())
+        {
+            v.reflection = std::make_shared<NektarCompositeTruncatedReflection>(
+                Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target,
+                mesh, v.reflection_composites, store);
+        }
     }
-    this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
-        Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
-        reflection_composites, config);
 }
 
 } // namespace NESO::Solvers::tokamak

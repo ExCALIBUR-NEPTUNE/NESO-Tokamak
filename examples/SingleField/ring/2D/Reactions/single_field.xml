@@ -57,14 +57,13 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> n  </V>
+            <V ID="0"> n_e  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
             <B ID="1"> C[1] </B> <!-- Inner -->
             <B ID="2"> C[2] </B> <!-- Outer -->
         </BOUNDARYREGIONS>
-
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
                 <N VAR="n"  VALUE="0.0" />
@@ -73,6 +72,7 @@
                 <N VAR="n"  VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
+
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
         </FUNCTION>
@@ -84,32 +84,36 @@
     </CONDITIONS>
 
     <NESO>
+        <SPECIES>
+            <S ID="0" NAME="D">
+                <P> Mass = 2.0 </P>
+                <P> Charge = 1.0 </P>
+                <FUNCTION NAME="InitialConditions">
+                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+                </FUNCTION>
+            </S>
+            <S ID="1" NAME="T">
+                <P> Mass = 3.0 </P>
+                <P> Charge = 1.0 </P>
+                <FUNCTION NAME="InitialConditions">
+                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+                </FUNCTION>
+            </S>
+        </SPECIES> 
         <PARTICLES>
             <INFO>
                 <I PROPERTY="PARTTYPE" VALUE="ReactionSystem"/>
             </INFO>
             <PARAMETERS>
                 <P> particle_output_freq = 1          </P>
-                <!-- No particles when num_particles_total = 0-->
-                <!-- Mass of each particle -->
-                <!-- Scaling coefficient when adding particle drift velocities. -->
                 <P> particle_v_drift_scaling = 1.0 </P>
-                <!-- Scaling coefficient applied to B for particles, -->
-                <!-- i.e. if 0 particles ignore B. -->
                 <P> particle_B_scaling = 1.0 </P>
-                <!-- Add to initial particle velocity a contribution: -->
-                <!-- particle_velocity_B_scaling * unit(B) -->
                 <P> particle_velocity_B_scaling = 0.0 </P>
-                <!-- Add to initial particle velocity a contribution: -->
-                <!-- using particle_thermal_velocity. -->
-                <!-- Purtubation is sampled from N(0, particle_thermal_velocity) -->
                 <P> particle_thermal_velocity = 0.1 </P>
             </PARAMETERS>   
 
             <SPECIES>
-                <S ID="0" NAME="Ar">
-                    <P> Mass = 1.0 </P>
-                    <P> Charge = 1.0 </P>
+                <S ID="0" NAME="D">
                     <INITIAL N="100">
                         <E VAR="n" VALUE="sin(4*x)*sin(4*x)"/>
                     </INITIAL>
@@ -119,10 +123,16 @@
                     <SINK>
                         <E VAR="n" VALUE="exp((-(x-2-0.75*sin(t))*(x-2-0.75*sin(t))/(0.01))+(-(y+0.75*cos(t))*(y+0.75*cos(t))/(0.01)))"/>
                     </SINK>
+                    <BOUNDARYINTERACTION>
+                        <REGION REF="1">
+                            <C VALUE="0.0" />
+                        </REGION>   
+	                    <REGION REF="2">
+                            <C VALUE="0.0" />
+                        </REGION>
+                    </BOUNDARYINTERACTION> 
                 </S>
-                <S ID="1" NAME="Ne">
-                    <P> Mass = 1.0 </P>
-                    <P> Charge = 1.0 </P>
+                <S ID="1" NAME="T">
                     <INITIAL N="100">
                         <E VAR="n" VALUE="cos(4*x)*cos(4*x)"/>
                     </INITIAL>
@@ -134,17 +144,6 @@
                     </SINK>
                 </S>
             </SPECIES>  
-
-            <BOUNDARYINTERACTION>
-                <REGION REF="1">
-                    <C SPECIES="0"  VALUE="0.0" />
-                    <!-- <C SPECIES="1"  VALUE="0.0" /> -->
-                </REGION>   
-	        <REGION REF="2">
-                    <C SPECIES="0"  VALUE="0.0" />
-                    <!-- <C SPECIES="1"  VALUE="0.0" /> -->
-                </REGION>
-            </BOUNDARYINTERACTION>  
 
             <REACTIONS>
                 <R ID="0" TYPE="Ionisation" SPECIES="0">

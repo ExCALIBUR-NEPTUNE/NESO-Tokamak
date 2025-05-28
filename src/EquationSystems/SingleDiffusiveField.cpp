@@ -27,7 +27,9 @@ SingleDiffusiveField::SingleDiffusiveField(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->required_fld_names = {"n"};
+    this->n_indep_fields       = 0;
+    this->n_fields_per_species = 1;
+    this->required_fld_names   = {"n"};
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
@@ -59,7 +61,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
                 diffName, diffName);
             m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff,
                                        this);
-            m_diffusion->InitObject(m_session, m_fields);
+            m_diffusion->InitObject(m_session, m_indfields);
             break;
         }
         case MultiRegions::eGalerkin:
@@ -145,12 +147,12 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
         }
 
         // Solve a system of equations with Helmholtz solver
-        m_fields[i]->HelmSolve(outarray[i], m_fields[i]->UpdateCoeffs(),
+        m_indfields[i]->HelmSolve(outarray[i], m_indfields[i]->UpdateCoeffs(),
                                m_factors, m_D);
 
-        m_fields[i]->BwdTrans(m_fields[i]->GetCoeffs(), outarray[i]);
+        m_indfields[i]->BwdTrans(m_indfields[i]->GetCoeffs(), outarray[i]);
 
-        m_fields[i]->SetPhysState(false);
+        m_indfields[i]->SetPhysState(false);
     }
 }
 
@@ -222,8 +224,8 @@ void SingleDiffusiveField::DoOdeRhs(
     {
         for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
-            Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
-                        this->src_fields[i]->GetPhys(), 1, out_arr[0], 1);
+            Vmath::Vadd(out_arr[i].size(), out_arr[i], 1,
+                        this->src_fields[i]->GetPhys(), 1, out_arr[i], 1);
         }
     }
 
@@ -277,7 +279,7 @@ void SingleDiffusiveField::v_ExtraFldOutput(
 
     if (this->particles_enabled)
     {
-        int i = 0; 
+        int i = 0;
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             variables.push_back(v.name + "_SOURCE_DENSITY");
