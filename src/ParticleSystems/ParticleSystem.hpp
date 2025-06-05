@@ -105,11 +105,11 @@ public:
             std::make_shared<ParticleRemover>(this->sycl_target);
 
         this->transfer_particles();
-        for (auto &[k, v] : this->get_species())
-        {
-            pre_advection(k, v.sub_group);
-            apply_boundary_conditions(k, v.sub_group);
-        }
+        //for (auto &[k, v] : this->get_species())
+        //{
+            pre_advection(particle_sub_group(this->particle_group));
+            apply_boundary_conditions(particle_sub_group(this->particle_group));
+        //}
     }
 
     virtual void set_up_species() override;
@@ -123,8 +123,8 @@ public:
         std::shared_ptr<ParticleSubGroup> sub_group;
 
         /// Reflective Boundary Conditions
-        std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
-        std::vector<int> reflection_composites;
+        //std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
+        //std::vector<int> reflection_composites;
     };
     virtual std::map<int, SpeciesInfo> &get_species()
     {
@@ -157,7 +157,8 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(dt_inner);
+            this->apply_timestep(particle_sub_group(this->particle_group),
+                                 dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -215,18 +216,27 @@ public:
     {
         auto mesh = std::dynamic_pointer_cast<ParticleMeshInterface>(
             particle_group->domain->mesh);
-
         this->field_evaluate_ne =
             std::make_shared<FunctionEvaluateBasis<DisContField>>(
                 ne, mesh, this->cell_id_translation);
-        this->field_evaluate_Te =
-            std::make_shared<FunctionEvaluateBasis<DisContField>>(
-                Te, mesh, this->cell_id_translation);
+        if (Te)
+        {
+            this->field_evaluate_Te =
+                std::make_shared<FunctionEvaluateBasis<DisContField>>(
+                    Te, mesh, this->cell_id_translation);
+        }
+        this->field_evaluate_ve =
+            std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>(
+                this->ndim);
         for (int d = 0; d < this->ndim; ++d)
         {
-            this->field_evaluate_ve.emplace_back(
-                std::make_shared<FunctionEvaluateBasis<DisContField>>(
-                    ve[d], mesh, this->cell_id_translation));
+            if (ve[d])
+            {
+                this->field_evaluate_ve[d] =
+                    std::make_shared<FunctionEvaluateBasis<DisContField>>(
+                        ve[d], mesh, this->cell_id_translation);
+            }
+
             this->field_evaluate_E.emplace_back(
                 std::make_shared<FunctionEvaluateBasis<DisContField>>(
                     E[d], mesh, this->cell_id_translation));
@@ -262,24 +272,23 @@ public:
 
         NESOASSERT(this->field_evaluate_ne != nullptr,
                    "FieldEvaluate not setup.");
-        // this->field_evaluate_ne->evaluate(Sym<REAL>("ELECTRON_DENSITY"));
-
-        NESOASSERT(this->field_evaluate_Te != nullptr,
-                   "FieldEvaluate not setup.");
-
         this->field_evaluate_ne->evaluate(this->particle_group,
                                           Sym<REAL>("FLUID_DENSITY"), 0,
                                           ne->GetCoeffs());
-        this->field_evaluate_Te->evaluate(this->particle_group,
-                                          Sym<REAL>("FLUID_TEMPERATURE"), 0,
-                                          Te->GetCoeffs());
+        if (field_evaluate_Te)
+        {
+            this->field_evaluate_Te->evaluate(this->particle_group,
+                                              Sym<REAL>("FLUID_TEMPERATURE"), 0,
+                                              Te->GetCoeffs());
+        }
         for (int d = 0; d < this->ndim; ++d)
         {
-            NESOASSERT(this->field_evaluate_ve[d] != nullptr,
-                       "FieldEvaluate not setup.");
-            this->field_evaluate_ve[d]->evaluate(this->particle_group,
-                                                 Sym<REAL>("FLUID_FLOW_SPEED"),
-                                                 d, ve[d]->GetCoeffs());
+            if (this->field_evaluate_ve[d])
+            {
+                this->field_evaluate_ve[d]->evaluate(
+                    this->particle_group, Sym<REAL>("FLUID_FLOW_SPEED"), d,
+                    ve[d]->GetCoeffs());
+            }
         }
     }
 
@@ -472,6 +481,8 @@ protected:
     std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>
         field_evaluate_B;
 
+    std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
+
     /// Simulation time
     double simulation_time;
 
@@ -488,20 +499,21 @@ protected:
             ->execute();
     }
 
-    void pre_advection(int k, ParticleSubGroupSharedPtr sg)
+    void pre_advection(ParticleSubGroupSharedPtr sg)
     {
-        if (auto r = this->species_map[k].reflection)
-        {
-            r->pre_advection(sg);
-        }
+        //if (auto r = this->species_map[k].reflection)
+        //{
+
+            reflection->pre_advection(sg);
+        //}
     };
 
-    void apply_boundary_conditions(int k, ParticleSubGroupSharedPtr sg)
+    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
     {
-        if (auto r = this->species_map[k].reflection)
-        {
-            r->execute(sg);
-        }
+        //if (auto r = this->species_map[k].reflection)
+        //{
+            reflection->execute(sg);
+        //}
     };
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
@@ -520,24 +532,24 @@ protected:
         return size_global > 0;
     };
 
-    inline void apply_timestep(const double dt)
+    inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
     {
-        for (auto &[k, v] : this->get_species())
+        // for (auto &[k, v] : this->get_species())
+        //{
+        //auto sg = v.sub_group;
+        apply_timestep_reset(sg);
+        pre_advection(sg);
+        integrate_inner(sg, dt);
+        apply_boundary_conditions(sg);
+        sg = find_partial_moves(sg, dt);
+        while (partial_moves_remaining(sg))
         {
-            auto sg = v.sub_group;
-            apply_timestep_reset(sg);
-            pre_advection(k, sg);
+            pre_advection(sg);
             integrate_inner(sg, dt);
-            apply_boundary_conditions(k, sg);
+            apply_boundary_conditions(sg);
             sg = find_partial_moves(sg, dt);
-            while (partial_moves_remaining(sg))
-            {
-                pre_advection(k, sg);
-                integrate_inner(sg, dt);
-                apply_boundary_conditions(k, sg);
-                sg = find_partial_moves(sg, dt);
-            }
         }
+        //}
     }
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.

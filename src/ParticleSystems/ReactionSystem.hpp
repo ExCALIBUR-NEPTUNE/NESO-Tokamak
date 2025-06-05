@@ -400,12 +400,11 @@ public:
                 remove_transform_wrapper});
 
         set_up_reactions();
-
         init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
                     Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
-                    Sym<REAL>("VELOCITY"), Sym<REAL>("B0"), Sym<REAL>("B1"),
-                    Sym<REAL>("B2"), Sym<REAL>("ELECTRON_DENSITY"),
-                    this->src_syms, Sym<REAL>("WEIGHT"), Sym<INT>("ID"),
+                    Sym<REAL>("VELOCITY"), Sym<REAL>("MAGNETIC_FIELD"),
+                    Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
+                    Sym<REAL>("WEIGHT"), Sym<INT>("ID"),
                     Sym<REAL>("TOT_REACTION_RATE"), Sym<REAL>("FLUID_DENSITY"),
                     Sym<REAL>("FLUID_TEMPERATURE"));
     }

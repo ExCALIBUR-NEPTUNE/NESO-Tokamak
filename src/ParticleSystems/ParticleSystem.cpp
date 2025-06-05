@@ -323,22 +323,42 @@ void ParticleSystem::set_up_boundaries()
                      1.0e-6);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
 
-    for (auto &[k, v] : this->get_species())
+    std::vector<int> reflection_composites;
+
+    for (auto &[sk, sv] : this->config->get_particle_species_boundary(0))
     {
-        for (auto &[sk, sv] : this->config->get_particle_species_boundary(k))
+        if (sv == ParticleBoundaryConditionType::eReflective)
         {
-            if (sv == ParticleBoundaryConditionType::eReflective)
-            {
-                v.reflection_composites.push_back(sk);
-            }
-        }
-        if (!v.reflection_composites.empty())
-        {
-            v.reflection = std::make_shared<NektarCompositeTruncatedReflection>(
-                Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target,
-                mesh, v.reflection_composites, store);
+            reflection_composites.push_back(sk);
         }
     }
+    this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
+        Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
+        reflection_composites, store);
+
+    // for (auto &[k, v] : this->get_species())
+    // {
+    //     std::cout << "Setup\n";
+
+    //     for (auto &[sk, sv] : this->config->get_particle_species_boundary(k))
+    //     {
+    //         if (sv == ParticleBoundaryConditionType::eReflective)
+    //         {
+    //             std::cout << "Composites\n";
+
+    //             v.reflection_composites.push_back(sk);
+    //         }
+    //     }
+    //     if (!v.reflection_composites.empty())
+    //     {
+    //         std::cout << "Reflection\n";
+
+    //         v.reflection =
+    //         std::make_shared<NektarCompositeTruncatedReflection>(
+    //             Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target,
+    //             mesh, v.reflection_composites, store);
+    //     }
+    // }
 }
 
 } // namespace NESO::Solvers::tokamak

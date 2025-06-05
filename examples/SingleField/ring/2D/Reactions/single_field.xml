@@ -22,7 +22,7 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.1            </P>
+            <P> TimeStep      = 0.0005            </P>
             <P> NumSteps      = 50              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 10     </P>
@@ -31,7 +31,7 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1e-6   </P>
+            <P> k_par           = 1   </P>
             <P> k_perp          = 1e-6   </P>
             <P> TCore           = 300.0 </P>
             <P> T_bnd            = 1.0 </P>
@@ -57,7 +57,7 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> n_e  </V>
+            <V ID="0"> n  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -73,9 +73,9 @@
             </REGION>
         </BOUNDARYCONDITIONS>
 
-        <FUNCTION NAME="InitialConditions">
-            <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-        </FUNCTION>
+        <!-- <FUNCTION NAME="InitialConditions"> -->
+            <!-- <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
+        <!-- </FUNCTION> -->
         <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="By" VALUE="-(x-rc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
@@ -96,7 +96,7 @@
                 <P> Mass = 3.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc+rs)*(x-rc+rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
             </S>
         </SPECIES> 
@@ -109,19 +109,21 @@
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
-                <P> particle_thermal_velocity = 0.1 </P>
+                <P> particle_thermal_velocity = 0.1  </P>
             </PARAMETERS>   
 
             <SPECIES>
                 <S ID="0" NAME="D">
+                    <P> Mass = 2.0 </P>
+                    <P> Charge = 1.0 </P>
                     <INITIAL N="100">
                         <E VAR="n" VALUE="sin(4*x)*sin(4*x)"/>
                     </INITIAL>
                     <SOURCE N="100">
-                        <E VAR="n" VALUE="exp((-(x-2-0.75*cos(t))*(x-2-0.75*cos(t))/(0.01))+(-(y-0.75*sin(t))*(y-0.75*sin(t))/(0.01)))"/>
+                        <E VAR="n" VALUE="exp((-(x-2-0.75*cos(150*t))*(x-2-0.75*cos(150*t))/(0.01))+(-(y-0.75*sin(150*t))*(y-0.75*sin(150*t))/(0.01)))"/>
                     </SOURCE>
                     <SINK>
-                        <E VAR="n" VALUE="exp((-(x-2-0.75*sin(t))*(x-2-0.75*sin(t))/(0.01))+(-(y+0.75*cos(t))*(y+0.75*cos(t))/(0.01)))"/>
+                        <E VAR="n" VALUE="exp((-(x-2-0.75*sin(150*t))*(x-2-0.75*sin(150*t))/(0.01))+(-(y+0.75*cos(150*t))*(y+0.75*cos(150*t))/(0.01)))"/>
                     </SINK>
                     <BOUNDARYINTERACTION>
                         <REGION REF="1">
@@ -132,7 +134,9 @@
                         </REGION>
                     </BOUNDARYINTERACTION> 
                 </S>
-                <S ID="1" NAME="T">
+                <!-- <S ID="1" NAME="T">
+                    <P> Mass = 3.0 </P>
+                    <P> Charge = 1.0 </P>
                     <INITIAL N="100">
                         <E VAR="n" VALUE="cos(4*x)*cos(4*x)"/>
                     </INITIAL>
@@ -142,7 +146,15 @@
                     <SINK>
                         <E VAR="n" VALUE="exp((-(x-2+0.75*sin(t))*(x-2+0.75*sin(t))/(0.01))+(-(y-0.75*cos(t))*(y-0.75*cos(t))/(0.01)))"/>
                     </SINK>
-                </S>
+                    <BOUNDARYINTERACTION>
+                        <REGION REF="1">
+                            <C VALUE="0.0" />
+                        </REGION>   
+	                    <REGION REF="2">
+                            <C VALUE="0.0" />
+                        </REGION>
+                    </BOUNDARYINTERACTION> 
+                </S> -->
             </SPECIES>  
 
             <REACTIONS>
@@ -158,10 +170,10 @@
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
-                <R ID="3" TYPE="Recombination" SPECIES="1">
+                <!-- <R ID="3" TYPE="Recombination" SPECIES="1">
                     <RATE TYPE="Fixed" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
-                </R>
+                </R> -->
                 <!-- <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
                     <RATE TYPE="Fixed" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>

@@ -299,8 +299,8 @@ void TokamakSystem::DoOdeProjection(
 
             for (i = 0; i < num_vars; ++i)
             {
-                m_fields[i]->FwdTrans(in_arr[i], coeffs);
-                m_fields[i]->BwdTrans(coeffs, out_arr[i]);
+                m_indfields[i]->FwdTrans(in_arr[i], coeffs);
+                m_indfields[i]->BwdTrans(coeffs, out_arr[i]);
             }
             break;
         }
@@ -317,6 +317,8 @@ void TokamakSystem::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
 {
+    variables   = {};
+    fieldcoeffs = {};
     bool extraFields;
     m_session->MatchSolverInfo("OutputSpeciesFields", "True", extraFields,
                                true);
@@ -330,13 +332,12 @@ void TokamakSystem::v_ExtraFldOutput(
 
             for (int f = 0; f < this->n_fields_per_species; ++f)
             {
+                int fi =
+                    this->n_indep_fields + f + k * this->n_fields_per_species;
                 variables.push_back(m_session->GetVariable(f) + "_" + name);
                 Array<OneD, NekDouble> Fwd(nCoeffs);
-                m_fields[0]->FwdTransLocalElmt(
-                    this->m_allfields[m_fields.size() + f +
-                                      k * this->n_fields_per_species]
-                        ->GetPhys(),
-                    Fwd);
+                m_indfields[fi]->FwdTransLocalElmt(
+                    this->m_indfields[fi]->GetPhys(), Fwd);
                 fieldcoeffs.push_back(Fwd);
             }
         }
@@ -419,20 +420,23 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
+    this->ne = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+    this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
     ReadMagneticField(0);
-    int n_species = 1;
-
-    m_allfields = Array<OneD, MR::ExpListSharedPtr>(
-        m_fields.size() + n_species * n_fields_per_species);
+    this->n_species = this->neso_config->get_species().size();
+    m_allfields     = Array<OneD, MR::ExpListSharedPtr>(
+        m_fields.size() + this->n_species * n_fields_per_species);
     m_indfields = Array<OneD, MR::ExpListSharedPtr>(
-        n_indep_fields + n_species * n_fields_per_species);
+        n_indep_fields + this->n_species * n_fields_per_species);
+
     for (int i = 0; i < m_fields.size(); ++i)
     {
         m_allfields[i] = m_fields[i];
     }
     for (int i = 0; i < n_indep_fields; ++i)
     {
-        m_indfields[i] = m_fields[i];
+        m_indfields[i] = m_fields[n_fields_per_species + i];
     }
 
     for (const auto &[k, v] : this->neso_config->get_species())
@@ -527,13 +531,245 @@ void TokamakSystem::v_InitObject(bool create_field)
 }
 
 /**
+ * @brief Initialises the time integration scheme (as specified in the
+ * session file), and perform the time integration.
+ */
+void TokamakSystem::v_DoSolve()
+{
+    ASSERTL0(m_intScheme != nullptr, "No time integration scheme.");
+
+    int i          = 1;
+    int nvariables = 0;
+    int nfields    = m_indfields.size();
+    if (m_intVariables.empty())
+    {
+        for (i = 0; i < nfields; ++i)
+        {
+            m_intVariables.push_back(i);
+        }
+        nvariables = nfields;
+    }
+    else
+    {
+        nvariables = m_intVariables.size();
+    }
+
+    // Set up wrapper to fields data storage.
+    Array<OneD, Array<OneD, NekDouble>> fields(nvariables);
+
+    // Order storage to list time-integrated fields first.
+    // @TODO: Refactor to take coeffs (FwdTrans) if boolean flag (in constructor
+    // function) says to.
+    for (i = 0; i < nvariables; ++i)
+    {
+        fields[i] = m_indfields[m_intVariables[i]]->UpdatePhys();
+        m_indfields[m_intVariables[i]]->SetPhysState(false);
+    }
+
+    // @TODO: Virtual function that allows to transform the field space, embed
+    // the MultiplyMassMatrix in here.
+    // @TODO: Specify what the fields variables are physical or coefficient,
+    // boolean in UnsteadySystem class...
+
+    v_ALEPreMultiplyMass(fields);
+
+    // Initialise time integration scheme.
+    m_intScheme->InitializeScheme(m_timestep, fields, m_time, m_ode);
+
+    LibUtilities::Timer timer;
+    bool doCheckTime      = false;
+    int step              = m_initialStep;
+    int stepCounter       = 0;
+    NekDouble intTime     = 0.0;
+    NekDouble cpuTime     = 0.0;
+    NekDouble cpuPrevious = 0.0;
+    NekDouble elapsed     = 0.0;
+
+    m_lastCheckTime = 0.0;
+
+    Array<OneD, int> abortFlags(2, 0);
+    std::string abortFile = "abort";
+    if (m_session->DefinesSolverInfo("CheckAbortFile"))
+    {
+        abortFile = m_session->GetSolverInfo("CheckAbortFile");
+    }
+
+    NekDouble tmp_cflSafetyFactor = m_cflSafetyFactor;
+    while ((step < m_steps || m_time < m_fintime - NekConstants::kNekZeroTol) &&
+           abortFlags[1] == 0)
+    {
+        if (m_CFLGrowth > 1.0 && m_cflSafetyFactor < m_CFLEnd)
+        {
+            tmp_cflSafetyFactor =
+                std::min(m_CFLEnd, m_CFLGrowth * tmp_cflSafetyFactor);
+        }
+
+        // Frozen preconditioner checks.
+        if (!m_comm->IsParallelInTime())
+        {
+            if (v_UpdateTimeStepCheck())
+            {
+                m_cflSafetyFactor = tmp_cflSafetyFactor;
+
+                if (m_cflSafetyFactor)
+                {
+                    m_timestep = GetTimeStep(fields);
+                }
+
+                // Ensure that the final timestep finishes at the final
+                // time, or at a prescribed IO_CheckTime.
+                if (m_time + m_timestep > m_fintime && m_fintime > 0.0)
+                {
+                    m_timestep = m_fintime - m_time;
+                }
+                else if (m_checktime &&
+                         m_time + m_timestep - m_lastCheckTime >= m_checktime)
+                {
+                    m_lastCheckTime += m_checktime;
+                    m_timestep  = m_lastCheckTime - m_time;
+                    doCheckTime = true;
+                }
+            }
+        }
+
+        if (m_TimeIncrementFactor > 1.0)
+        {
+            NekDouble timeincrementFactor = m_TimeIncrementFactor;
+            m_timestep *= timeincrementFactor;
+
+            if (m_time + m_timestep > m_fintime && m_fintime > 0.0)
+            {
+                m_timestep = m_fintime - m_time;
+            }
+        }
+
+        // Perform any solver-specific pre-integration steps.
+        timer.Start();
+        if (v_PreIntegrate(
+                step)) // Could be possible to put a preintegrate step in the
+                       // ALEHelper class, put in the Unsteady Advection class
+        {
+            break;
+        }
+
+        ASSERTL0(m_timestep > 0, "m_timestep < 0");
+
+        fields = m_intScheme->TimeIntegrate(stepCounter, m_timestep);
+        timer.Stop();
+
+        m_time += m_timestep;
+        elapsed = timer.TimePerTest(1);
+        intTime += elapsed;
+        cpuTime += elapsed;
+
+        // Write out status information.
+        v_PrintStatusInformation(step, cpuTime);
+        if (m_infosteps &&
+            m_session->GetComm()->GetSpaceComm()->GetRank() == 0 &&
+            !((step + 1) % m_infosteps))
+        {
+            cpuPrevious = cpuTime;
+            cpuTime     = 0.0;
+        }
+
+        // Transform data into coefficient space
+        for (i = 0; i < nvariables; ++i)
+        {
+            // copy fields into ExpList::m_phys and assign the new
+            // array to fields
+            m_indfields[m_intVariables[i]]->SetPhys(fields[i]);
+            fields[i] = m_indfields[m_intVariables[i]]->UpdatePhys();
+            if (v_RequireFwdTrans())
+            {
+                if (m_comm->IsParallelInTime())
+                {
+                    m_indfields[m_intVariables[i]]->FwdTrans(
+                        m_indfields[m_intVariables[i]]->GetPhys(),
+                        m_indfields[m_intVariables[i]]->UpdateCoeffs());
+                }
+                else
+                {
+                    m_indfields[m_intVariables[i]]->FwdTransLocalElmt(
+                        m_indfields[m_intVariables[i]]->GetPhys(),
+                        m_indfields[m_intVariables[i]]->UpdateCoeffs());
+                }
+            }
+            m_indfields[m_intVariables[i]]->SetPhysState(false);
+        }
+
+        // Perform any solver-specific post-integration steps.
+        if (v_PostIntegrate(step))
+        {
+            break;
+        }
+
+        // Test for abort conditions (nan, or abort file).
+        if (m_abortSteps && !((step + 1) % m_abortSteps))
+        {
+            abortFlags[0] = 0;
+            for (i = 0; i < nvariables; ++i)
+            {
+                if (Vmath::Nnan(m_indfields[m_intVariables[i]]->GetPhys().size(),
+                                m_indfields[m_intVariables[i]]->GetPhys(), 1) > 0)
+                {
+                    abortFlags[0] = 1;
+                }
+            }
+
+            // Rank zero looks for abort file and deletes it
+            // if it exists. Communicates the abort.
+            if (m_session->GetComm()->GetSpaceComm()->GetRank() == 0)
+            {
+                if (fs::exists(abortFile))
+                {
+                    fs::remove(abortFile);
+                    abortFlags[1] = 1;
+                }
+            }
+
+            m_session->GetComm()->GetSpaceComm()->AllReduce(
+                abortFlags, LibUtilities::ReduceMax);
+
+            ASSERTL0(!abortFlags[0], "NaN found during time integration.");
+        }
+
+        // Write out checkpoint files.
+        if ((m_checksteps && !((step + 1) % m_checksteps)) || doCheckTime)
+        {
+
+            Checkpoint_Output(m_nchk);
+            m_nchk++;
+
+            doCheckTime = false;
+        }
+
+        // Step advance.
+        ++step;
+        ++stepCounter;
+    }
+
+    // Print out summary statistics.
+    v_PrintSummaryStatistics(intTime);
+
+    // If homogeneous, transform back into physical space if necessary.
+
+    for (i = 0; i < nvariables; ++i)
+    {
+        m_indfields[m_intVariables[i]]->SetPhysState(true);
+    }
+    if (this->particle_sys)
+    {
+        this->particle_sys->free();
+    }
+}
+
+/**
  * @brief Override v_PostIntegrate to do particle output and compute
  * diagnostics, if enabled
  * @param step Time step number
  */
 bool TokamakSystem::v_PostIntegrate(int step)
 {
-
     this->solver_callback_handler.call_post_integrate(this);
 
     // Writes a step of the particle trajectory.
@@ -610,46 +846,105 @@ NESOSessionFunctionSharedPtr TokamakSystem::get_species_function(
 void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                            const int domain)
 {
-    TimeEvoEqnSysBase<SU::UnsteadySystem,
-                      ParticleSystem>::v_SetInitialConditions(init_time,
-                                                              dump_ICs, domain);
+    if (m_session->DefinesFunction("InitialConditions"))
+    {
+        GetFunction("InitialConditions")
+            ->Evaluate(m_session->GetVariables(), m_fields, m_time, domain);
+        // Enforce C0 Continutiy of initial condiiton
+        if ((m_projectionType == MultiRegions::eGalerkin) ||
+            (m_projectionType == MultiRegions::eMixed_CG_Discontinuous))
+        {
+            for (int i = 0; i < m_fields.size(); ++i)
+            {
+                m_fields[i]->LocalToGlobal();
+                m_fields[i]->GlobalToLocal();
+                m_fields[i]->BwdTrans(m_fields[i]->GetCoeffs(),
+                                      m_fields[i]->UpdatePhys());
+            }
+        }
+
+        if (m_session->GetComm()->GetRank() == 0)
+        {
+            for (int i = 0; i < m_fields.size(); ++i)
+            {
+                std::string varName = m_session->GetVariable(i);
+                std::cout << "  - Field " << varName << ": "
+                          << GetFunction("InitialConditions")
+                                 ->Describe(varName, domain)
+                          << std::endl;
+            }
+        }
+    }
+    else
+    {
+        int nq = m_fields[0]->GetNpoints();
+        for (int i = 0; i < m_fields.size(); i++)
+        {
+            Vmath::Zero(nq, m_fields[i]->UpdatePhys(), 1);
+            m_fields[i]->SetPhysState(true);
+            Vmath::Zero(m_fields[i]->GetNcoeffs(), m_fields[i]->UpdateCoeffs(),
+                        1);
+            if (m_session->GetComm()->GetRank() == 0)
+            {
+                std::cout << "  - Field " << m_session->GetVariable(i)
+                          << ": 0 (default)" << std::endl;
+            }
+        }
+    }
     for (int s = 0; s < this->n_species; ++s)
     {
         if (this->neso_config->defines_species_function(s, "InitialConditions"))
         {
-            this->get_species_function(s, "InitialConditions")
-                ->Evaluate(m_session->GetVariables(), m_fields, m_time, domain);
-            // Enforce C0 Continutiy of initial condiiton
-            if ((m_projectionType == MultiRegions::eGalerkin) ||
-                (m_projectionType == MultiRegions::eMixed_CG_Discontinuous))
+            auto fn = this->get_species_function(s, "InitialConditions");
+            for (int f = 0; f < n_fields_per_species; ++f)
             {
-                for (int f = 0; f < this->n_fields_per_species; ++f)
+                int fi = n_indep_fields + f + s * n_fields_per_species;
+                fn->Evaluate(m_session->GetVariables()[f],
+                             m_indfields[fi]->UpdatePhys(), m_time, domain);
+                if (m_indfields[fi]->GetWaveSpace())
                 {
-                    int fi = m_fields.size() + f + s * n_fields_per_species;
-                    m_allfields[fi]->LocalToGlobal();
-                    m_allfields[fi]->GlobalToLocal();
-                    m_allfields[fi]->BwdTrans(m_allfields[fi]->GetCoeffs(),
-                                              m_allfields[fi]->UpdatePhys());
+                    m_indfields[fi]->HomogeneousFwdTrans(
+                        m_indfields[fi]->GetTotPoints(),
+                        m_indfields[fi]->GetPhys(),
+                        m_indfields[fi]->UpdatePhys());
+                }
+                m_indfields[fi]->FwdTransLocalElmt(
+                    m_indfields[fi]->GetPhys(),
+                    m_indfields[fi]->UpdateCoeffs());
+
+                if ((m_projectionType == MultiRegions::eGalerkin) ||
+                    (m_projectionType == MultiRegions::eMixed_CG_Discontinuous))
+                {
+
+                    m_indfields[fi]->LocalToGlobal();
+                    m_indfields[fi]->GlobalToLocal();
+                    m_indfields[fi]->BwdTrans(m_indfields[fi]->GetCoeffs(),
+                                              m_indfields[fi]->UpdatePhys());
                 }
             }
-            else
+
+            // Enforce C0 Continutiy of initial condiiton
+        }
+        else
+        {
+            int nq = m_indfields[0]->GetNpoints();
+            for (int f = 0; f < this->n_fields_per_species; f++)
             {
-                int nq = m_fields[0]->GetNpoints();
-                for (int f = 0; f < this->n_fields_per_species; f++)
-                {
-                    int fi = m_fields.size() + f + s * n_fields_per_species;
-                    Vmath::Zero(nq, m_allfields[fi]->UpdatePhys(), 1);
-                    m_allfields[fi]->SetPhysState(true);
-                    Vmath::Zero(m_allfields[fi]->GetNcoeffs(),
-                                m_allfields[fi]->UpdateCoeffs(), 1);
-                }
+                int fi = n_indep_fields + f + s * n_fields_per_species;
+                Vmath::Zero(nq, m_indfields[fi]->UpdatePhys(), 1);
+                m_indfields[fi]->SetPhysState(true);
+                Vmath::Zero(m_indfields[fi]->GetNcoeffs(),
+                            m_indfields[fi]->UpdateCoeffs(), 1);
             }
         }
     }
+
     if (dump_ICs && m_checksteps && m_nchk == 0 && !m_comm->IsParallelInTime())
     {
         Checkpoint_Output(m_nchk);
     }
+    ++m_nchk;
+    // m_fields = m_indfields;
 
     if (this->particle_sys)
     {
