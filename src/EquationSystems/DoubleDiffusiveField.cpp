@@ -31,7 +31,11 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names = {"n_src", "E_src"};
+        this->required_fld_names.push_back("E_src");
+        for (auto &[k, v] : particle_sys->get_species())
+        {
+            this->required_fld_names.push_back(v.name + "_src");
+        }
     }
 }
 
@@ -49,6 +53,8 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 
     if (this->particles_enabled)
     {
+        std::vector<Sym<REAL>> src_syms;
+        std::vector<int> src_components;
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             this->src_fields.emplace_back(
@@ -57,16 +63,16 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             this->energy_src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
-            this->components.push_back(0);
-            this->src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
-            this->components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+            src_components.push_back(0);
         }
         std::vector<MR::DisContFieldSharedPtr> src_fields =
             this->density_src_fields;
         src_fields.insert(src_fields.end(), this->energy_src_fields.begin(),
                           this->energy_src_fields.end());
-        this->particle_sys->setup_project(src_fields);
+        this->particle_sys->finish_setup(src_fields, src_syms, src_components);
     }
 }
 
@@ -230,19 +236,23 @@ void DoubleDiffusiveField::v_ExtraFldOutput(
     TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
     const int nPhys   = m_fields[0]->GetNpoints();
     const int nCoeffs = m_fields[0]->GetNcoeffs();
-    for (auto s : this->particle_sys->get_species())
+    if (this->particles_enabled)
     {
-        variables.push_back(s.second.name + "_SOURCE_DENSITY");
-        Array<OneD, NekDouble> SrcFwd1(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->density_src_fields[s.first]->GetPhys(), SrcFwd1);
-        fieldcoeffs.push_back(SrcFwd1);
+        int i = 0;
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            variables.push_back(v.name + "_SOURCE_DENSITY");
+            Array<OneD, NekDouble> SrcFwd1(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(
+                this->density_src_fields[i]->GetPhys(), SrcFwd1);
+            fieldcoeffs.push_back(SrcFwd1);
 
-        variables.push_back(s.second.name + "_SOURCE_ENERGY");
-        Array<OneD, NekDouble> SrcFwd2(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(
-            this->energy_src_fields[s.first]->GetPhys(), SrcFwd2);
-        fieldcoeffs.push_back(SrcFwd2);
+            variables.push_back(v.name + "_SOURCE_ENERGY");
+            Array<OneD, NekDouble> SrcFwd2(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(
+                this->energy_src_fields[i]->GetPhys(), SrcFwd2);
+            fieldcoeffs.push_back(SrcFwd2);
+        }
     }
 }
 } // namespace NESO::Solvers::tokamak
