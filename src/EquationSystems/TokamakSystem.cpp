@@ -317,8 +317,6 @@ void TokamakSystem::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
 {
-    variables   = {};
-    fieldcoeffs = {};
     bool extraFields;
     m_session->MatchSolverInfo("OutputSpeciesFields", "True", extraFields,
                                true);
@@ -709,8 +707,9 @@ void TokamakSystem::v_DoSolve()
             abortFlags[0] = 0;
             for (i = 0; i < nvariables; ++i)
             {
-                if (Vmath::Nnan(m_indfields[m_intVariables[i]]->GetPhys().size(),
-                                m_indfields[m_intVariables[i]]->GetPhys(), 1) > 0)
+                if (Vmath::Nnan(
+                        m_indfields[m_intVariables[i]]->GetPhys().size(),
+                        m_indfields[m_intVariables[i]]->GetPhys(), 1) > 0)
                 {
                     abortFlags[0] = 1;
                 }
@@ -790,6 +789,21 @@ bool TokamakSystem::v_PreIntegrate(int step)
     if (this->transient_field)
     {
         ReadMagneticField(m_time);
+    }
+
+    for (const auto &[k, v] : this->neso_config->get_species())
+    {
+        for (int f = 0; f < this->n_fields_per_species; ++f)
+        {
+            Vmath::Vadd(
+                n_pts, m_fields[n_indep_fields + f]->GetPhys(), 1,
+                m_indfields[n_indep_fields + k * n_fields_per_species + f]
+                    ->GetPhys(),
+                1, m_fields[n_indep_fields + f]->UpdatePhys(), 1);
+            m_fields[n_indep_fields + f]->FwdTransLocalElmt(
+                this->m_fields[n_indep_fields + f]->GetPhys(),
+                m_fields[n_indep_fields + f]->UpdateCoeffs());
+        }
     }
 
     if (this->particles_enabled)
@@ -944,7 +958,6 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
         Checkpoint_Output(m_nchk);
     }
     ++m_nchk;
-    // m_fields = m_indfields;
 
     if (this->particle_sys)
     {
