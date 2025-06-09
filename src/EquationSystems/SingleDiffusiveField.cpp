@@ -35,6 +35,7 @@ SingleDiffusiveField::SingleDiffusiveField(
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+    this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
@@ -148,7 +149,7 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
 
         // Solve a system of equations with Helmholtz solver
         m_indfields[i]->HelmSolve(outarray[i], m_indfields[i]->UpdateCoeffs(),
-                               m_factors, m_D);
+                                  m_factors, m_D);
 
         m_indfields[i]->BwdTrans(m_indfields[i]->GetCoeffs(), outarray[i]);
 

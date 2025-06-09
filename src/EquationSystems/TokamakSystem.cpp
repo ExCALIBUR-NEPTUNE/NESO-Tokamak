@@ -793,9 +793,9 @@ bool TokamakSystem::v_PreIntegrate(int step)
 
     for (int f = 0; f < this->n_fields_per_species; ++f)
     {
+        Vmath::Zero(n_pts, m_fields[n_indep_fields + f]->UpdatePhys(), 1);
         for (const auto &[k, v] : this->neso_config->get_species())
         {
-
             Vmath::Vadd(
                 n_pts, m_fields[n_indep_fields + f]->GetPhys(), 1,
                 m_indfields[n_indep_fields + k * n_fields_per_species + f]
