@@ -21,6 +21,7 @@ spack:
   repos:
   - ./repo
   - ../NESO/NESO-Spack
+  - ../Reactions/Reactions-repo
   - $spack/var/spack/repos/builtin
   packages:
     all:
@@ -36,6 +37,9 @@ spack:
     neso-particles:
       path: ../NESO/neso-particles
       spec: neso-particles@working
+    reactions:
+      path: ../Reactions
+      spec: reactions@working
     neso-tokamak:
       path: ../
       spec: neso-tokamak@working

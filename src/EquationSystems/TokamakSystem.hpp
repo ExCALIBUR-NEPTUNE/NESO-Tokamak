@@ -4,6 +4,7 @@
 #include "../BoundaryConditions/TokamakBndCond.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
+#include "../../NESO/include/nektar_interface/solver_base/neso_session_function.hpp"
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
 
@@ -85,14 +86,16 @@ protected:
     /// Sheath potential
     NekDouble lambda;
 
-    struct FluidInfo
-    {
-        NekDouble charge;
-        NekDouble mass;
-        std::string name;
-    };
+    MR::DisContFieldSharedPtr ne;
+    MR::DisContFieldSharedPtr Te;
+    Array<OneD, MR::DisContFieldSharedPtr> ve;
 
-    std::map<int, FluidInfo> fluid_map;
+    Array<OneD, MR::ExpListSharedPtr> m_allfields;
+    Array<OneD, MR::ExpListSharedPtr> m_saved;
+    Array<OneD, MR::ExpListSharedPtr> m_indfields;
+    int n_indep_fields;
+    int n_species;
+    int n_fields_per_species;
 
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
@@ -150,12 +153,20 @@ protected:
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
         std::vector<std::string> &variables) override;
+    void v_DoSolve() override;
     virtual void v_GenerateSummary(SU::SummaryList &s) override;
     virtual void v_InitObject(bool DeclareField) override;
     virtual bool v_PostIntegrate(int step) override;
     virtual bool v_PreIntegrate(int step) override;
     virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                         const int domain) override;
+
+    NESOSessionFunctionSharedPtr get_species_function(
+        int s, std::string name,
+        const MR::ExpListSharedPtr &field = MR::NullExpListSharedPtr,
+        bool cache                        = false);
+    std::vector<std::map<std::string, NESOSessionFunctionSharedPtr>>
+        m_nesoSessionFunctions;
 };
 
 } // namespace NESO::Solvers::tokamak

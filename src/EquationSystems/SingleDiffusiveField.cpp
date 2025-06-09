@@ -27,12 +27,15 @@ SingleDiffusiveField::SingleDiffusiveField(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->required_fld_names = {"n"};
+    this->n_indep_fields       = 0;
+    this->n_fields_per_species = 1;
+    this->required_fld_names   = {"n"};
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+    this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
@@ -59,7 +62,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
                 diffName, diffName);
             m_diffusion->SetFluxVector(&SingleDiffusiveField::GetFluxVectorDiff,
                                        this);
-            m_diffusion->InitObject(m_session, m_fields);
+            m_diffusion->InitObject(m_session, m_indfields);
             break;
         }
         case MultiRegions::eGalerkin:
@@ -100,7 +103,7 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
 {
 
     int nvariables                       = inarray.size();
-    int npoints                          = m_fields[0]->GetNpoints();
+    int npoints                          = m_indfields[0]->GetNpoints();
     m_factors[StdRegions::eFactorLambda] = 1.0 / lambda / m_epsilon;
 
     if (m_useSpecVanVisc)
@@ -122,7 +125,7 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
 
         for (auto &x : m_forcing)
         {
-            x->Apply(m_fields, inarray, outarray, time);
+            x->Apply(m_indfields, inarray, outarray, time);
         }
     }
     CalcDiffTensor();
@@ -145,12 +148,12 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
         }
 
         // Solve a system of equations with Helmholtz solver
-        m_fields[i]->HelmSolve(outarray[i], m_fields[i]->UpdateCoeffs(),
-                               m_factors, m_D);
+        m_indfields[i]->HelmSolve(outarray[i], m_indfields[i]->UpdateCoeffs(),
+                                  m_factors, m_D);
 
-        m_fields[i]->BwdTrans(m_fields[i]->GetCoeffs(), outarray[i]);
+        m_indfields[i]->BwdTrans(m_indfields[i]->GetCoeffs(), outarray[i]);
 
-        m_fields[i]->SetPhysState(false);
+        m_indfields[i]->SetPhysState(false);
     }
 }
 
@@ -207,7 +210,7 @@ void SingleDiffusiveField::DoOdeRhs(
     {
         CalcDiffTensor();
         size_t nvariables = in_arr.size();
-        m_diffusion->Diffuse(nvariables, m_fields, in_arr, out_arr);
+        m_diffusion->Diffuse(nvariables, m_indfields, in_arr, out_arr);
     }
     else
     {
@@ -222,8 +225,8 @@ void SingleDiffusiveField::DoOdeRhs(
     {
         for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
         {
-            Vmath::Vadd(out_arr[0].size(), out_arr[0], 1,
-                        this->src_fields[i]->GetPhys(), 1, out_arr[0], 1);
+            Vmath::Vadd(out_arr[i].size(), out_arr[i], 1,
+                        this->src_fields[i]->GetPhys(), 1, out_arr[i], 1);
         }
     }
 
@@ -243,17 +246,21 @@ void SingleDiffusiveField::GetFluxVectorDiff(
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes)
 {
     unsigned int nDim = qfield.size();
+    unsigned int nFld = qfield[0].size();
     unsigned int nPts = qfield[0][0].size();
-    int n_idx         = this->field_to_index["n"];
-    for (unsigned int j = 0; j < nDim; ++j)
+
+    for (unsigned int f = 0; f < nFld; ++f)
     {
-        // Calc diffusion of n with D tensor
-        Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][n_idx], 1,
-                    fluxes[j][n_idx], 1);
-        for (unsigned int k = 1; k < nDim; ++k)
+        for (unsigned int j = 0; j < nDim; ++j)
         {
-            Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][n_idx], 1,
-                         fluxes[j][n_idx], 1, fluxes[j][n_idx], 1);
+            // Calc diffusion of n with D tensor
+            Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][f], 1,
+                        fluxes[j][f], 1);
+            for (unsigned int k = 1; k < nDim; ++k)
+            {
+                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][f], 1,
+                             fluxes[j][f], 1, fluxes[j][f], 1);
+            }
         }
     }
 }
@@ -277,7 +284,7 @@ void SingleDiffusiveField::v_ExtraFldOutput(
 
     if (this->particles_enabled)
     {
-        int i = 0; 
+        int i = 0;
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             variables.push_back(v.name + "_SOURCE_DENSITY");

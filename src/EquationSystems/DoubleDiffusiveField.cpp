@@ -31,7 +31,11 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 
     if (this->particles_enabled)
     {
-        this->required_fld_names = {"n_src", "E_src"};
+        this->required_fld_names.push_back("E_src");
+        for (auto &[k, v] : particle_sys->get_species())
+        {
+            this->required_fld_names.push_back(v.name + "_src");
+        }
     }
 }
 
@@ -79,13 +83,16 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_components.push_back(0);
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             src_components.push_back(0);
         }
-
-        this->particle_sys->finish_setup(this->src_fields, src_syms,
-                                         src_components);
+        std::vector<MR::DisContFieldSharedPtr> src_fields =
+            this->density_src_fields;
+        src_fields.insert(src_fields.end(), this->energy_src_fields.begin(),
+                          this->energy_src_fields.end());
+        this->particle_sys->finish_setup(src_fields, src_syms, src_components);
     }
 }
 
