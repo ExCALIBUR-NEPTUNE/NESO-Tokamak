@@ -88,10 +88,7 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             src_components.push_back(0);
         }
-        std::vector<MR::DisContFieldSharedPtr> src_fields =
-            this->density_src_fields;
-        src_fields.insert(src_fields.end(), this->energy_src_fields.begin(),
-                          this->energy_src_fields.end());
+
         this->particle_sys->finish_setup(src_fields, src_syms, src_components);
     }
 }
