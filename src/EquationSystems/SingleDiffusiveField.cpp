@@ -106,12 +106,6 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
     int npoints                          = m_indfields[0]->GetNpoints();
     m_factors[StdRegions::eFactorLambda] = 1.0 / lambda / m_epsilon;
 
-    if (m_useSpecVanVisc)
-    {
-        m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
-        m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff / m_epsilon;
-    }
-
     // We solve ( \nabla^2 - HHlambda ) Y[i] = rhs [i]
     // inarray = input: \hat{rhs} -> output: \hat{Y}
     // outarray = output: nabla^2 \hat{Y}
@@ -206,7 +200,7 @@ void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
-    if (m_explicitDiffusion)
+    if (m_explicitDiffusion || m_projectionType == MR::eDiscontinuous)
     {
         CalcDiffTensor();
         size_t nvariables = in_arr.size();
