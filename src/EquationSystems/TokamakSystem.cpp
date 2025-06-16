@@ -333,6 +333,7 @@ void TokamakSystem::v_ExtraFldOutput(
                 int fi =
                     this->n_indep_fields + f + k * this->n_fields_per_species;
                 variables.push_back(m_session->GetVariable(f) + "_" + name);
+                ;
                 Array<OneD, NekDouble> Fwd(nCoeffs);
                 m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
@@ -434,7 +435,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     }
     for (int i = 0; i < n_indep_fields; ++i)
     {
-        m_indfields[i] = m_fields[n_fields_per_species + i];
+        m_indfields[i] = m_fields[m_fields.size() - n_indep_fields + i];
     }
 
     for (const auto &[k, v] : this->neso_config->get_species())
@@ -793,18 +794,17 @@ bool TokamakSystem::v_PreIntegrate(int step)
 
     for (int f = 0; f < this->n_fields_per_species; ++f)
     {
-        Vmath::Zero(n_pts, m_fields[n_indep_fields + f]->UpdatePhys(), 1);
+        Vmath::Zero(n_pts, m_fields[f]->UpdatePhys(), 1);
         for (const auto &[k, v] : this->neso_config->get_species())
         {
             Vmath::Vadd(
-                n_pts, m_fields[n_indep_fields + f]->GetPhys(), 1,
+                n_pts, m_fields[f]->GetPhys(), 1,
                 m_indfields[n_indep_fields + k * n_fields_per_species + f]
                     ->GetPhys(),
-                1, m_fields[n_indep_fields + f]->UpdatePhys(), 1);
+                1, m_fields[f]->UpdatePhys(), 1);
         }
-        m_fields[n_indep_fields + f]->FwdTransLocalElmt(
-            this->m_fields[n_indep_fields + f]->GetPhys(),
-            m_fields[n_indep_fields + f]->UpdateCoeffs());
+        m_fields[f]->FwdTransLocalElmt(this->m_fields[f]->GetPhys(),
+                                       m_fields[f]->UpdateCoeffs());
     }
 
     if (this->particles_enabled)
