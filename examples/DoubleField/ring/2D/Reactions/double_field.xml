@@ -14,7 +14,7 @@
         <SOLVERINFO>
             <I PROPERTY="EQTYPE"                       VALUE="DoubleDiffusiveField"/>
             <I PROPERTY="Projection"                   VALUE="Continuous" />
-            <I PROPERTY="TimeIntegrationMethod"        VALUE="DIRKOrder3"    />
+            <I PROPERTY="TimeIntegrationMethod"        VALUE="IMEXOrder2"    />
             <!-- <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         /> -->
             <!-- <I PROPERTY="UpwindType"                   VALUE="Upwind"        /> -->
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
@@ -22,8 +22,8 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.0005            </P>
-            <P> NumSteps      = 100              </P>
+            <P> TimeStep      = 0.05            </P>
+            <P> NumSteps      = 50              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 10     </P>
             <P> IO_CheckSteps = 10     </P>
@@ -31,8 +31,8 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 1e-6   </P>
+            <P> k_par           = 1e-2   </P>
+            <P> k_perp          = 1e-8   </P>
             <P> TCore           = 300.0 </P>
             <P> T_bnd            = 1.0 </P>
             <P> k_B             = 1.0 </P>
@@ -122,15 +122,15 @@
                 <S ID="0" NAME="D">
                     <P> Mass = 2.0 </P>
                     <P> Charge = 1.0 </P>
-                    <INITIAL N="100">
+                    <INITIAL N="1000">
                         <E VAR="n" VALUE="sin(4*x)*sin(4*x)"/>
                     </INITIAL>
-                    <SOURCE N="100">
+                    <!-- <SOURCE N="100">
                         <E VAR="n" VALUE="exp((-(x-2-0.75*cos(150*t))*(x-2-0.75*cos(150*t))/(0.01))+(-(y-0.75*sin(150*t))*(y-0.75*sin(150*t))/(0.01)))"/>
                     </SOURCE>
                     <SINK>
                         <E VAR="n" VALUE="exp((-(x-2-0.75*sin(150*t))*(x-2-0.75*sin(150*t))/(0.01))+(-(y+0.75*cos(150*t))*(y+0.75*cos(150*t))/(0.01)))"/>
-                    </SINK>
+                    </SINK> -->
                     <BOUNDARYINTERACTION>
                         <REGION REF="1">
                             <C VALUE="0.0" />
@@ -143,15 +143,15 @@
                 <S ID="1" NAME="T">
                     <P> Mass = 3.0 </P>
                     <P> Charge = 1.0 </P>
-                    <INITIAL N="100">
+                    <INITIAL N="1000">
                         <E VAR="n" VALUE="cos(4*x)*cos(4*x)"/>
                     </INITIAL>
-                    <SOURCE N="100">
+                    <!-- <SOURCE N="100">
                         <E VAR="n" VALUE="exp((-(x-2+0.75*cos(150*t))*(x-2+0.75*cos(150*t))/(0.01))+(-(y+0.75*sin(150*t))*(y+0.75*sin(150*t))/(0.01)))"/>
                     </SOURCE>
                     <SINK>
                         <E VAR="n" VALUE="exp((-(x-2+0.75*sin(150*t))*(x-2+0.75*sin(150*t))/(0.01))+(-(y-0.75*cos(150*t))*(y-0.75*cos(150*t))/(0.01)))"/>
-                    </SINK>
+                    </SINK> -->
                     <BOUNDARYINTERACTION>
                         <REGION REF="1">
                             <C VALUE="0.0" />
@@ -165,23 +165,23 @@
 
             <REACTIONS>
                 <R ID="0" TYPE="Ionisation" SPECIES="0">
-                    <RATE TYPE="Fixed" VALUE="1.0"/>
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 <R ID="1" TYPE="Ionisation" SPECIES="1">
-                    <RATE TYPE="Fixed" VALUE="1.0"/>
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 <R ID="2" TYPE="Recombination" SPECIES="0">
-                    <RATE TYPE="Fixed" VALUE="1.0"/>
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 <R ID="3" TYPE="Recombination" SPECIES="1">
-                    <RATE TYPE="Fixed" VALUE="1.0"/>
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
-                    <RATE TYPE="Fixed" VALUE="1.0"/>
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 

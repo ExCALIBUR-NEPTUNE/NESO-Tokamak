@@ -72,10 +72,9 @@ protected:
     NekDouble k_par;
     NekDouble k_perp;
 
-
     std::vector<Array<OneD, NekDouble>> m_kperp;
     std::vector<Array<OneD, NekDouble>> m_kpar;
-    //StdRegions::VarCoeffMap m_D;
+    // StdRegions::VarCoeffMap m_D;
     std::vector<StdRegions::VarCoeffMap> m_D;
 
     NekDouble m_k_B;

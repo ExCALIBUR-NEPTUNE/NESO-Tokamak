@@ -332,12 +332,18 @@ void TokamakSystem::v_ExtraFldOutput(
             {
                 int fi = f + k * this->n_fields_per_species;
                 variables.push_back(m_session->GetVariable(f) + "_" + name);
-                ;
                 Array<OneD, NekDouble> Fwd(nCoeffs);
-                m_indfields[fi]->FwdTransLocalElmt(
+                this->m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
                 fieldcoeffs.push_back(Fwd);
             }
+        }
+        if (Te)
+        {
+            variables.push_back("Te");
+            Array<OneD, NekDouble> Fwd(nCoeffs);
+            this->Te->FwdTransLocalElmt(this->Te->GetPhys(), Fwd);
+            fieldcoeffs.push_back(Fwd);
         }
     }
 
@@ -418,8 +424,7 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
-    this->ne = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-        *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
     ReadMagneticField(0);
     this->n_species = this->neso_config->get_species().size();
@@ -521,12 +526,6 @@ void TokamakSystem::v_InitObject(bool create_field)
     }
 
     SetBoundaryConditionsBwdWeight();
-
-    if (this->particles_enabled)
-    {
-        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
-                                                  this->Te, this->ve);
-    }
 }
 
 /**
@@ -792,18 +791,25 @@ bool TokamakSystem::v_PreIntegrate(int step)
         ReadMagneticField(m_time);
     }
 
-    for (int f = 0; f < this->n_fields_per_species; ++f)
+    // for (int f = 0; f < this->n_fields_per_species; ++f)
+    //{
+    Vmath::Zero(n_pts, m_fields[0]->UpdatePhys(), 1);
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        Vmath::Zero(n_pts, m_fields[f]->UpdatePhys(), 1);
-        for (const auto &[k, v] : this->neso_config->get_species())
-        {
-            Vmath::Vadd(n_pts, m_fields[f]->GetPhys(), 1,
-                        m_indfields[k * n_fields_per_species + f]->GetPhys(), 1,
-                        m_fields[f]->UpdatePhys(), 1);
-        }
-        m_fields[f]->FwdTransLocalElmt(this->m_fields[f]->GetPhys(),
-                                       m_fields[f]->UpdateCoeffs());
+        Vmath::Vadd(n_pts, m_fields[0]->GetPhys(), 1,
+                    m_indfields[k * n_fields_per_species]->GetPhys(), 1,
+                    m_fields[0]->UpdatePhys(), 1);
     }
+    m_fields[0]->FwdTransLocalElmt(this->m_fields[0]->GetPhys(),
+                                   m_fields[0]->UpdateCoeffs());
+
+    if (this->Te)
+    {
+        Vmath::Vdiv(n_pts, m_indfields[m_indfields.size() - 1]->GetPhys(), 1,
+                    m_fields[0]->GetPhys(), 1, Te->UpdatePhys(), 1);
+        Te->FwdTransLocalElmt(this->Te->GetPhys(), Te->UpdateCoeffs());
+    }
+    //}
 
     if (this->particles_enabled)
     {
@@ -814,9 +820,11 @@ bool TokamakSystem::v_PreIntegrate(int step)
         {
             this->particle_sys->write(step);
         }
-
+        for(auto& fld : this->src_fields)
+        {
+            Vmath::Zero(fld->GetNpoints(), fld->UpdatePhys(), 1);
+        }
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms();
     }
 
     return UnsteadySystem::v_PreIntegrate(step);

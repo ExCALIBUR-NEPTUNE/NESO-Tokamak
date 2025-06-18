@@ -105,10 +105,10 @@ public:
             std::make_shared<ParticleRemover>(this->sycl_target);
 
         this->transfer_particles();
-        //for (auto &[k, v] : this->get_species())
+        // for (auto &[k, v] : this->get_species())
         //{
-            pre_advection(particle_sub_group(this->particle_group));
-            apply_boundary_conditions(particle_sub_group(this->particle_group));
+        pre_advection(particle_sub_group(this->particle_group));
+        apply_boundary_conditions(particle_sub_group(this->particle_group));
         //}
     }
 
@@ -123,8 +123,8 @@ public:
         std::shared_ptr<ParticleSubGroup> sub_group;
 
         /// Reflective Boundary Conditions
-        //std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
-        //std::vector<int> reflection_composites;
+        // std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
+        // std::vector<int> reflection_composites;
     };
     virtual std::map<int, SpeciesInfo> &get_species()
     {
@@ -140,7 +140,7 @@ public:
      *  @param time_end Target time to integrate to.
      *  @param dt Time step size.
      */
-    inline void integrate(const double time_end, const double dt)
+    inline virtual void integrate(const double time_end, const double dt)
     {
 
         // Get the current simulation time.
@@ -501,18 +501,18 @@ protected:
 
     void pre_advection(ParticleSubGroupSharedPtr sg)
     {
-        //if (auto r = this->species_map[k].reflection)
+        // if (auto r = this->species_map[k].reflection)
         //{
 
-            reflection->pre_advection(sg);
+        reflection->pre_advection(sg);
         //}
     };
 
     void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
     {
-        //if (auto r = this->species_map[k].reflection)
+        // if (auto r = this->species_map[k].reflection)
         //{
-            reflection->execute(sg);
+        reflection->execute(sg);
         //}
     };
 
@@ -536,7 +536,7 @@ protected:
     {
         // for (auto &[k, v] : this->get_species())
         //{
-        //auto sg = v.sub_group;
+        // auto sg = v.sub_group;
         apply_timestep_reset(sg);
         pre_advection(sg);
         integrate_inner(sg, dt);

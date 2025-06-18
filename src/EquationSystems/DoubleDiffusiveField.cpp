@@ -37,6 +37,7 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     TokamakSystem::v_InitObject(DeclareFields);
 
     this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
+    this->Te = MemoryManager<MR::DisContField>::AllocateSharedPtr(*ne);
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
@@ -103,6 +104,10 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             src_components.push_back(0);
         }
+
+        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
+                                                  this->Te, this->ve);
+
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
     }
@@ -271,7 +276,7 @@ void DoubleDiffusiveField::DoOdeRhs(
 
     if (this->particles_enabled)
     {
-        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
+        for (int i = 0; i < this->src_fields.size(); ++i)
         {
             Vmath::Vadd(out_arr[i].size(), out_arr[i], 1,
                         this->src_fields[i]->GetPhys(), 1, out_arr[i], 1);
@@ -346,7 +351,7 @@ void DoubleDiffusiveField::v_ExtraFldOutput(
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i + 1]->GetPhys(),
                                            SrcFwd2);
             fieldcoeffs.push_back(SrcFwd2);
-            ++i;
+            i += 2;
         }
     }
 }
