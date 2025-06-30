@@ -37,11 +37,18 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     TokamakSystem::v_InitObject(DeclareFields);
 
     this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
+    this->Te = MemoryManager<MR::DisContField>::AllocateSharedPtr(*ne);
+    for (int d = 0; d < m_spaceDim; ++d)
+    {
+        this->ve[d] = this->B[d];
+    }
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
     m_session->LoadParameter("epsilon", m_epsilon, 1.0);
-    // m_D      = std::vector<StdRegions::VarCoeffMap>(m_indfields.size());
+    m_D     = std::vector<StdRegions::VarCoeffMap>(m_indfields.size());
+    m_kpar  = std::vector<Array<OneD, NekDouble>>(m_indfields.size());
+    m_kperp = std::vector<Array<OneD, NekDouble>>(m_indfields.size());
 
     // Setup diffusion object
 
@@ -113,6 +120,16 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             src_components.push_back(0);
         }
+
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGY"));
+        src_components.push_back(0);
+
+        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
+                                                  this->Te, this->ve);
+
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
     }
@@ -139,12 +156,23 @@ void DoubleDiffusiveField::ImplicitTimeIntCG(
             Vmath::Zero(npoints, outarray[i], 1);
         }
 
+        if (this->particles_enabled)
+        {
+            for (int i = 0; i < this->src_fields.size(); ++i)
+            {
+                Vmath::Vadd(outarray[i].size(), outarray[i], 1,
+                            this->src_fields[i]->GetPhys(), 1, outarray[i], 1);
+            }
+        }
+
         for (auto &x : m_forcing)
         {
             x->Apply(m_indfields, inarray, outarray, time);
         }
     }
     CalcDiffTensor();
+    Vmath::Zero(npoints, m_fields[0]->UpdatePhys(), 1);
+
     for (int i = 0; i < nvariables; ++i)
     {
         if (m_intScheme->GetIntegrationSchemeType() == LibUtilities::eImplicit)
@@ -163,39 +191,58 @@ void DoubleDiffusiveField::ImplicitTimeIntCG(
                         inarray[i], 1, outarray[i], 1);
         }
 
-        if (i % 2 == 0 && i != 0)
+        if (i % 2 == 1)
         {
+            Vmath::Vadd(npoints, inarray[i - 1], 1, m_fields[0]->UpdatePhys(),
+                        1, m_fields[0]->UpdatePhys(), 1);
             Vmath::Vdiv(npoints, outarray[i], 1, inarray[i - 1], 1, outarray[i],
                         1);
         }
+        else if (i == nvariables - 1)
+        {
+            Vmath::Vdiv(npoints, outarray[i], 1, m_fields[0]->GetPhys(), 1,
+                        outarray[i], 1);
+        }
         m_indfields[i]->HelmSolve(outarray[i], m_indfields[i]->UpdateCoeffs(),
-                                  m_factors, m_D);
+                                  m_factors, m_D[i]);
 
         m_indfields[i]->BwdTrans(m_indfields[i]->GetCoeffs(), outarray[i]);
-        if (i % 2 == 0 && i != 0)
+    }
+
+    Vmath::Zero(npoints, m_fields[0]->UpdatePhys(), 1);
+    for (int i = 0; i < nvariables; ++i)
+    {
+        if (i % 2 == 1)
         {
-            Vmath::Vmul(npoints, outarray[i], 1, outarray[i - 1], 1, outarray[i],
-                        1);
+            Vmath::Vadd(npoints, outarray[i - 1], 1, m_fields[0]->UpdatePhys(),
+                        1, m_fields[0]->UpdatePhys(), 1);
+            Vmath::Vmul(npoints, outarray[i], 1, outarray[i - 1], 1,
+                        outarray[i], 1);
+        }
+        else if (i == nvariables - 1)
+        {
+            Vmath::Vmul(npoints, outarray[i], 1, m_fields[0]->GetPhys(), 1,
+                        outarray[i], 1);
         }
         m_indfields[i]->SetPhysState(false);
     }
 }
 
-void DoubleDiffusiveField::CalcKPar()
+void DoubleDiffusiveField::CalcKPar(int f)
 {
     // Change to fn of fields
     int npoints     = m_fields[0]->GetNpoints();
     NekDouble k_par = this->k_par;
-    m_kpar          = Array<OneD, NekDouble>(npoints, k_par);
+    m_kpar[f]       = Array<OneD, NekDouble>(npoints, k_par);
 }
 
-void DoubleDiffusiveField::CalcKPerp()
+void DoubleDiffusiveField::CalcKPerp(int f)
 {
     // Change to fn of fields
     int npoints      = m_fields[0]->GetNpoints();
     NekDouble k_perp = this->k_perp;
     m_session->LoadParameter("k_perp", k_perp, 1.0);
-    m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
+    m_kperp[f] = Array<OneD, NekDouble>(npoints, k_perp);
 }
 
 void DoubleDiffusiveField::CalcDiffTensor()
@@ -203,30 +250,31 @@ void DoubleDiffusiveField::CalcDiffTensor()
     int npoints    = m_fields[0]->GetNpoints();
     int nvariables = m_indfields.size();
 
-    // for (int f = 0; f < nvariables; ++f)
-    //{
-    CalcKPar();
-    CalcKPerp();
-    for (int i = 0; i < 3; i++)
+    for (int f = 0; f < nvariables; ++f)
     {
-        for (int j = 0; j < 3; j++)
+        CalcKPar(f);
+        CalcKPerp(f);
+        for (int i = 0; i < 3; i++)
         {
-            Array<OneD, NekDouble> d(npoints, 0.0);
-
-            for (int k = 0; k < npoints; k++)
+            for (int j = 0; j < 3; j++)
             {
-                d[k] = (m_kpar[k] - m_kperp[k]) * b_unit[i][k] * b_unit[j][k];
+                Array<OneD, NekDouble> d(npoints, 0.0);
 
-                if (i == j)
+                for (int k = 0; k < npoints; k++)
                 {
-                    d[k] += m_kperp[k];
-                }
-            }
+                    d[k] = (m_kpar[f][k] - m_kperp[f][k]) * b_unit[i][k] *
+                           b_unit[j][k];
 
-            m_D[vc[i][j]] = d;
+                    if (i == j)
+                    {
+                        d[k] += m_kperp[f][k];
+                    }
+                }
+
+                m_D[f][vc[i][j]] = d;
+            }
         }
     }
-    //}
 }
 
 /**
@@ -245,11 +293,6 @@ void DoubleDiffusiveField::DoOdeRhs(
 
         Array<OneD, Array<OneD, NekDouble>> tmp(nvariables);
         tmp = in_arr;
-        // for (int s = 0; s < n_species; ++s)
-        // {
-        //     Vmath::Vdiv(nPts, tmp[2 * s + 2], 1, tmp[2 * s + 1], 1,
-        //                 tmp[2 * s + 2], 1);
-        // }
         CalcDiffTensor();
         m_diffusion->Diffuse(nvariables, m_indfields, tmp, out_arr);
     }
@@ -264,7 +307,7 @@ void DoubleDiffusiveField::DoOdeRhs(
 
     if (this->particles_enabled)
     {
-        for (int i = 0; i < this->particle_sys->get_species().size(); ++i)
+        for (int i = 0; i < this->src_fields.size(); ++i)
         {
             Vmath::Vadd(out_arr[i].size(), out_arr[i], 1,
                         this->src_fields[i]->GetPhys(), 1, out_arr[i], 1);
@@ -357,19 +400,12 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
         for (unsigned int j = 0; j < nDim; ++j)
         {
             // Calc diffusion of n with D tensor and n field
-            Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][f], 1,
+            Vmath::Vmul(nPts, m_D[f][vc[j][0]].GetValue(), 1, qfield[0][f], 1,
                         fluxes[j][f], 1);
-            // Calc diffusion of p with kappa tensor and T field
-            // Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1,
-            // qfield[0][T_idx],
-            //             1, fluxes[j][f], 1);
             for (unsigned int k = 1; k < nDim; ++k)
             {
-                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][f], 1,
-                             fluxes[j][f], 1, fluxes[j][f], 1);
-                // Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1,
-                //              qfield[k][T_idx], 1, fluxes[j][p_idx], 1,
-                //              fluxes[j][p_idx], 1);
+                Vmath::Vvtvp(nPts, m_D[f][vc[j][k]].GetValue(), 1, qfield[k][f],
+                             1, fluxes[j][f], 1, fluxes[j][f], 1);
             }
         }
     }
@@ -408,6 +444,7 @@ void DoubleDiffusiveField::v_ExtraFldOutput(
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i + 1]->GetPhys(),
                                            SrcFwd2);
             fieldcoeffs.push_back(SrcFwd2);
+            i += 2;
         }
     }
 }

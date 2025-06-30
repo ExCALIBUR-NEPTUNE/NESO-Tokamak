@@ -42,8 +42,8 @@ protected:
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
 
-    void CalcKPar();
-    void CalcKPerp();
+    void CalcKPar(int f);
+    void CalcKPerp(int f);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -73,11 +73,10 @@ protected:
     NekDouble k_par;
     NekDouble k_perp;
 
-
-    Array<OneD, NekDouble> m_kperp;
-    Array<OneD, NekDouble> m_kpar;
-    StdRegions::VarCoeffMap m_D;
-    // std::vector<StdRegions::VarCoeffMap> m_D;
+    std::vector<Array<OneD, NekDouble>> m_kperp;
+    std::vector<Array<OneD, NekDouble>> m_kpar;
+    // StdRegions::VarCoeffMap m_D;
+    std::vector<StdRegions::VarCoeffMap> m_D;
 
     NekDouble m_k_B;
 };

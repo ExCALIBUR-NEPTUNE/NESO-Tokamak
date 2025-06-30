@@ -330,15 +330,20 @@ void TokamakSystem::v_ExtraFldOutput(
 
             for (int f = 0; f < this->n_fields_per_species; ++f)
             {
-                int fi =
-                    this->n_indep_fields + f + k * this->n_fields_per_species;
+                int fi = f + k * this->n_fields_per_species;
                 variables.push_back(m_session->GetVariable(f) + "_" + name);
-                ;
                 Array<OneD, NekDouble> Fwd(nCoeffs);
-                m_indfields[fi]->FwdTransLocalElmt(
+                this->m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
                 fieldcoeffs.push_back(Fwd);
             }
+        }
+        if (Te)
+        {
+            variables.push_back("Te");
+            Array<OneD, NekDouble> Fwd(nCoeffs);
+            this->Te->FwdTransLocalElmt(this->Te->GetPhys(), Fwd);
+            fieldcoeffs.push_back(Fwd);
         }
     }
 
@@ -419,8 +424,7 @@ void TokamakSystem::v_InitObject(bool create_field)
         this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
     }
-    this->ne = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-        *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
     ReadMagneticField(0);
     this->n_species = this->neso_config->get_species().size();
@@ -433,10 +437,6 @@ void TokamakSystem::v_InitObject(bool create_field)
     {
         m_allfields[i] = m_fields[i];
     }
-    for (int i = 0; i < n_indep_fields; ++i)
-    {
-        m_indfields[i] = m_fields[m_fields.size() - n_indep_fields + i];
-    }
 
     for (const auto &[k, v] : this->neso_config->get_species())
     {
@@ -446,7 +446,7 @@ void TokamakSystem::v_InitObject(bool create_field)
             if (m_projectionType == MR::eGalerkin ||
                 m_projectionType == MR::eMixed_CG_Discontinuous)
             {
-                m_indfields[n_indep_fields + k * n_fields_per_species + f] =
+                m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::ContField>::AllocateSharedPtr(
                         *std::dynamic_pointer_cast<MR::ContField>(m_fields[f]),
                         m_graph, m_session->GetVariable(f), true,
@@ -454,13 +454,18 @@ void TokamakSystem::v_InitObject(bool create_field)
             }
             else
             {
-                m_indfields[n_indep_fields + k * n_fields_per_species + f] =
+                m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
                         *std::dynamic_pointer_cast<MR::DisContField>(
                             m_fields[f]),
                         m_graph, m_session->GetVariable(f));
             }
         }
+    }
+    for (int i = 0; i < n_indep_fields; ++i)
+    {
+        m_indfields[n_fields_per_species * n_species + i] =
+            m_fields[m_fields.size() - n_indep_fields + i];
     }
 
     // Bind projection function for time integration object
@@ -521,12 +526,6 @@ void TokamakSystem::v_InitObject(bool create_field)
     }
 
     SetBoundaryConditionsBwdWeight();
-
-    if (this->particles_enabled)
-    {
-        this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
-                                                  this->Te, this->ve);
-    }
 }
 
 /**
@@ -792,20 +791,25 @@ bool TokamakSystem::v_PreIntegrate(int step)
         ReadMagneticField(m_time);
     }
 
-    for (int f = 0; f < this->n_fields_per_species; ++f)
+    // for (int f = 0; f < this->n_fields_per_species; ++f)
+    //{
+    Vmath::Zero(n_pts, m_fields[0]->UpdatePhys(), 1);
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        Vmath::Zero(n_pts, m_fields[f]->UpdatePhys(), 1);
-        for (const auto &[k, v] : this->neso_config->get_species())
-        {
-            Vmath::Vadd(
-                n_pts, m_fields[f]->GetPhys(), 1,
-                m_indfields[n_indep_fields + k * n_fields_per_species + f]
-                    ->GetPhys(),
-                1, m_fields[f]->UpdatePhys(), 1);
-        }
-        m_fields[f]->FwdTransLocalElmt(this->m_fields[f]->GetPhys(),
-                                       m_fields[f]->UpdateCoeffs());
+        Vmath::Vadd(n_pts, m_fields[0]->GetPhys(), 1,
+                    m_indfields[k * n_fields_per_species]->GetPhys(), 1,
+                    m_fields[0]->UpdatePhys(), 1);
     }
+    m_fields[0]->FwdTransLocalElmt(this->m_fields[0]->GetPhys(),
+                                   m_fields[0]->UpdateCoeffs());
+
+    if (this->Te)
+    {
+        Vmath::Vdiv(n_pts, m_indfields[m_indfields.size() - 1]->GetPhys(), 1,
+                    m_fields[0]->GetPhys(), 1, Te->UpdatePhys(), 1);
+        Te->FwdTransLocalElmt(this->Te->GetPhys(), Te->UpdateCoeffs());
+    }
+    //}
 
     if (this->particles_enabled)
     {
@@ -816,9 +820,11 @@ bool TokamakSystem::v_PreIntegrate(int step)
         {
             this->particle_sys->write(step);
         }
-
+        for(auto& fld : this->src_fields)
+        {
+            Vmath::Zero(fld->GetNpoints(), fld->UpdatePhys(), 1);
+        }
         this->particle_sys->integrate(m_time + m_timestep, this->part_timestep);
-        this->particle_sys->project_source_terms();
     }
 
     return UnsteadySystem::v_PreIntegrate(step);
@@ -913,7 +919,7 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
             auto fn = this->get_species_function(s, "InitialConditions");
             for (int f = 0; f < n_fields_per_species; ++f)
             {
-                int fi = n_indep_fields + f + s * n_fields_per_species;
+                int fi = f + s * n_fields_per_species;
                 fn->Evaluate(m_session->GetVariables()[f],
                              m_indfields[fi]->UpdatePhys(), m_time, domain);
                 if (m_indfields[fi]->GetWaveSpace())
@@ -945,7 +951,7 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
             int nq = m_indfields[0]->GetNpoints();
             for (int f = 0; f < this->n_fields_per_species; f++)
             {
-                int fi = n_indep_fields + f + s * n_fields_per_species;
+                int fi = f + s * n_fields_per_species;
                 Vmath::Zero(nq, m_indfields[fi]->UpdatePhys(), 1);
                 m_indfields[fi]->SetPhysState(true);
                 Vmath::Zero(m_indfields[fi]->GetNcoeffs(),

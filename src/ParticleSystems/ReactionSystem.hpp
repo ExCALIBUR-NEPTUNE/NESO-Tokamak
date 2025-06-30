@@ -27,6 +27,18 @@ public:
 
     ~ReactionSystem() override = default;
 
+    std::shared_ptr<TransformationWrapper> zeroer_transform_wrapper;
+
+    inline void integrate(const double time_end, const double dt) override
+    {
+        this->zeroer_transform_wrapper->transform(this->particle_group);
+        ParticleSystem::integrate(time_end, dt);
+        //reaction_controller->apply_reactions(this->particle_group, dt);
+
+         this->field_project->project(this->particle_group, this->src_syms,
+                                     this->src_components);
+    }
+
     inline void set_up_reactions()
     {
         auto prop_map = default_map;
@@ -379,24 +391,32 @@ public:
                                                             0.01)},
             merge_transform);
 
-        std::vector<std::string> src_names;
-        for (auto sym : this->src_syms)
+        std::vector<std::string> src_names{"ELECTRON_SOURCE_DENSITY",
+                                           "ELECTRON_SOURCE_ENERGY",
+                                           "ELECTRON_SOURCE_MOMENTUM"};
+
+        for (auto &[k, v] : this->config->get_particle_species())
         {
-            src_names.push_back(sym.name);
+            std::string name = std::get<0>(v);
+            src_names.push_back(name + "_SOURCE_DENSITY");
+            src_names.push_back(name + "_SOURCE_ENERGY");
+            src_names.push_back(name + "_SOURCE_MOMENTUM");
         }
+
         auto zeroer_transform =
             make_transformation_strategy<ParticleDatZeroer<REAL>>(src_names);
 
-        auto zeroer_transform_wrapper = std::make_shared<TransformationWrapper>(
-            std::dynamic_pointer_cast<TransformationStrategy>(
-                zeroer_transform));
+        this->zeroer_transform_wrapper =
+            std::make_shared<TransformationWrapper>(
+                std::dynamic_pointer_cast<TransformationStrategy>(
+                    zeroer_transform));
 
         this->reaction_controller = std::make_shared<ReactionController>(
             std::vector<std::shared_ptr<TransformationWrapper>>{
-                zeroer_transform_wrapper, merge_transform_wrapper,
+                /*zeroer_transform_wrapper,*/ merge_transform_wrapper,
                 remove_transform_wrapper},
             std::vector<std::shared_ptr<TransformationWrapper>>{
-                project_transform_wrapper, merge_transform_wrapper,
+                /*project_transform_wrapper,*/ merge_transform_wrapper,
                 remove_transform_wrapper});
 
         set_up_reactions();
