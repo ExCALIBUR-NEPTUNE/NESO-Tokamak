@@ -28,14 +28,8 @@ ElectrostaticTurbulence::ElectrostaticTurbulence(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->required_fld_names = {"w", "ne", "mnevepar", "1.5pe"};
-    this->int_fld_names      = {"w", "ne", "mnevepar", "1.5pe"};
-
-    if (this->particles_enabled)
-    {
-        this->required_fld_names.push_back("n_src");
-        this->required_fld_names.push_back("E_src");
-    }
+    this->n_indep_fields       = 2;
+    this->n_fields_per_species = 3;
 }
 
 void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
@@ -424,6 +418,43 @@ void ElectrostaticTurbulence::DoAdvection(
 
     m_advection->Advect(nvariables, m_fields, this->v_ExB, inarray, outarray,
                         time, pFwd, pBwd);
+}
+
+/**
+ * @brief Populate rhs array ( @p out_arr )
+ *
+ * @param in_arr physical values of all fields
+ * @param[out] out_arr output array (RHSs of time integration equations)
+ */
+void ElectrostaticTurbulence::DoOdeImplicitRhs(
+    const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+    Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
+{
+    int nvariables = in_arr.size();
+    int ncoeffs    = m_fields[0]->GetNcoeffs();
+
+    Array<OneD, Array<OneD, NekDouble>> tmpOut(nvariables);
+    for (int i = 0; i < nvariables; ++i)
+    {
+        tmpOut[i] = Array<OneD, NekDouble>(ncoeffs);
+    }
+
+    DoOdeRhsCoeff(in_arr, tmpOut, time);
+
+    for (int i = 0; i < nvariables; ++i)
+    {
+        m_fields[i]->BwdTrans(tmpOut[i], out_arr[i]);
+    }
+
+}
+
+/**
+ * @brief Compute the right-hand side.
+ */
+void CFSImplicit::DoOdeRhsCoeff(
+    const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+    Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
+{
 }
 
 /**

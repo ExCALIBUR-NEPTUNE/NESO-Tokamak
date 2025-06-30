@@ -46,6 +46,14 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
+    void DoOdeImplicitRhs(
+        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
+
+    void DoOdeRhsCoeff(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+                       Array<OneD, Array<OneD, NekDouble>> &out_arr,
+                       const NekDouble time);
+
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   [[maybe_unused]] const Array<OneD, NekDouble> &ne);
@@ -85,7 +93,6 @@ protected:
                           std::vector<std::string> &variables) override;
 
 private:
-
     int omega_idx = 0;
     int pe_idx    = 1;
 
