@@ -1,6 +1,7 @@
 #ifndef DOUBLEDIFFUSIVEFIELD_HPP
 #define DOUBLEDIFFUSIVEFIELD_HPP
 #include "TokamakSystem.hpp"
+#include "../Misc/VariableConverter.hpp"
 
 namespace NESO::Solvers::tokamak
 {

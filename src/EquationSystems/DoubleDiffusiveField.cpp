@@ -38,6 +38,10 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 
     this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
     this->Te = MemoryManager<MR::DisContField>::AllocateSharedPtr(*ne);
+    for (int d = 0; d < m_spaceDim; ++d)
+    {
+        this->ve[d] = this->B[d];
+    }
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
@@ -91,6 +95,18 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     {
         std::vector<Sym<REAL>> src_syms;
         std::vector<int> src_components;
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_DENSITY"));
+        src_components.push_back(0);
+
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGYY"));
+        src_components.push_back(0);
+
         for (auto &[k, v] : this->particle_sys->get_species())
         {
             this->src_fields.emplace_back(
@@ -104,6 +120,12 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
             src_components.push_back(0);
         }
+
+        this->src_fields.emplace_back(
+            MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        src_syms.push_back(Sym<REAL>("ELECTRON_SOURCE_ENERGY"));
+        src_components.push_back(0);
 
         this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
                                                   this->Te, this->ve);
@@ -132,6 +154,15 @@ void DoubleDiffusiveField::ImplicitTimeIntCG(
         for (int i = 0; i < nvariables; ++i)
         {
             Vmath::Zero(npoints, outarray[i], 1);
+        }
+
+        if (this->particles_enabled)
+        {
+            for (int i = 0; i < this->src_fields.size(); ++i)
+            {
+                Vmath::Vadd(outarray[i].size(), outarray[i], 1,
+                            this->src_fields[i]->GetPhys(), 1, outarray[i], 1);
+            }
         }
 
         for (auto &x : m_forcing)
@@ -287,6 +318,68 @@ void DoubleDiffusiveField::DoOdeRhs(
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, in_arr, out_arr, time);
+    }
+}
+
+void DoubleDiffusiveField::DoDiffusion(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray,
+    const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+    const Array<OneD, Array<OneD, NekDouble>> &pBwd)
+{
+    CalcDiffTensor();
+
+    size_t nvariables = inarray.size();
+    size_t npointsIn  = GetNpoints();
+    size_t npointsOut =
+        npointsIn; // If ALE then outarray is in coefficient space
+    size_t nTracePts = GetTraceTotPoints();
+
+    // this should be preallocated
+    Array<OneD, Array<OneD, NekDouble>> outarrayDiff(nvariables);
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        outarrayDiff[i] = Array<OneD, NekDouble>(npointsOut, 0.0);
+    }
+
+    // Get primitive variables [n,T]
+    Array<OneD, Array<OneD, NekDouble>> inarrayDiff(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> inFwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> inBwd(nvariables);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        inarrayDiff[i] = Array<OneD, NekDouble>{npointsIn};
+        inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
+        inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
+    }
+    Vmath::Vcopy(npointsIn, inarray[0], 1, inarrayDiff[0], 1);
+
+    // Extract temperature
+    m_varConv->GetElectronTemperature(inarray, inarrayDiff[1]);
+
+    // Repeat calculation for trace space
+    if (pFwd == NullNekDoubleArrayOfArray || pBwd == NullNekDoubleArrayOfArray)
+    {
+        inFwd = NullNekDoubleArrayOfArray;
+        inBwd = NullNekDoubleArrayOfArray;
+    }
+    else
+    {
+        Vmath::Vcopy(npointsIn, pFwd[0], 1, inFwd[0], 1);
+        Vmath::Vcopy(npointsIn, pBwd[0], 1, inBwd[0], 1);
+
+        m_varConv->GetElectronTemperature(pFwd, inFwd[1]);
+        m_varConv->GetElectronTemperature(pBwd, inBwd[1]);
+    }
+
+    m_diffusion->Diffuse(nvariables, m_fields, inarrayDiff, outarrayDiff, inFwd,
+                         inBwd);
+
+    for (size_t i = 0; i < nvariables; ++i)
+    {
+        Vmath::Vadd(npointsOut, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
+                    1);
     }
 }
 

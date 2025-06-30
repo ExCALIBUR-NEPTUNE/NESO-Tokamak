@@ -6,6 +6,7 @@
 #include <LibUtilities/BasicUtils/NekFactory.hpp>
 #include <LibUtilities/BasicUtils/SharedArray.hpp>
 #include <MultiRegions/ExpList.h>
+#include "../Misc/VariableConverter.hpp"
 
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
@@ -20,11 +21,10 @@ class TokamakBndCond;
 typedef std::shared_ptr<TokamakBndCond> TokamakBndCondSharedPtr;
 
 /// Declaration of the boundary condition factory
-typedef LU::NekFactory<std::string, TokamakBndCond,
-                       const LU::SessionReaderSharedPtr &,
-                       const Array<OneD, MR::ExpListSharedPtr> &,
-                       const Array<OneD, Array<OneD, NekDouble>> &, const int,
-                       const int>
+typedef LU::NekFactory<
+    std::string, TokamakBndCond, const LU::SessionReaderSharedPtr &,
+    const Array<OneD, MR::ExpListSharedPtr> &,
+    const Array<OneD, Array<OneD, NekDouble>> &, const int, const int>
     TokamakBndCondFactory;
 
 /// Declaration of the boundary condition factory singleton
@@ -63,6 +63,9 @@ protected:
     Array<OneD, Array<OneD, NekDouble>> m_b;
     /// Space dimension
     int m_spacedim;
+    /// Auxiliary object to convert variables
+    VariableConverterSharedPtr m_varConv;
+
     /// Weight for average calculation of diffusion term
     NekDouble m_diffusionAveWeight;
 
@@ -71,7 +74,7 @@ protected:
 
     int m_nEdgePts;
     int m_nEdgeCoeffs;
-    
+
     /// Expansion of boundary adjacent elements
     MultiRegions::ExpListSharedPtr m_bndElmtExp;
     /// Expansion of boundary

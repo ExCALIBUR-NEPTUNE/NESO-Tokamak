@@ -33,7 +33,9 @@ public:
     {
         this->zeroer_transform_wrapper->transform(this->particle_group);
         ParticleSystem::integrate(time_end, dt);
-        this->field_project->project(this->particle_group, this->src_syms,
+        //reaction_controller->apply_reactions(this->particle_group, dt);
+
+         this->field_project->project(this->particle_group, this->src_syms,
                                      this->src_components);
     }
 
@@ -389,11 +391,18 @@ public:
                                                             0.01)},
             merge_transform);
 
-        std::vector<std::string> src_names;
-        for (auto sym : this->src_syms)
+        std::vector<std::string> src_names{"ELECTRON_SOURCE_DENSITY",
+                                           "ELECTRON_SOURCE_ENERGY",
+                                           "ELECTRON_SOURCE_MOMENTUM"};
+
+        for (auto &[k, v] : this->config->get_particle_species())
         {
-            src_names.push_back(sym.name);
+            std::string name = std::get<0>(v);
+            src_names.push_back(name + "_SOURCE_DENSITY");
+            src_names.push_back(name + "_SOURCE_ENERGY");
+            src_names.push_back(name + "_SOURCE_MOMENTUM");
         }
+
         auto zeroer_transform =
             make_transformation_strategy<ParticleDatZeroer<REAL>>(src_names);
 

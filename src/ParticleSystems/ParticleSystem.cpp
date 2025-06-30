@@ -73,7 +73,7 @@ void ParticleSystem::set_up_species()
                         initial_distribution[Sym<REAL>(
                             "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                         initial_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0.1;
+                                            [dimx] = 0;
                     }
                     initial_distribution[Sym<REAL>("Q")][px][0] =
                         particle_charge;
@@ -83,7 +83,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 0.02;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -181,7 +181,7 @@ void ParticleSystem::add_sources(double time, double dt)
                             src_distribution[Sym<REAL>(
                                 "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                             src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0.1;
+                                            [dimx] = 0;
                         }
                         src_distribution[Sym<REAL>("Q")][px][0] =
                             particle_charge;
@@ -191,7 +191,7 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
                         src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 1.0;
+                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 0.02;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                         src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =

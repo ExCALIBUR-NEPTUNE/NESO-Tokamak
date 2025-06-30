@@ -14,19 +14,34 @@
         <SOLVERINFO>
             <I PROPERTY="EQTYPE"                       VALUE="DoubleDiffusiveField"/>
             <I PROPERTY="Projection"                   VALUE="Continuous" />
-            <I PROPERTY="TimeIntegrationMethod"        VALUE="IMEXOrder2"    />
-            <!-- <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         /> -->
-            <!-- <I PROPERTY="UpwindType"                   VALUE="Upwind"        /> -->
-            <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
+            <I PROPERTY="GlobalSysSoln"                VALUE="XxtMultiLevelStaticCond"/>
+            <I PROPERTY="DiffusionAdvancement"         VALUE="Implicit"/>
         </SOLVERINFO>
+        <TIMEINTEGRATIONSCHEME>
+            <METHOD> IMEX </METHOD>
+            <ORDER> 2 </ORDER>
+        </TIMEINTEGRATIONSCHEME>
+
+        <GLOBALSYSSOLNINFO>
+            <V VAR="u">
+                <I PROPERTY="GlobalSysSoln"             VALUE="XxtMultiLevelStaticCond"/>
+                <!--<I PROPERTY="GlobalSysSoln"         VALUE="IterativeMultiLevelStaticCond" />-->
+                <!--<I PROPERTY="GlobalSysSoln"         VALUE="IterativeFull"    />-->
+                <I PROPERTY="LinSysIterSolver"          VALUE="GMRES"/>
+                <I PROPERTY="Preconditioner"            VALUE="Diagonal"        />
+                <I PROPERTY="MaxIterations"             VALUE="1000"/>
+                <I PROPERTY="GMRESMaxStorage"           VALUE=200       />
+                <I PROPERTY="IterativeSolverTolerance"  VALUE="1e-10"/>
+            </V>
+        </GLOBALSYSSOLNINFO>
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
             <P> TimeStep      = 0.05            </P>
             <P> NumSteps      = 50              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
-            <P> IO_InfoSteps  = 10     </P>
-            <P> IO_CheckSteps = 10     </P>
+            <P> IO_InfoSteps  = 1     </P>
+            <P> IO_CheckSteps = 1     </P>
             <P> particle_output_freq = 1          </P>
 
             <P> epsilon         = 1.0   </P>
@@ -45,13 +60,6 @@
             <P> ys = 0 </P>
             <P> sr = 0.1 </P>
             <P> sy = 0.1 </P>
-            
-            <!-- Implicit solve params -->
-            <P> IterativeSolverTolerance  = 1.0E-8  </P>
-            <P> NekNonlinSysMaxIterations = 30       </P>
-            <P> NewtonRelativeIteTol      = 1.0E-10  </P>
-            <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
-            <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
 
             <P> num_particles_total = 1 </P>
         </PARAMETERS>
@@ -77,8 +85,8 @@
         </BOUNDARYCONDITIONS>
 
         <FUNCTION NAME="InitialConditions">
-            <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-            <E VAR="e"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+            <E VAR="n"  DOMAIN="0" VALUE="2.0" />
+            <E VAR="e"  DOMAIN="0" VALUE="4.0" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
@@ -93,16 +101,16 @@
                 <P> Mass = 2.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-                    <E VAR="e"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc)*(x-rc)/(2*sr*sr))+(-(y-yc+0.75)*(y-yc+0.75)/(2*sy*sy)))" />
+                    <E VAR="n"  DOMAIN="0" VALUE="1.0" />
+                    <E VAR="e"  DOMAIN="0" VALUE="1.0" />
                 </FUNCTION>
             </S>
             <S ID="1" NAME="T">
                 <P> Mass = 3.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc+rs)*(x-rc+rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-                    <E VAR="e"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc)*(x-rc)/(2*sr*sr))+(-(y-yc-0.75)*(y-yc-0.75)/(2*sy*sy)))" />
+                    <E VAR="n"  DOMAIN="0" VALUE="1.0" />
+                    <E VAR="e"  DOMAIN="0" VALUE="1.0" />
                 </FUNCTION>
             </S>
         </SPECIES> 
@@ -115,7 +123,7 @@
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
-                <P> particle_thermal_velocity = 0.1  </P>
+                <P> particle_thermal_velocity = 0.01  </P>
             </PARAMETERS>   
 
             <SPECIES>
@@ -181,6 +189,10 @@
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
                 <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
+                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
+                    <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
+                </R>
+                <R ID="5" TYPE="ChargeExchange" SPECIES="1,0">
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
