@@ -33,15 +33,15 @@ public:
     {
         this->zeroer_transform_wrapper->transform(this->particle_group);
         ParticleSystem::integrate(time_end, dt);
-        //reaction_controller->apply_reactions(this->particle_group, dt);
+        // reaction_controller->apply_reactions(this->particle_group, dt);
 
-         this->field_project->project(this->particle_group, this->src_syms,
+        this->field_project->project(this->particle_group, this->src_syms,
                                      this->src_components);
     }
 
     inline void set_up_reactions()
     {
-        auto prop_map = default_map;
+        auto prop_map = get_default_map();
 
         std::mt19937 rng = std::mt19937(std::random_device{}());
         std::uniform_real_distribution<REAL> uniform_dist(0.0, 1.0);
@@ -79,7 +79,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             2>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                     else if (this->ndim == 3)
                     {
@@ -87,7 +87,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             3>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
@@ -101,7 +101,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             2>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                     else if (this->ndim == 3)
                     {
@@ -109,7 +109,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             3>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                 }
             }
@@ -135,8 +135,7 @@ public:
                     auto data2       = FixedRateData(-1.0);
                     auto data_calculator =
                         DataCalculator<FixedRateData, FixedRateData,
-                                       FixedRateData>(this->particle_spec,
-                                                      data1, data1, data2);
+                                       FixedRateData>(data1, data1, data2);
                     if (this->ndim == 2)
                     {
                         auto recomb_reaction_kernel = RecombReactionKernels<2>(
@@ -150,7 +149,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                     else if (this->ndim == 3)
@@ -166,7 +165,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                 }
@@ -186,8 +185,7 @@ public:
                     auto data_calculator =
                         DataCalculator<decltype(recomb_energy_data),
                                        decltype(recomb_data_calc_sampler)>(
-                            this->particle_spec, recomb_energy_data,
-                            recomb_data_calc_sampler);
+                            recomb_energy_data, recomb_data_calc_sampler);
 
                     if (this->ndim == 2)
                     {
@@ -202,7 +200,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                     else if (this->ndim == 3)
@@ -218,7 +216,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                 }
@@ -256,7 +254,7 @@ public:
                         constant_cross_section, rng_kernel);
                     auto data_calculator =
                         DataCalculator<FixedRateData, FixedRateData>(
-                            this->particle_spec, vx_beam_data, vy_beam_data);
+                            vx_beam_data, vy_beam_data);
                     if (this->ndim == 2)
                     {
                         auto cx_kernel = CXReactionKernels<2>(
@@ -268,8 +266,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                     else if (this->ndim == 3)
                     {
@@ -282,8 +279,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
@@ -302,7 +298,7 @@ public:
 
                     auto data_calculator =
                         DataCalculator<decltype(data_calc_sampler)>(
-                            this->particle_spec, data_calc_sampler);
+                            data_calc_sampler);
 
                     if (this->ndim == 2)
                     {
@@ -315,8 +311,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                     else if (this->ndim == 3)
                     {
@@ -329,8 +324,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                 }
             }
