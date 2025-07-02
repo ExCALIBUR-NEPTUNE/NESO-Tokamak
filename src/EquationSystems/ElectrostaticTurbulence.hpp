@@ -46,6 +46,9 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
+    void DoParticles(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                     Array<OneD, Array<OneD, NekDouble>> &out_arr);
+
     void DoOdeImplicitRhs(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
@@ -53,6 +56,16 @@ protected:
     void DoOdeRhsCoeff(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                        Array<OneD, Array<OneD, NekDouble>> &out_arr,
                        const NekDouble time);
+    void DoAdvectionCoeff(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                          Array<OneD, Array<OneD, NekDouble>> &outarray,
+                          const NekDouble time,
+                          const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+                          const Array<OneD, Array<OneD, NekDouble>> &pBwd);
+    void DoDiffusionCoeff(
+        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+        Array<OneD, Array<OneD, NekDouble>> &outarray,
+        const Array<OneD, const Array<OneD, NekDouble>> &pFwd,
+        const Array<OneD, const Array<OneD, NekDouble>> &pBwd);
 
     void CalcInitPhi();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
@@ -93,8 +106,8 @@ protected:
                           std::vector<std::string> &variables) override;
 
 private:
-    int omega_idx = 0;
-    int pe_idx    = 1;
+    int omega_idx;
+    int pe_idx;
 
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
