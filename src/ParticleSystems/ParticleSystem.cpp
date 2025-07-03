@@ -83,7 +83,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 0.02;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = 0.02;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -144,16 +144,48 @@ void ParticleSystem::add_sources(double time, double dt)
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
-            int particle_number = source.first;
+            long particle_number = source.first;
             if (particle_number > 0)
             {
                 std::vector<std::vector<double>> positions, velocities;
                 std::vector<int> cells;
-                LU::EquationSharedPtr neqn =
-                    source.second.at(std::pair("n", 0)).m_expression;
-                rng_phasespace = dist_within_extents(
-                    this->graph, neqn, time, particle_number, positions, cells,
-                    1.0e-10, rng_phasespace);
+                if (auto v = source.second.find(std::pair("n", 0));
+                    v != source.second.end()) // Diffuse source
+                {
+                    rng_phasespace =
+                        dist_within_extents(this->graph, v->second.m_expression,
+                                            time, particle_number, positions,
+                                            cells, 1.0e-10, rng_phasespace);
+                }
+                else // Point source
+                {
+                    long rstart, rend;
+                    const long size = this->sycl_target->comm_pair.size_parent;
+                    const long rank = this->sycl_target->comm_pair.rank_parent;
+                    get_decomp_1d(size, particle_number, rank, &rstart, &rend);
+                    const long local_particle_number = rend - rstart;
+
+                    double x = source.second.at(std::pair("X", 0))
+                                   .m_expression->Evaluate();
+
+                    double y = source.second.at(std::pair("Y", 0))
+                                   .m_expression->Evaluate();
+
+                    positions.push_back(
+                        std::vector<double>(local_particle_number, x));
+
+                    positions.push_back(
+                        std::vector<double>(local_particle_number, y));
+                    cells = std::vector<int>(local_particle_number, 0);
+
+                    if (ndim == 3)
+                    {
+                        double z = source.second.at(std::pair("Z", 0))
+                                       .m_expression->Evaluate();
+                        positions.push_back(
+                            std::vector<double>(local_particle_number, z));
+                    }
+                }
                 // auto veqn  = this->config->get_species_initial(k, "v");
                 int N         = cells.size();
                 int id_offset = 0;
@@ -221,6 +253,7 @@ void ParticleSystem::add_sources(double time, double dt)
         species_map[k] =
             SpeciesInfo{name, particle_mass, particle_charge, sub_group};
     }
+    transfer_particles();
 }
 
 void ParticleSystem::add_sinks(double time, double dt)

@@ -22,7 +22,7 @@
 
         <PARAMETERS>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.05            </P>
+            <P> TimeStep      = 0.0005            </P>
             <P> NumSteps      = 50              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 10     </P>
@@ -109,7 +109,7 @@
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
-                <P> particle_thermal_velocity = 0.01  </P>
+                <P> particle_thermal_velocity = 1  </P>
             </PARAMETERS>   
 
             <SPECIES>
@@ -119,6 +119,10 @@
                     <INITIAL N="1000">
                         <E VAR="n" VALUE="sin(4*x)*sin(4*x)"/>
                     </INITIAL>
+                    <SOURCE N="10">
+                        <E VAR="X" VALUE="2.75"/>
+                        <E VAR="Y" VALUE="0"/>
+                    </SOURCE>
                     <!-- <SOURCE N="100">
                         <E VAR="n" VALUE="exp((-(x-2-0.75*cos(150*t))*(x-2-0.75*cos(150*t))/(0.01))+(-(y-0.75*sin(150*t))*(y-0.75*sin(150*t))/(0.01)))"/>
                     </SOURCE>

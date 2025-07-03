@@ -534,9 +534,6 @@ protected:
 
     inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
     {
-        // for (auto &[k, v] : this->get_species())
-        //{
-        // auto sg = v.sub_group;
         apply_timestep_reset(sg);
         pre_advection(sg);
         integrate_inner(sg, dt);
@@ -549,8 +546,8 @@ protected:
             apply_boundary_conditions(sg);
             sg = find_partial_moves(sg, dt);
         }
-        //}
     }
+
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
      * // Move some of this to PartSysBase / make it a pure-virtual func?
