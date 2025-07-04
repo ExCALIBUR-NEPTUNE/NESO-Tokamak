@@ -171,10 +171,10 @@ void ParticleSystem::add_sources(double time, double dt)
                     double y = source.second.at(std::pair("Y", 0))
                                    .m_expression->Evaluate();
 
-                    positions.push_back(
+                    positions.emplace_back(
                         std::vector<double>(local_particle_number, x));
 
-                    positions.push_back(
+                    positions.emplace_back(
                         std::vector<double>(local_particle_number, y));
                     cells = std::vector<int>(local_particle_number, 0);
 
@@ -182,21 +182,59 @@ void ParticleSystem::add_sources(double time, double dt)
                     {
                         double z = source.second.at(std::pair("Z", 0))
                                        .m_expression->Evaluate();
-                        positions.push_back(
+                        positions.emplace_back(
                             std::vector<double>(local_particle_number, z));
                     }
                 }
-                // auto veqn  = this->config->get_species_initial(k, "v");
+
                 int N         = cells.size();
                 int id_offset = 0;
                 MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM,
                                   this->sycl_target->comm));
                 if (N > 0)
                 {
-
-                    velocities = NESO::Particles::normal_distribution(
-                        N, this->ndim, 0.0, particle_thermal_velocity,
-                        rng_phasespace);
+                    if (auto v = source.second.find(std::pair("VX", 0));
+                        v != source.second.end())
+                    {
+                        double vx = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vx));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                rng_phasespace)[0]);
+                    }
+                    if (auto v = source.second.find(std::pair("VY", 0));
+                        v != source.second.end())
+                    {
+                        double vy = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vy));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                rng_phasespace)[0]);
+                    }
+                    if (this->ndim == 3)
+                    {
+                        if (auto v = source.second.find(std::pair("VZ", 0));
+                            v != source.second.end())
+                        {
+                            double vz = v->second.m_expression->Evaluate();
+                            velocities.emplace_back(std::vector<double>(N, vz));
+                        }
+                        else
+                        {
+                            velocities.emplace_back(
+                                NESO::Particles::normal_distribution(
+                                    N, 1, 0.0, particle_thermal_velocity,
+                                    rng_phasespace)[0]);
+                        }
+                    }
                     ParticleSet src_distribution(
                         N, this->particle_group->get_particle_spec());
 
