@@ -275,7 +275,7 @@ public:
         this->field_evaluate_ne->evaluate(this->particle_group,
                                           Sym<REAL>("FLUID_DENSITY"), 0,
                                           ne->GetCoeffs());
-        if (field_evaluate_Te)
+        if (field_evaluate_Te)                
         {
             this->field_evaluate_Te->evaluate(this->particle_group,
                                               Sym<REAL>("FLUID_TEMPERATURE"), 0,

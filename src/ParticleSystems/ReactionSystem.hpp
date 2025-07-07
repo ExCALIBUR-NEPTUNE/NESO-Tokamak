@@ -132,7 +132,7 @@ public:
                 {
                     auto recomb_data = FixedRateData(1.0);
                     auto data1       = FixedRateData(1.0);
-                    auto data2       = FixedRateData(-1.0);
+                    auto data2       = FixedRateData(1.0);
                     auto data_calculator =
                         DataCalculator<FixedRateData, FixedRateData,
                                        FixedRateData>(data1, data1, data2);
@@ -242,8 +242,6 @@ public:
                 if (std::get<2>(v).first == "Fixed")
                 {
                     auto rate_data              = FixedRateData(1.0);
-                    auto vx_beam_data           = FixedRateData(1.0);
-                    auto vy_beam_data           = FixedRateData(-1.0);
                     auto constant_cross_section = ConstantRateCrossSection(1.0);
 
                     auto data_calc_sampler = FilteredMaxwellianSampler<
@@ -253,8 +251,8 @@ public:
                              norm::vel),
                         constant_cross_section, rng_kernel);
                     auto data_calculator =
-                        DataCalculator<FixedRateData, FixedRateData>(
-                            vx_beam_data, vy_beam_data);
+                        DataCalculator<decltype(data_calc_sampler)>(
+                            data_calc_sampler);
                     if (this->ndim == 2)
                     {
                         auto cx_kernel = CXReactionKernels<2>(
