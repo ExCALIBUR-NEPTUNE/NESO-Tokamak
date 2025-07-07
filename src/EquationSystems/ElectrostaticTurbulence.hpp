@@ -35,8 +35,8 @@ protected:
     void v_InitObject(bool DeclareFields = true) override;
     void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                 const int domain) override;
-    void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-                  Array<OneD, Array<OneD, NekDouble>> &out_arr,
+    void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+                  Array<OneD, Array<OneD, NekDouble>> &outarray,
                   const NekDouble time);
 
     /// Advection functions
@@ -47,28 +47,10 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
     void DoParticles(const Array<OneD, Array<OneD, NekDouble>> &inarray,
-                     Array<OneD, Array<OneD, NekDouble>> &out_arr);
-
-    void DoOdeImplicitRhs(
-        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
-
-    void DoOdeRhsCoeff(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
-                       Array<OneD, Array<OneD, NekDouble>> &out_arr,
-                       const NekDouble time);
-    void DoAdvectionCoeff(const Array<OneD, Array<OneD, NekDouble>> &inarray,
-                          Array<OneD, Array<OneD, NekDouble>> &outarray,
-                          const NekDouble time,
-                          const Array<OneD, Array<OneD, NekDouble>> &pFwd,
-                          const Array<OneD, Array<OneD, NekDouble>> &pBwd);
-    void DoDiffusionCoeff(
-        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
-        Array<OneD, Array<OneD, NekDouble>> &outarray,
-        const Array<OneD, const Array<OneD, NekDouble>> &pFwd,
-        const Array<OneD, const Array<OneD, NekDouble>> &pBwd);
+                     Array<OneD, Array<OneD, NekDouble>> &outarray);
 
     void CalcInitPhi();
-    void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+    void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   [[maybe_unused]] const Array<OneD, NekDouble> &ne);
     void ComputeE();
 
@@ -99,6 +81,27 @@ protected:
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+
+    // Functions for the Implicit Solve
+    void DoOdeImplicitRhs(
+        const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
+        Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
+
+    void DoOdeRhsCoeff(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+                       Array<OneD, Array<OneD, NekDouble>> &outarray,
+                       const NekDouble time);
+    void DoAdvectionCoeff(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                          Array<OneD, Array<OneD, NekDouble>> &outarray,
+                          const NekDouble time,
+                          const Array<OneD, Array<OneD, NekDouble>> &pFwd,
+                          const Array<OneD, Array<OneD, NekDouble>> &pBwd);
+    void DoParticlesCoeff(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                     Array<OneD, Array<OneD, NekDouble>> &out_arr);
+    void DoDiffusionCoeff(
+        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+        Array<OneD, Array<OneD, NekDouble>> &outarray,
+        const Array<OneD, const Array<OneD, NekDouble>> &pFwd,
+        const Array<OneD, const Array<OneD, NekDouble>> &pBwd);
 
     void load_params() override;
 
