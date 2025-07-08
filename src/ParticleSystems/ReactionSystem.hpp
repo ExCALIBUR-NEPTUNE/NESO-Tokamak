@@ -43,10 +43,10 @@ public:
         auto prop_map = get_default_map();
 
         auto sycl_target = particle_group->sycl_target;
-        const int rank     = sycl_target->comm_pair.rank_parent;
+        const int rank   = sycl_target->comm_pair.rank_parent;
 
         std::uint64_t root_seed = 141351;
-        std::uint64_t seed = NESO::RNGToolkit::create_seeds(
+        std::uint64_t seed      = NESO::RNGToolkit::create_seeds(
             sycl_target->comm_pair.size_parent, rank, root_seed);
 
         // Create a Normal distribution with mean 4.0 and standard
@@ -341,20 +341,126 @@ public:
         }
     }
 
-    // class ReactionsBoundary
-    // {
+    class ReactionsBoundary
+    {
+    public:
+        ReactionsBoundary(Sym<REAL> time_step_prop_sym,
+                          SYCLTargetSharedPtr sycl_target,
+                          std::shared_ptr<ParticleMeshInterface> mesh,
+                          std::vector<int> &composite_indices)
+            : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
+              composite_indices(composite_indices), ndim(mesh->get_ndim())
+        {
+            std::map<int, std::vector<int>> boundary_groups = {
+                {1, this->composite_indices}};
+            this->composite_intersection =
+                std::make_shared<CompositeInteraction::CompositeIntersection>(
+                    this->sycl_target, mesh, boundary_groups);
 
-    // };
+            auto test_removal_wrapper = std::make_shared<TransformationWrapper>(
+                std::vector<std::shared_ptr<MarkingStrategy>>{
+                    make_marking_strategy<
+                        ComparisonMarkerSingle<REAL, LessThanComp>>(
+                        Sym<REAL>("WEIGHT"), 1.0e-12)},
+                make_transformation_strategy<
+                    SimpleRemovalTransformationStrategy>());
 
-    // void pre_advection(ParticleSubGroupSharedPtr sg) override
-    // {
+            this->reaction_controller = std::make_shared<ReactionController>(
+                std::vector<std::shared_ptr<TransformationWrapper>>{
+                    test_removal_wrapper},
+                std::vector<std::shared_ptr<TransformationWrapper>>{});
 
-    // };
+            auto test_data = FixedRateData(1.0);
+            if (this->ndim == 2)
+            {
+                auto test_kernels = SpecularReflectionKernels<2>();
 
-    // void apply_boundary_conditions(ParticleSubGroupSharedPtr sg) override
-    // {
+                auto test_reaction = std::make_shared<LinearReactionBase<
+                    0, FixedRateData, SpecularReflectionKernels<2>>>(
+                    sycl_target, 0, std::array<int, 0>{}, test_data,
+                    test_kernels);
 
-    // };
+                this->reaction_controller->add_reaction(test_reaction);
+            }
+            else if (this->ndim == 3)
+            {
+                auto test_kernels = SpecularReflectionKernels<3>();
+
+                auto test_reaction = std::make_shared<LinearReactionBase<
+                    0, FixedRateData, SpecularReflectionKernels<3>>>(
+                    sycl_target, 0, std::array<int, 0>{}, test_data,
+                    test_kernels);
+
+                this->reaction_controller->add_reaction(test_reaction);
+            }
+        }
+
+        void pre_advection(ParticleSubGroupSharedPtr particle_sub_group)
+        {
+            this->composite_intersection->pre_integration(particle_sub_group);
+        }
+
+        void execute(ParticleSubGroupSharedPtr particle_sub_group, double dt)
+        {
+            NESOASSERT(this->ndim == 3 || this->ndim == 2,
+                       "Unexpected number of dimensions.");
+
+            auto groups = this->composite_intersection->get_intersections(
+                particle_sub_group);
+
+            for (auto &groupx : groups)
+            {
+                this->boundary_truncation->execute(
+                    groupx.second,
+                    get_particle_group(particle_sub_group)->position_dat->sym,
+                    this->time_step_prop_sym,
+                    this->composite_intersection->previous_position_sym);
+                reaction_controller->apply_reactions(
+                    groupx.second->get_particle_group(), dt,
+                    ControllerMode::surface_mode);
+            }
+        }
+
+    private:
+        Sym<REAL> time_step_prop_sym;
+
+        SYCLTargetSharedPtr sycl_target;
+        std::shared_ptr<CompositeInteraction::CompositeIntersection>
+            composite_intersection;
+        std::vector<int> composite_indices;
+
+        int ndim;
+        std::shared_ptr<BoundaryTruncation> boundary_truncation;
+        std::shared_ptr<ReactionController> reaction_controller;
+    };
+
+    void set_up_boundaries() override
+    {
+        auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
+
+        std::vector<int> reflection_composites;
+
+        for (auto &[sk, sv] : this->config->get_particle_species_boundary(0))
+        {
+            if (sv == ParticleBoundaryConditionType::eReflective)
+            {
+                reflection_composites.push_back(sk);
+            }
+        }
+        this->boundary = std::make_shared<ReactionsBoundary>(
+            this->sycl_target, mesh, reflection_composites);
+    }
+
+    void pre_advection(ParticleSubGroupSharedPtr sg) override
+    {
+        this->boundary->pre_advection(sg);
+    };
+
+    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg,
+                                   double dt) override
+    {
+        this->boundary->execute(sg, dt);
+    };
 
     inline void integrate_inner(ParticleSubGroupSharedPtr sg,
                                 const double dt_inner) override
@@ -477,6 +583,8 @@ protected:
 
     /// Reaction Controller
     std::shared_ptr<ReactionController> reaction_controller;
+
+    std::shared_ptr<ReactionsBoundary> boundary;
 };
 
 } // namespace NESO::Solvers::tokamak

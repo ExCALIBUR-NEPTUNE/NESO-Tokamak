@@ -131,7 +131,7 @@ public:
         return species_map;
     }
 
-    void set_up_boundaries();
+    virtual void set_up_boundaries();
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -504,7 +504,7 @@ protected:
         reflection->pre_advection(sg);
     };
 
-    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
+    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg, double dt)
     {
         reflection->execute(sg);
     };
@@ -530,7 +530,7 @@ protected:
         apply_timestep_reset(sg);
         pre_advection(sg);
         integrate_inner(sg, dt);
-        apply_boundary_conditions(sg);
+        apply_boundary_conditions(sg, dt);
         sg = find_partial_moves(sg, dt);
         while (partial_moves_remaining(sg))
         {
