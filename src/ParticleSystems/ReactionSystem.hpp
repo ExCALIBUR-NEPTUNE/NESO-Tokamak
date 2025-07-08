@@ -3,6 +3,7 @@
 
 #include "AMJUEL.hpp"
 #include "ParticleSystem.hpp"
+#include <neso_rng_toolkit.hpp>
 #include <reactions.hpp>
 
 using namespace Reactions;
@@ -33,8 +34,6 @@ public:
     {
         this->zeroer_transform_wrapper->transform(this->particle_group);
         ParticleSystem::integrate(time_end, dt);
-        // reaction_controller->apply_reactions(this->particle_group, dt);
-
         this->field_project->project(this->particle_group, this->src_syms,
                                      this->src_components);
     }
@@ -43,18 +42,30 @@ public:
     {
         auto prop_map = get_default_map();
 
-        std::mt19937 rng = std::mt19937(std::random_device{}());
-        std::uniform_real_distribution<REAL> uniform_dist(0.0, 1.0);
-        auto rng_lambda = [&]() -> REAL
-        {
-            REAL rng_sample;
-            do
-            {
-                rng_sample = uniform_dist(rng);
-            } while (rng_sample == 0.0);
-            return rng_sample;
-        };
-        auto rng_kernel = host_atomic_block_kernel_rng<REAL>(rng_lambda);
+        auto sycl_target = particle_group->sycl_target;
+        const int rank     = sycl_target->comm_pair.rank_parent;
+
+        std::uint64_t root_seed = 141351;
+        std::uint64_t seed = NESO::RNGToolkit::create_seeds(
+            sycl_target->comm_pair.size_parent, rank, root_seed);
+
+        // Create a Normal distribution with mean 4.0 and standard
+        // deviation 2.0.
+        auto rng_normal = NESO::RNGToolkit::create_rng<REAL>(
+            NESO::RNGToolkit::Distribution::Uniform<REAL>{
+                NESO::RNGToolkit::Distribution::next_value(0.0), 1.0},
+            seed, sycl_target->device, sycl_target->device_index);
+
+        // Create an interface between NESO-RNG-Toolkit and NESO-Particles
+        // KernelRNG
+        auto rng_interface =
+            make_rng_generation_function<GenericDeviceRNGGenerationFunction,
+                                         REAL>(
+                [=](REAL *d_ptr, const std::size_t num_samples) -> int
+                { return rng_normal->get_samples(d_ptr, num_samples); });
+
+        auto rng_kernel =
+            host_atomic_block_kernel_rng<REAL>(rng_interface, 4 * 10);
 
         for (const auto &[k, v] : this->config->get_reactions())
         {
@@ -329,6 +340,21 @@ public:
             this->reaction_controller->add_reaction(reaction);
         }
     }
+
+    // class ReactionsBoundary
+    // {
+
+    // };
+
+    // void pre_advection(ParticleSubGroupSharedPtr sg) override
+    // {
+
+    // };
+
+    // void apply_boundary_conditions(ParticleSubGroupSharedPtr sg) override
+    // {
+
+    // };
 
     inline void integrate_inner(ParticleSubGroupSharedPtr sg,
                                 const double dt_inner) override

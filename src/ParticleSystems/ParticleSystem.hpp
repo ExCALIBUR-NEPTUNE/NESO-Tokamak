@@ -499,21 +499,14 @@ protected:
             ->execute();
     }
 
-    void pre_advection(ParticleSubGroupSharedPtr sg)
+    virtual void pre_advection(ParticleSubGroupSharedPtr sg)
     {
-        // if (auto r = this->species_map[k].reflection)
-        //{
-
         reflection->pre_advection(sg);
-        //}
     };
 
-    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
+    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
     {
-        // if (auto r = this->species_map[k].reflection)
-        //{
         reflection->execute(sg);
-        //}
     };
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
