@@ -386,10 +386,6 @@ void ParticleSystem::add_sinks(double time, double dt)
 void ParticleSystem::set_up_boundaries()
 {
     auto store = std::make_shared<ParameterStore>();
-    store->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-    store->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-    store->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-    store->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
     store->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
                      1.0e-6);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);

@@ -105,11 +105,8 @@ public:
             std::make_shared<ParticleRemover>(this->sycl_target);
 
         this->transfer_particles();
-        // for (auto &[k, v] : this->get_species())
-        //{
         pre_advection(particle_sub_group(this->particle_group));
-        apply_boundary_conditions(particle_sub_group(this->particle_group));
-        //}
+
     }
 
     virtual void set_up_species() override;
@@ -536,7 +533,7 @@ protected:
         {
             pre_advection(sg);
             integrate_inner(sg, dt);
-            apply_boundary_conditions(sg);
+            apply_boundary_conditions(sg, dt);
             sg = find_partial_moves(sg, dt);
         }
     }

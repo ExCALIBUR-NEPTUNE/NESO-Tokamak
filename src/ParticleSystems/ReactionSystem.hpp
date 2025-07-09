@@ -63,6 +63,21 @@ public:
                                          REAL>(
                 [=](REAL *d_ptr, const std::size_t num_samples) -> int
                 { return rng_normal->get_samples(d_ptr, num_samples); });
+#if 0
+        // Random number generator kernel
+        std::mt19937 rng = std::mt19937(52234126 + rank);
+        // std::mt19937 rng = std::mt19937(std::random_device{}());
+        std::uniform_real_distribution<REAL> uniform_dist(0.0, 1.0);
+        auto rng_interface = [&]() -> REAL
+        {
+            REAL rng_sample;
+            do
+            {
+                rng_sample = uniform_dist(rng);
+            } while (rng_sample == 0.0);
+            return rng_sample;
+        };
+#endif
 
         auto rng_kernel =
             host_atomic_block_kernel_rng<REAL>(rng_interface, 4 * 10);
@@ -343,11 +358,46 @@ public:
 
     class ReactionsBoundary
     {
+        //        class CollisionMarker : public MarkingStrategy
+        //        {
+        //        public:
+        //            CollisionMarker(
+        //                std::shared_ptr<CompositeInteraction::CompositeIntersection>
+        //                    composite_intersection)
+        //                : composite_intersection(composite_intersection)
+        //            {
+        //            }
+        //
+        //            ParticleSubGroupSharedPtr make_marker_subgroup(
+        //                ParticleSubGroupSharedPtr particle_group) {};
+        //
+        //            std::shared_ptr<CompositeInteraction::CompositeIntersection>
+        //                composite_intersection;
+        //        };
+        //
+        //        class BoundaryTransformation : public TransformationStrategy
+        //        {
+        //        public:
+        //            BoundaryTransformation(
+        //                std::shared_ptr<CompositeInteraction::CompositeIntersection>
+        //                    composite_intersection)
+        //                : composite_intersection(composite_intersection)
+        //            {
+        //            }
+        //
+        //            void transform(ParticleSubGroupSharedPtr sg) override
+        //            {
+        //            }
+        //            std::shared_ptr<CompositeInteraction::CompositeIntersection>
+        //                composite_intersection;
+        //        };
+
     public:
-        ReactionsBoundary(Sym<REAL> time_step_prop_sym,
-                          SYCLTargetSharedPtr sycl_target,
-                          std::shared_ptr<ParticleMeshInterface> mesh,
-                          std::vector<int> &composite_indices)
+        ReactionsBoundary(
+            Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
+            std::shared_ptr<ParticleMeshInterface> mesh,
+            std::vector<int> &composite_indices,
+            ParameterStoreSharedPtr config = std::make_shared<ParameterStore>())
             : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
               composite_indices(composite_indices), ndim(mesh->get_ndim())
         {
@@ -393,6 +443,12 @@ public:
 
                 this->reaction_controller->add_reaction(test_reaction);
             }
+
+            this->reset_distance =
+                config->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
+
+            this->boundary_truncation = std::make_shared<BoundaryTruncation>(
+                this->ndim, this->reset_distance);
         }
 
         void pre_advection(ParticleSubGroupSharedPtr particle_sub_group)
@@ -416,8 +472,7 @@ public:
                     this->time_step_prop_sym,
                     this->composite_intersection->previous_position_sym);
                 reaction_controller->apply_reactions(
-                    groupx.second->get_particle_group(), dt,
-                    ControllerMode::surface_mode);
+                    groupx.second, dt, ControllerMode::surface_mode);
             }
         }
 
@@ -430,26 +485,13 @@ public:
         std::vector<int> composite_indices;
 
         int ndim;
+        REAL reset_distance;
+
         std::shared_ptr<BoundaryTruncation> boundary_truncation;
         std::shared_ptr<ReactionController> reaction_controller;
     };
 
-    void set_up_boundaries() override
-    {
-        auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
-
-        std::vector<int> reflection_composites;
-
-        for (auto &[sk, sv] : this->config->get_particle_species_boundary(0))
-        {
-            if (sv == ParticleBoundaryConditionType::eReflective)
-            {
-                reflection_composites.push_back(sk);
-            }
-        }
-        this->boundary = std::make_shared<ReactionsBoundary>(
-            this->sycl_target, mesh, reflection_composites);
-    }
+    void set_up_boundaries() override;
 
     void pre_advection(ParticleSubGroupSharedPtr sg) override
     {
