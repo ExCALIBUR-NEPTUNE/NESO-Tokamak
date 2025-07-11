@@ -63,21 +63,6 @@ public:
                                          REAL>(
                 [=](REAL *d_ptr, const std::size_t num_samples) -> int
                 { return rng_normal->get_samples(d_ptr, num_samples); });
-#if 0
-        // Random number generator kernel
-        std::mt19937 rng = std::mt19937(52234126 + rank);
-        // std::mt19937 rng = std::mt19937(std::random_device{}());
-        std::uniform_real_distribution<REAL> uniform_dist(0.0, 1.0);
-        auto rng_interface = [&]() -> REAL
-        {
-            REAL rng_sample;
-            do
-            {
-                rng_sample = uniform_dist(rng);
-            } while (rng_sample == 0.0);
-            return rng_sample;
-        };
-#endif
 
         auto rng_kernel =
             host_atomic_block_kernel_rng<REAL>(rng_interface, 4 * 10);
@@ -358,39 +343,6 @@ public:
 
     class ReactionsBoundary
     {
-        //        class CollisionMarker : public MarkingStrategy
-        //        {
-        //        public:
-        //            CollisionMarker(
-        //                std::shared_ptr<CompositeInteraction::CompositeIntersection>
-        //                    composite_intersection)
-        //                : composite_intersection(composite_intersection)
-        //            {
-        //            }
-        //
-        //            ParticleSubGroupSharedPtr make_marker_subgroup(
-        //                ParticleSubGroupSharedPtr particle_group) {};
-        //
-        //            std::shared_ptr<CompositeInteraction::CompositeIntersection>
-        //                composite_intersection;
-        //        };
-        //
-        //        class BoundaryTransformation : public TransformationStrategy
-        //        {
-        //        public:
-        //            BoundaryTransformation(
-        //                std::shared_ptr<CompositeInteraction::CompositeIntersection>
-        //                    composite_intersection)
-        //                : composite_intersection(composite_intersection)
-        //            {
-        //            }
-        //
-        //            void transform(ParticleSubGroupSharedPtr sg) override
-        //            {
-        //            }
-        //            std::shared_ptr<CompositeInteraction::CompositeIntersection>
-        //                composite_intersection;
-        //        };
 
     public:
         ReactionsBoundary(
@@ -417,7 +369,7 @@ public:
 
             this->reaction_controller = std::make_shared<ReactionController>(
                 std::vector<std::shared_ptr<TransformationWrapper>>{
-                    test_removal_wrapper},
+                    },
                 std::vector<std::shared_ptr<TransformationWrapper>>{});
 
             auto test_data = FixedRateData(1.0);
@@ -466,13 +418,24 @@ public:
 
             for (auto &groupx : groups)
             {
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second,
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"));
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second, Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"),
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"));
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second, Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"),
+                    Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"));
+
                 this->boundary_truncation->execute(
                     groupx.second,
                     get_particle_group(particle_sub_group)->position_dat->sym,
                     this->time_step_prop_sym,
                     this->composite_intersection->previous_position_sym);
                 reaction_controller->apply_reactions(
-                    groupx.second, dt, ControllerMode::surface_mode);
+                   groupx.second, dt, ControllerMode::surface_mode);
             }
         }
 

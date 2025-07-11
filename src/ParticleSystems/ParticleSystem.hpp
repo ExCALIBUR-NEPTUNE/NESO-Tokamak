@@ -96,6 +96,14 @@ public:
             ParticleProp(Sym<REAL>("FLUID_TEMPERATURE"), 1));
         this->particle_spec.push(
             ParticleProp(Sym<REAL>("FLUID_FLOW_SPEED"), this->ndim));
+
+        this->particle_spec.push(ParticleProp(
+            Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
+            this->ndim));
+        this->particle_spec.push(ParticleProp(
+            Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"), this->ndim));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"), 2));
     }
 
     virtual void init_object() override
@@ -106,7 +114,6 @@ public:
 
         this->transfer_particles();
         pre_advection(particle_sub_group(this->particle_group));
-
     }
 
     virtual void set_up_species() override;
@@ -272,7 +279,7 @@ public:
         this->field_evaluate_ne->evaluate(this->particle_group,
                                           Sym<REAL>("FLUID_DENSITY"), 0,
                                           ne->GetCoeffs());
-        if (field_evaluate_Te)                
+        if (field_evaluate_Te)
         {
             this->field_evaluate_Te->evaluate(this->particle_group,
                                               Sym<REAL>("FLUID_TEMPERATURE"), 0,
@@ -501,7 +508,8 @@ protected:
         reflection->pre_advection(sg);
     };
 
-    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg, double dt)
+    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg,
+                                           double dt)
     {
         reflection->execute(sg);
     };
