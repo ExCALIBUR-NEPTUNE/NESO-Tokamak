@@ -26,9 +26,9 @@ void ReactionSystem::set_up_boundaries()
             reflection_composites.push_back(sk);
         }
     }
-    this->boundary =
-        std::make_shared<ReactionsBoundary>(Sym<REAL>("TSP"), this->sycl_target,
-                                            mesh, reflection_composites, store);
+    this->boundary = std::make_shared<ReactionsBoundary>(
+        Sym<REAL>("TSP"), this->sycl_target, mesh, reflection_composites,
+        this->config, store);
 }
 
 } // namespace NESO::Solvers::tokamak

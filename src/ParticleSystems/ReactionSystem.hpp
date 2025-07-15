@@ -348,10 +348,11 @@ public:
         ReactionsBoundary(
             Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
             std::shared_ptr<ParticleMeshInterface> mesh,
-            std::vector<int> &composite_indices,
-            ParameterStoreSharedPtr config = std::make_shared<ParameterStore>())
+            std::vector<int> &composite_indices, NESOReaderSharedPtr config,
+            ParameterStoreSharedPtr store = std::make_shared<ParameterStore>())
             : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
-              composite_indices(composite_indices), ndim(mesh->get_ndim())
+              composite_indices(composite_indices), ndim(mesh->get_ndim()),
+              config(config)
         {
             std::map<int, std::vector<int>> boundary_groups = {
                 {1, this->composite_indices}};
@@ -359,7 +360,7 @@ public:
                 std::make_shared<CompositeInteraction::CompositeIntersection>(
                     this->sycl_target, mesh, boundary_groups);
 
-            auto test_removal_wrapper = std::make_shared<TransformationWrapper>(
+            auto reflection_removal_wrapper = std::make_shared<TransformationWrapper>(
                 std::vector<std::shared_ptr<MarkingStrategy>>{
                     make_marking_strategy<
                         ComparisonMarkerSingle<REAL, LessThanComp>>(
@@ -368,36 +369,41 @@ public:
                     SimpleRemovalTransformationStrategy>());
 
             this->reaction_controller = std::make_shared<ReactionController>(
-                std::vector<std::shared_ptr<TransformationWrapper>>{
-                    },
+                std::vector<std::shared_ptr<TransformationWrapper>>{},
                 std::vector<std::shared_ptr<TransformationWrapper>>{});
 
-            auto test_data = FixedRateData(1.0);
-            if (this->ndim == 2)
+            for (auto &[k, v] : this->config->get_particle_species())
             {
-                auto test_kernels = SpecularReflectionKernels<2>();
+                auto rate_data = FixedRateData(1.0);
+                if (this->ndim == 2)
+                {
+                    auto reflection_kernels = SpecularReflectionKernels<2>();
 
-                auto test_reaction = std::make_shared<LinearReactionBase<
-                    0, FixedRateData, SpecularReflectionKernels<2>>>(
-                    sycl_target, 0, std::array<int, 0>{}, test_data,
-                    test_kernels);
+                    auto reflection_reaction =
+                        std::make_shared<LinearReactionBase<
+                            0, FixedRateData, SpecularReflectionKernels<2>>>(
+                            sycl_target, k, std::array<int, 0>{}, rate_data,
+                            reflection_kernels);
 
-                this->reaction_controller->add_reaction(test_reaction);
+                    this->reaction_controller->add_reaction(
+                        reflection_reaction);
+                }
+                else if (this->ndim == 3)
+                {
+                    auto reflection_kernels = SpecularReflectionKernels<3>();
+
+                    auto reflection_reaction =
+                        std::make_shared<LinearReactionBase<
+                            0, FixedRateData, SpecularReflectionKernels<3>>>(
+                            sycl_target, k, std::array<int, 0>{}, rate_data,
+                            reflection_kernels);
+
+                    this->reaction_controller->add_reaction(
+                        reflection_reaction);
+                }
             }
-            else if (this->ndim == 3)
-            {
-                auto test_kernels = SpecularReflectionKernels<3>();
-
-                auto test_reaction = std::make_shared<LinearReactionBase<
-                    0, FixedRateData, SpecularReflectionKernels<3>>>(
-                    sycl_target, 0, std::array<int, 0>{}, test_data,
-                    test_kernels);
-
-                this->reaction_controller->add_reaction(test_reaction);
-            }
-
             this->reset_distance =
-                config->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
+                store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
 
             this->boundary_truncation = std::make_shared<BoundaryTruncation>(
                 this->ndim, this->reset_distance);
@@ -435,7 +441,7 @@ public:
                     this->time_step_prop_sym,
                     this->composite_intersection->previous_position_sym);
                 reaction_controller->apply_reactions(
-                   groupx.second, dt, ControllerMode::surface_mode);
+                    groupx.second, dt, ControllerMode::surface_mode);
             }
         }
 
@@ -452,6 +458,7 @@ public:
 
         std::shared_ptr<BoundaryTruncation> boundary_truncation;
         std::shared_ptr<ReactionController> reaction_controller;
+        NESOReaderSharedPtr config;
     };
 
     void set_up_boundaries() override;
