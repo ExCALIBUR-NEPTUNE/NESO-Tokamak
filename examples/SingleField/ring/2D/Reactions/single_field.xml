@@ -138,18 +138,18 @@
                         </REGION>
                     </BOUNDARYINTERACTION> 
                 </S>
-                <!-- <S ID="1" NAME="T">
+                <S ID="1" NAME="T">
                     <P> Mass = 3.0 </P>
                     <P> Charge = 1.0 </P>
                     <INITIAL N="1000">
                         <E VAR="n" VALUE="cos(4*x)*cos(4*x)"/>
                     </INITIAL>
-                    <SOURCE N="100">
+                    <!-- <SOURCE N="100">
                         <E VAR="n" VALUE="exp((-(x-2+0.75*cos(150*t))*(x-2+0.75*cos(150*t))/(0.01))+(-(y+0.75*sin(150*t))*(y+0.75*sin(150*t))/(0.01)))"/>
                     </SOURCE>
                     <SINK>
                         <E VAR="n" VALUE="exp((-(x-2+0.75*sin(150*t))*(x-2+0.75*sin(150*t))/(0.01))+(-(y-0.75*cos(150*t))*(y-0.75*cos(150*t))/(0.01)))"/>
-                    </SINK>
+                    </SINK> -->
                     <BOUNDARYINTERACTION>
                         <REGION REF="1">
                             <C VALUE="0.0" />
@@ -158,7 +158,7 @@
                             <C VALUE="0.0" />
                         </REGION>
                     </BOUNDARYINTERACTION> 
-                </S> -->
+                </S>
             </SPECIES>  
 
             <REACTIONS>
@@ -166,18 +166,18 @@
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
-                <!-- <R ID="1" TYPE="Ionisation" SPECIES="1">
+                <R ID="1" TYPE="Ionisation" SPECIES="1">
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
-                </R> -->
+                </R>
                 <R ID="2" TYPE="Recombination" SPECIES="0">
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R>
-                <!-- <R ID="3" TYPE="Recombination" SPECIES="1">
+                <R ID="3" TYPE="Recombination" SPECIES="1">
                     <RATE TYPE="AMJUEL" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
-                </R> -->
+                </R>
                 <!-- <R ID="4" TYPE="ChargeExchange" SPECIES="0,1">
                     <RATE TYPE="Fixed" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
@@ -186,7 +186,10 @@
                     <RATE TYPE="Fixed" VALUE="1.0"/>
                     <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
                 </R> -->
-                
+                <S ID="0" TYPE="Specular" SPECIES="0,1">
+                    <REGION REF="1,2"/>
+                    <RATE TYPE="Constant" VALUE="1.0"/>
+                </S>
             </REACTIONS>    
 
         </PARTICLES>
