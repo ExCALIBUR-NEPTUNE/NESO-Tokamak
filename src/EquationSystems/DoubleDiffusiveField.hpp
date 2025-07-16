@@ -1,7 +1,7 @@
 #ifndef DOUBLEDIFFUSIVEFIELD_HPP
 #define DOUBLEDIFFUSIVEFIELD_HPP
-#include "TokamakSystem.hpp"
 #include "../Misc/VariableConverter.hpp"
+#include "TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak
 {
@@ -79,6 +79,7 @@ protected:
     std::vector<StdRegions::VarCoeffMap> m_D;
 
     NekDouble m_k_B;
+    VariableConverterSharedPtr m_varConv;
 };
 
 } // namespace NESO::Solvers::tokamak

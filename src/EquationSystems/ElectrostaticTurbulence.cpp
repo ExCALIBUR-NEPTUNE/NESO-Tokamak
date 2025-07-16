@@ -950,66 +950,116 @@ void ElectrostaticTurbulence::DoDiffusionCoeff(
         outarrayDiff[i] = Array<OneD, NekDouble>{ncoeffs, 0.0};
     }
 
-    if (m_is_diffIP)
+    // if (m_is_diffIP)
+    // {
+    //     m_diffusion->DiffuseCoeffs(nvariables, m_fields, inarray,
+    //     outarrayDiff,
+    //                                m_bndEvaluateTime, pFwd, pBwd);
+    //     for (int i = 0; i < nvariables; ++i)
+    //     {
+    //         Vmath::Vadd(ncoeffs, outarrayDiff[i], 1, outarray[i], 1,
+    //                     outarray[i], 1);
+    //     }
+    // }
+    // else
+    // {
+    ASSERTL1(false, "LDGNS not yet validated for implicit compressible "
+                    "flow solver");
+    Array<OneD, Array<OneD, NekDouble>> inarrayDiff{nvariables - 1};
+    Array<OneD, Array<OneD, NekDouble>> inFwd{nvariables - 1};
+    Array<OneD, Array<OneD, NekDouble>> inBwd{nvariables - 1};
+
+    for (int i = 0; i < nvariables - 1; ++i)
     {
-        m_diffusion->DiffuseCoeffs(nvariables, m_fields, inarray, outarrayDiff,
-                                   m_bndEvaluateTime, pFwd, pBwd);
-        for (int i = 0; i < nvariables; ++i)
-        {
-            Vmath::Vadd(ncoeffs, outarrayDiff[i], 1, outarray[i], 1,
-                        outarray[i], 1);
-        }
+        inarrayDiff[i] = Array<OneD, NekDouble>{npoints};
+        inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
+        inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
+    }
+
+    // Extract temperature
+    m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
+
+    for (const auto &[s, v] : this->particle_sys->get_species())
+    {
+        m_varConv->GetIonTemperature(s, v.mass, inarray,
+                                     inarrayDiff[pi_idx[s]]);
+    }
+
+    // Repeat calculation for trace space
+    if (pFwd == NullNekDoubleArrayOfArray || pBwd == NullNekDoubleArrayOfArray)
+    {
+        inFwd = NullNekDoubleArrayOfArray;
+        inBwd = NullNekDoubleArrayOfArray;
     }
     else
     {
-        ASSERTL1(false, "LDGNS not yet validated for implicit compressible "
-                        "flow solver");
-        Array<OneD, Array<OneD, NekDouble>> inarrayDiff{nvariables - 1};
-        Array<OneD, Array<OneD, NekDouble>> inFwd{nvariables - 1};
-        Array<OneD, Array<OneD, NekDouble>> inBwd{nvariables - 1};
-
-        for (int i = 0; i < nvariables - 1; ++i)
-        {
-            inarrayDiff[i] = Array<OneD, NekDouble>{npoints};
-            inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
-            inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
-        }
-
-        // Extract temperature
-        m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
-
+        m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
         for (const auto &[s, v] : this->particle_sys->get_species())
         {
-            m_varConv->GetIonTemperature(s, v.mass, inarray,
-                                         inarrayDiff[pi_idx[s]]);
+            m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[pi_idx[s]]);
+            m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[pi_idx[s]]);
         }
+    }
 
-        // Repeat calculation for trace space
-        if (pFwd == NullNekDoubleArrayOfArray ||
-            pBwd == NullNekDoubleArrayOfArray)
-        {
-            inFwd = NullNekDoubleArrayOfArray;
-            inBwd = NullNekDoubleArrayOfArray;
-        }
-        else
-        {
-            m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
-            for (const auto &[s, v] : this->particle_sys->get_species())
-            {
-                m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[pi_idx[s]]);
-                m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[pi_idx[s]]);
-            }
-        }
+    // Diffusion term in physical rhs form
+    m_diffusion->DiffuseCoeffs(nvariables, m_indfields, inarrayDiff,
+                               outarrayDiff, inFwd, inBwd);
 
-        // Diffusion term in physical rhs form
-        m_diffusion->DiffuseCoeffs(nvariables, m_indfields, inarrayDiff,
-                                   outarrayDiff, inFwd, inBwd);
+    for (int i = 0; i < nvariables; ++i)
+    {
+        Vmath::Vadd(ncoeffs, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
+                    1);
+    }
+    //}
+}
 
-        for (int i = 0; i < nvariables; ++i)
+/**
+ * @brief Compute the advection terms for the right-hand side
+ */
+void ElectrostaticTurbulence::DoParticlesCoeff(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray)
+{
+    int npts   = GetNpoints();
+    int ncoeff = GetNcoeffs();
+    Array<OneD, NekDouble> tmp(ncoeff, 0.0);
+
+    // Add contribution to electron energy
+    m_fields[0]->FwdTrans(this->src_fields[0]->GetPhys(), tmp);
+    Vmath::Vadd(npts, outarray[pe_idx], 1, tmp, 1, outarray[pe_idx], 1);
+
+    for (const auto &[s, v] : this->particle_sys->get_species())
+    {
+        //  Add contribution to ion density
+        m_fields[0]->FwdTrans(this->src_fields[ni_src_idx[s]]->GetPhys(), tmp);
+        Vmath::Vadd(npts, outarray[ni_idx[s]], 1, tmp, 1, outarray[ni_idx[s]],
+                    1);
+
+        // Add contribution to ion energy
+        m_fields[0]->FwdTrans(this->src_fields[pi_src_idx[s]]->GetPhys(), tmp);
+        Vmath::Vadd(npts, outarray[pi_idx[s]], 1, tmp, 1, outarray[pi_idx[s]],
+                    1);
+
+        // Add number density source contribution to ion energy
+        Array<OneD, NekDouble> dynamic_energy(npts);
+        m_varConv->GetIonDynamicEnergy(s, v.mass, inarray, dynamic_energy);
+        Vmath::Vmul(npts, dynamic_energy, 1,
+                    this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
+                    dynamic_energy, 1);
+        m_fields[0]->FwdTrans(dynamic_energy, tmp);
+        Vmath::Vadd(npts, outarray[pi_idx[s]], 1, tmp, 1, outarray[pi_idx[s]],
+                    1);
+
+        Vmath::Zero(npts, dynamic_energy, 1);
+        for (int d = 0; d < m_spacedim; ++d)
         {
-            Vmath::Vadd(ncoeffs, outarrayDiff[i], 1, outarray[i], 1,
-                        outarray[i], 1);
+            Vmath::Vvtvp(npts, this->b_unit[d], 1,
+                         this->src_fields[vi_src_idx[s] + d]->GetPhys(), 1,
+                         dynamic_energy, 1, dynamic_energy, 1);
         }
+        m_fields[0]->FwdTrans(dynamic_energy, tmp);
+        Vmath::Vadd(npts, outarray[vi_idx[s]], 1, tmp, 1, outarray[vi_idx[s]],
+                    1);
     }
 }
 

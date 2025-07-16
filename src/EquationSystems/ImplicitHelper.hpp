@@ -236,7 +236,8 @@ protected:
         }
     }
     void NonlinSysEvaluatorCoeff1D(const Array<OneD, const NekDouble> &inarray,
-                                   Array<OneD, NekDouble> &out)
+                                   Array<OneD, NekDouble> &out,
+                                   [[maybe_unused]] const bool &flag)
     {
         unsigned int ncoeffs = m_fields[0]->GetNcoeffs();
         Array<OneD, Array<OneD, NekDouble>> in2D(m_nFields);
@@ -253,8 +254,7 @@ protected:
 
     void NonlinSysEvaluatorCoeff(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
-        Array<OneD, Array<OneD, NekDouble>> &out,
-        [[maybe_unused]] const bool &flag)
+        Array<OneD, Array<OneD, NekDouble>> &out)
     {
         unsigned int ncoeffs = m_fields[0]->GetNcoeffs();
         unsigned int npoints = m_fields[0]->GetNpoints();
@@ -275,31 +275,6 @@ protected:
                          out[i], 1);
             Vmath::Vsub(ncoeffs, out[i], 1,
                         m_nonlinsol->GetRefSourceVec() + i * ncoeffs, 1, out[i],
-                        1);
-        }
-    }
-
-    void NonlinSysEvaluatorCoeff(
-        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
-        Array<OneD, Array<OneD, NekDouble>> &out)
-    {
-        unsigned int npoints = m_fields[0]->GetNpoints();
-        Array<OneD, Array<OneD, NekDouble>> inpnts(m_nFields);
-        for (int i = 0; i < m_nFields; ++i)
-        {
-            inpnts[i] = Array<OneD, NekDouble>(npoints, 0.0);
-            m_fields[i]->BwdTrans(inarray[i], inpnts[i]);
-        }
-
-        m_ode.DoProjection(inarray, inpnts, m_bndEvaluateTime);
-        m_ode.DoOdeRhs(inpnts, out, m_bndEvaluateTime);
-
-        for (int i = 0; i < m_nFields; ++i)
-        {
-            Vmath::Svtvp(npoints, -m_TimeIntegLambda, out[i], 1, inarray[i], 1,
-                         out[i], 1);
-            Vmath::Vsub(npoints, out[i], 1,
-                        m_nonlinsol->GetRefSourceVec() + i * npoints, 1, out[i],
                         1);
         }
     }
@@ -349,7 +324,7 @@ protected:
         Array<OneD, NekDouble> resplus{ntotal};
 
         Vmath::Svtvp(ntotal, eps, inarray, 1, solref, 1, solplus, 1);
-        NonlinSysEvaluatorCoeff1D(solplus, resplus);
+        NonlinSysEvaluatorCoeff1D(solplus, resplus, flag);
         Vmath::Vsub(ntotal, resplus, 1, resref, 1, out, 1);
         Vmath::Smul(ntotal, 1.0 / eps, out, 1, out, 1);
     }
