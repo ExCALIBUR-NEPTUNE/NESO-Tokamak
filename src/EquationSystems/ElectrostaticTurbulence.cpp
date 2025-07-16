@@ -1112,10 +1112,6 @@ void ElectrostaticTurbulence::v_SetInitialConditions(NekDouble init_time,
 void ElectrostaticTurbulence::load_params()
 {
     TokamakSystem::load_params();
-    // HW alpha
-    m_session->LoadParameter("HW_alpha", this->alpha);
-    // HW kappa
-    m_session->LoadParameter("HW_kappa", this->kappa);
     std::string boussinesq_str;
     m_session->LoadSolverInfo("Boussinesq Approximation", boussinesq_str,
                               "Off");
