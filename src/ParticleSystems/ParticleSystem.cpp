@@ -73,7 +73,7 @@ void ParticleSystem::set_up_species()
                         initial_distribution[Sym<REAL>(
                             "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                         initial_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0.1;
+                                            [dimx] = 0;
                     }
                     initial_distribution[Sym<REAL>("Q")][px][0] =
                         particle_charge;
@@ -83,7 +83,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = 0.02;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -144,27 +144,97 @@ void ParticleSystem::add_sources(double time, double dt)
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
-            int particle_number = source.first;
+            long particle_number = source.first;
             if (particle_number > 0)
             {
                 std::vector<std::vector<double>> positions, velocities;
                 std::vector<int> cells;
-                LU::EquationSharedPtr neqn =
-                    source.second.at(std::pair("n", 0)).m_expression;
-                rng_phasespace = dist_within_extents(
-                    this->graph, neqn, time, particle_number, positions, cells,
-                    1.0e-10, rng_phasespace);
-                // auto veqn  = this->config->get_species_initial(k, "v");
+                if (auto v = source.second.find(std::pair("n", 0));
+                    v != source.second.end()) // Diffuse source
+                {
+                    rng_phasespace =
+                        dist_within_extents(this->graph, v->second.m_expression,
+                                            time, particle_number, positions,
+                                            cells, 1.0e-10, rng_phasespace);
+                }
+                else // Point source
+                {
+                    long rstart, rend;
+                    const long size = this->sycl_target->comm_pair.size_parent;
+                    const long rank = this->sycl_target->comm_pair.rank_parent;
+                    get_decomp_1d(size, particle_number, rank, &rstart, &rend);
+                    const long local_particle_number = rend - rstart;
+
+                    double x = source.second.at(std::pair("X", 0))
+                                   .m_expression->Evaluate();
+
+                    double y = source.second.at(std::pair("Y", 0))
+                                   .m_expression->Evaluate();
+
+                    positions.emplace_back(
+                        std::vector<double>(local_particle_number, x));
+
+                    positions.emplace_back(
+                        std::vector<double>(local_particle_number, y));
+                    cells = std::vector<int>(local_particle_number, 0);
+
+                    if (ndim == 3)
+                    {
+                        double z = source.second.at(std::pair("Z", 0))
+                                       .m_expression->Evaluate();
+                        positions.emplace_back(
+                            std::vector<double>(local_particle_number, z));
+                    }
+                }
+
                 int N         = cells.size();
                 int id_offset = 0;
                 MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM,
                                   this->sycl_target->comm));
                 if (N > 0)
                 {
-
-                    velocities = NESO::Particles::normal_distribution(
-                        N, this->ndim, 0.0, particle_thermal_velocity,
-                        rng_phasespace);
+                    if (auto v = source.second.find(std::pair("VX", 0));
+                        v != source.second.end())
+                    {
+                        double vx = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vx));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                rng_phasespace)[0]);
+                    }
+                    if (auto v = source.second.find(std::pair("VY", 0));
+                        v != source.second.end())
+                    {
+                        double vy = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vy));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                rng_phasespace)[0]);
+                    }
+                    if (this->ndim == 3)
+                    {
+                        if (auto v = source.second.find(std::pair("VZ", 0));
+                            v != source.second.end())
+                        {
+                            double vz = v->second.m_expression->Evaluate();
+                            velocities.emplace_back(std::vector<double>(N, vz));
+                        }
+                        else
+                        {
+                            velocities.emplace_back(
+                                NESO::Particles::normal_distribution(
+                                    N, 1, 0.0, particle_thermal_velocity,
+                                    rng_phasespace)[0]);
+                        }
+                    }
                     ParticleSet src_distribution(
                         N, this->particle_group->get_particle_spec());
 
@@ -181,7 +251,7 @@ void ParticleSystem::add_sources(double time, double dt)
                             src_distribution[Sym<REAL>(
                                 "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                             src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0.1;
+                                            [dimx] = 0;
                         }
                         src_distribution[Sym<REAL>("Q")][px][0] =
                             particle_charge;
@@ -191,7 +261,7 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
                         src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 1.0;
+                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 0.02;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                         src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -221,6 +291,7 @@ void ParticleSystem::add_sources(double time, double dt)
         species_map[k] =
             SpeciesInfo{name, particle_mass, particle_charge, sub_group};
     }
+    transfer_particles();
 }
 
 void ParticleSystem::add_sinks(double time, double dt)
@@ -315,10 +386,6 @@ void ParticleSystem::add_sinks(double time, double dt)
 void ParticleSystem::set_up_boundaries()
 {
     auto store = std::make_shared<ParameterStore>();
-    store->set<REAL>("MapParticlesNewton/newton_tol", 1.0e-10);
-    store->set<REAL>("MapParticlesNewton/contained_tol", 1.0e-6);
-    store->set<REAL>("CompositeIntersection/newton_tol", 1.0e-10);
-    store->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
     store->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
                      1.0e-6);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);

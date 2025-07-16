@@ -3,6 +3,7 @@
 
 #include "AMJUEL.hpp"
 #include "ParticleSystem.hpp"
+#include <neso_rng_toolkit.hpp>
 #include <reactions.hpp>
 
 using namespace Reactions;
@@ -39,20 +40,32 @@ public:
 
     inline void set_up_reactions()
     {
-        auto prop_map = default_map;
+        auto prop_map = get_default_map();
 
-        std::mt19937 rng = std::mt19937(std::random_device{}());
-        std::uniform_real_distribution<REAL> uniform_dist(0.0, 1.0);
-        auto rng_lambda = [&]() -> REAL
-        {
-            REAL rng_sample;
-            do
-            {
-                rng_sample = uniform_dist(rng);
-            } while (rng_sample == 0.0);
-            return rng_sample;
-        };
-        auto rng_kernel = host_atomic_block_kernel_rng<REAL>(rng_lambda);
+        auto sycl_target = particle_group->sycl_target;
+        const int rank   = sycl_target->comm_pair.rank_parent;
+
+        std::uint64_t root_seed = 141351;
+        std::uint64_t seed      = NESO::RNGToolkit::create_seeds(
+            sycl_target->comm_pair.size_parent, rank, root_seed);
+
+        // Create a Normal distribution with mean 4.0 and standard
+        // deviation 2.0.
+        auto rng_normal = NESO::RNGToolkit::create_rng<REAL>(
+            NESO::RNGToolkit::Distribution::Uniform<REAL>{
+                NESO::RNGToolkit::Distribution::next_value(0.0), 1.0},
+            seed, sycl_target->device, sycl_target->device_index);
+
+        // Create an interface between NESO-RNG-Toolkit and NESO-Particles
+        // KernelRNG
+        auto rng_interface =
+            make_rng_generation_function<GenericDeviceRNGGenerationFunction,
+                                         REAL>(
+                [=](REAL *d_ptr, const std::size_t num_samples) -> int
+                { return rng_normal->get_samples(d_ptr, num_samples); });
+
+        auto rng_kernel =
+            host_atomic_block_kernel_rng<REAL>(rng_interface, 4 * 10);
 
         for (const auto &[k, v] : this->config->get_reactions())
         {
@@ -77,7 +90,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             2>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                     else if (this->ndim == 3)
                     {
@@ -85,7 +98,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             3>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
@@ -99,7 +112,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             2>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                     else if (this->ndim == 3)
                     {
@@ -107,7 +120,7 @@ public:
                             decltype(ionise_data), decltype(ionise_energy_data),
                             3>>(this->particle_group->sycl_target, ionise_data,
                                 ionise_energy_data, target_species,
-                                electron_species, this->particle_spec);
+                                electron_species);
                     }
                 }
             }
@@ -130,11 +143,10 @@ public:
                 {
                     auto recomb_data = FixedRateData(1.0);
                     auto data1       = FixedRateData(1.0);
-                    auto data2       = FixedRateData(-1.0);
+                    auto data2       = FixedRateData(1.0);
                     auto data_calculator =
                         DataCalculator<FixedRateData, FixedRateData,
-                                       FixedRateData>(this->particle_spec,
-                                                      data1, data1, data2);
+                                       FixedRateData>(data1, data1, data2);
                     if (this->ndim == 2)
                     {
                         auto recomb_reaction_kernel = RecombReactionKernels<2>(
@@ -148,7 +160,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                     else if (this->ndim == 3)
@@ -164,7 +176,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                 }
@@ -184,8 +196,7 @@ public:
                     auto data_calculator =
                         DataCalculator<decltype(recomb_energy_data),
                                        decltype(recomb_data_calc_sampler)>(
-                            this->particle_spec, recomb_energy_data,
-                            recomb_data_calc_sampler);
+                            recomb_energy_data, recomb_data_calc_sampler);
 
                     if (this->ndim == 2)
                     {
@@ -200,7 +211,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                     else if (this->ndim == 3)
@@ -216,7 +227,7 @@ public:
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel, particle_spec,
+                            recomb_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                 }
@@ -242,8 +253,6 @@ public:
                 if (std::get<2>(v).first == "Fixed")
                 {
                     auto rate_data              = FixedRateData(1.0);
-                    auto vx_beam_data           = FixedRateData(1.0);
-                    auto vy_beam_data           = FixedRateData(-1.0);
                     auto constant_cross_section = ConstantRateCrossSection(1.0);
 
                     auto data_calc_sampler = FilteredMaxwellianSampler<
@@ -253,8 +262,8 @@ public:
                              norm::vel),
                         constant_cross_section, rng_kernel);
                     auto data_calculator =
-                        DataCalculator<FixedRateData, FixedRateData>(
-                            this->particle_spec, vx_beam_data, vy_beam_data);
+                        DataCalculator<decltype(data_calc_sampler)>(
+                            data_calc_sampler);
                     if (this->ndim == 2)
                     {
                         auto cx_kernel = CXReactionKernels<2>(
@@ -266,8 +275,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                     else if (this->ndim == 3)
                     {
@@ -280,8 +288,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
@@ -300,7 +307,7 @@ public:
 
                     auto data_calculator =
                         DataCalculator<decltype(data_calc_sampler)>(
-                            this->particle_spec, data_calc_sampler);
+                            data_calc_sampler);
 
                     if (this->ndim == 2)
                     {
@@ -313,8 +320,7 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                     else if (this->ndim == 3)
                     {
@@ -327,14 +333,156 @@ public:
                             projectile_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(target_species.get_id())},
-                            rate_data, cx_kernel, this->particle_spec,
-                            data_calculator);
+                            rate_data, cx_kernel, data_calculator);
                     }
                 }
             }
             this->reaction_controller->add_reaction(reaction);
         }
     }
+
+    class ReactionsBoundary
+    {
+
+    public:
+        ReactionsBoundary(
+            Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
+            std::shared_ptr<ParticleMeshInterface> mesh,
+            NESOReaderSharedPtr config,
+            ParameterStoreSharedPtr store = std::make_shared<ParameterStore>())
+            : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
+              ndim(mesh->get_ndim()), config(config)
+        {
+            auto reflection_removal_wrapper =
+                std::make_shared<TransformationWrapper>(
+                    std::vector<std::shared_ptr<MarkingStrategy>>{
+                        make_marking_strategy<
+                            ComparisonMarkerSingle<REAL, LessThanComp>>(
+                            Sym<REAL>("WEIGHT"), 1.0e-12)},
+                    make_transformation_strategy<
+                        SimpleRemovalTransformationStrategy>());
+
+            this->reaction_controller = std::make_shared<ReactionController>(
+                std::vector<std::shared_ptr<TransformationWrapper>>{},
+                std::vector<std::shared_ptr<TransformationWrapper>>{});
+
+            for (auto &[k, v] : this->config->get_surface_reactions())
+            {
+                if (std::get<0>(v) == "Specular")
+                {
+                    this->boundary_groups[k] = std::get<2>(v);
+                    for (auto s : std::get<1>(v))
+                    {
+                        auto rate_data = FixedRateData(1.0);
+                        if (this->ndim == 2)
+                        {
+                            auto reflection_kernels =
+                                SpecularReflectionKernels<2>();
+
+                            auto reflection_reaction =
+                                std::make_shared<LinearReactionBase<
+                                    0, FixedRateData,
+                                    SpecularReflectionKernels<2>>>(
+                                    sycl_target, s, std::array<int, 0>{},
+                                    rate_data, reflection_kernels);
+
+                            this->reaction_controller->add_reaction(
+                                reflection_reaction);
+                        }
+                        else if (this->ndim == 3)
+                        {
+                            auto reflection_kernels =
+                                SpecularReflectionKernels<3>();
+
+                            auto reflection_reaction =
+                                std::make_shared<LinearReactionBase<
+                                    0, FixedRateData,
+                                    SpecularReflectionKernels<3>>>(
+                                    sycl_target, s, std::array<int, 0>{},
+                                    rate_data, reflection_kernels);
+
+                            this->reaction_controller->add_reaction(
+                                reflection_reaction);
+                        }
+                    }
+                }
+            }
+
+            this->composite_intersection =
+                std::make_shared<CompositeInteraction::CompositeIntersection>(
+                    this->sycl_target, mesh, boundary_groups);
+
+            this->reset_distance =
+                store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
+
+            this->boundary_truncation = std::make_shared<BoundaryTruncation>(
+                this->ndim, this->reset_distance);
+        }
+
+        void pre_advection(ParticleSubGroupSharedPtr particle_sub_group)
+        {
+            this->composite_intersection->pre_integration(particle_sub_group);
+        }
+
+        void execute(ParticleSubGroupSharedPtr particle_sub_group, double dt)
+        {
+            NESOASSERT(this->ndim == 3 || this->ndim == 2,
+                       "Unexpected number of dimensions.");
+
+            auto groups = this->composite_intersection->get_intersections(
+                particle_sub_group);
+
+            for (auto &groupx : groups)
+            {
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second,
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"));
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second, Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"),
+                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"));
+                copy_ephemeral_dat_to_particle_dat(
+                    groupx.second, Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"),
+                    Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"));
+
+                this->boundary_truncation->execute(
+                    groupx.second,
+                    get_particle_group(particle_sub_group)->position_dat->sym,
+                    this->time_step_prop_sym,
+                    this->composite_intersection->previous_position_sym);
+                this->reaction_controller->apply_reactions(
+                    groupx.second, dt, ControllerMode::surface_mode);
+            }
+        }
+
+    private:
+        Sym<REAL> time_step_prop_sym;
+
+        SYCLTargetSharedPtr sycl_target;
+        std::shared_ptr<CompositeInteraction::CompositeIntersection>
+            composite_intersection;
+        std::map<int, std::vector<int>> boundary_groups;
+
+        int ndim;
+        REAL reset_distance;
+
+        std::shared_ptr<BoundaryTruncation> boundary_truncation;
+        std::shared_ptr<ReactionController> reaction_controller;
+        NESOReaderSharedPtr config;
+    };
+
+    void set_up_boundaries() override;
+
+    void pre_advection(ParticleSubGroupSharedPtr sg) override
+    {
+        this->boundary->pre_advection(sg);
+    };
+
+    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg,
+                                   double dt) override
+    {
+        this->boundary->execute(sg, dt);
+    };
 
     inline void integrate_inner(ParticleSubGroupSharedPtr sg,
                                 const double dt_inner) override
@@ -389,11 +537,18 @@ public:
                                                             0.01)},
             merge_transform);
 
-        std::vector<std::string> src_names;
-        for (auto sym : this->src_syms)
+        std::vector<std::string> src_names{"ELECTRON_SOURCE_DENSITY",
+                                           "ELECTRON_SOURCE_ENERGY",
+                                           "ELECTRON_SOURCE_MOMENTUM"};
+
+        for (auto &[k, v] : this->config->get_particle_species())
         {
-            src_names.push_back(sym.name);
+            std::string name = std::get<0>(v);
+            src_names.push_back(name + "_SOURCE_DENSITY");
+            src_names.push_back(name + "_SOURCE_ENERGY");
+            src_names.push_back(name + "_SOURCE_MOMENTUM");
         }
+
         auto zeroer_transform =
             make_transformation_strategy<ParticleDatZeroer<REAL>>(src_names);
 
@@ -450,6 +605,8 @@ protected:
 
     /// Reaction Controller
     std::shared_ptr<ReactionController> reaction_controller;
+
+    std::shared_ptr<ReactionsBoundary> boundary;
 };
 
 } // namespace NESO::Solvers::tokamak
