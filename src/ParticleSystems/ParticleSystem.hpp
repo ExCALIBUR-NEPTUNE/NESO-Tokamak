@@ -96,6 +96,14 @@ public:
             ParticleProp(Sym<REAL>("FLUID_TEMPERATURE"), 1));
         this->particle_spec.push(
             ParticleProp(Sym<REAL>("FLUID_FLOW_SPEED"), this->ndim));
+
+        this->particle_spec.push(ParticleProp(
+            Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
+            this->ndim));
+        this->particle_spec.push(ParticleProp(
+            Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"), this->ndim));
+        this->particle_spec.push(
+            ParticleProp(Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"), 2));
     }
 
     virtual void init_object() override
@@ -105,11 +113,7 @@ public:
             std::make_shared<ParticleRemover>(this->sycl_target);
 
         this->transfer_particles();
-        // for (auto &[k, v] : this->get_species())
-        //{
         pre_advection(particle_sub_group(this->particle_group));
-        apply_boundary_conditions(particle_sub_group(this->particle_group));
-        //}
     }
 
     virtual void set_up_species() override;
@@ -131,7 +135,7 @@ public:
         return species_map;
     }
 
-    void set_up_boundaries();
+    virtual void set_up_boundaries();
 
     /**
      *  Integrate the particle system forward to the requested time using
@@ -499,21 +503,15 @@ protected:
             ->execute();
     }
 
-    void pre_advection(ParticleSubGroupSharedPtr sg)
+    virtual void pre_advection(ParticleSubGroupSharedPtr sg)
     {
-        // if (auto r = this->species_map[k].reflection)
-        //{
-
         reflection->pre_advection(sg);
-        //}
     };
 
-    void apply_boundary_conditions(ParticleSubGroupSharedPtr sg)
+    virtual void apply_boundary_conditions(ParticleSubGroupSharedPtr sg,
+                                           double dt)
     {
-        // if (auto r = this->species_map[k].reflection)
-        //{
         reflection->execute(sg);
-        //}
     };
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
@@ -534,23 +532,20 @@ protected:
 
     inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
     {
-        // for (auto &[k, v] : this->get_species())
-        //{
-        // auto sg = v.sub_group;
         apply_timestep_reset(sg);
         pre_advection(sg);
         integrate_inner(sg, dt);
-        apply_boundary_conditions(sg);
+        apply_boundary_conditions(sg, dt);
         sg = find_partial_moves(sg, dt);
         while (partial_moves_remaining(sg))
         {
             pre_advection(sg);
             integrate_inner(sg, dt);
-            apply_boundary_conditions(sg);
+            apply_boundary_conditions(sg, dt);
             sg = find_partial_moves(sg, dt);
         }
-        //}
     }
+
     /**
      *  Apply boundary conditions and transfer particles between MPI ranks.
      * // Move some of this to PartSysBase / make it a pure-virtual func?

@@ -15,6 +15,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 find_package(NESO REQUIRED)
 find_package(NESO-Particles REQUIRED)
+find_package(NESO-RNG-Toolkit REQUIRED)
 
 # Identify source files
 set(SRC_FILES
@@ -47,6 +48,7 @@ target_link_libraries(${OBJLIB_NAME} PUBLIC NESO-Particles::NESO-Particles
   PRIVATE Nektar++::nektar++ NESO::nesolib)
 
 target_link_libraries(${OBJLIB_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/Reactions/lib/libreactions.so)
+target_link_libraries(${OBJLIB_NAME} PUBLIC NESO-RNG-Toolkit::NESO-RNG-Toolkit)
 
 target_include_directories(${OBJLIB_NAME} PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
@@ -76,7 +78,7 @@ target_link_libraries(
   ${EXEC_NAME} PRIVATE Nektar++::nektar++ NESO::nesolib NESO-Particles::NESO-Particles)
 
 target_link_libraries(${EXEC_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/Reactions/lib/libreactions.so)
-
+target_link_libraries(${EXEC_NAME} PUBLIC NESO-RNG-Toolkit::NESO-RNG-Toolkit)
 
 add_sycl_to_target(TARGET ${EXEC_NAME} SOURCES src/main.cpp)
 
