@@ -348,15 +348,11 @@ public:
         ReactionsBoundary(
             Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
             std::shared_ptr<ParticleMeshInterface> mesh,
-            /*std::vector<int> &composite_indices,*/ NESOReaderSharedPtr config,
+            NESOReaderSharedPtr config,
             ParameterStoreSharedPtr store = std::make_shared<ParameterStore>())
             : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
-              /*composite_indices(composite_indices),*/ ndim(mesh->get_ndim()),
-              config(config)
+              ndim(mesh->get_ndim()), config(config)
         {
-            // std::map<int, std::vector<int>> boundary_groups = {
-            //     {1, this->composite_indices}};
-
             auto reflection_removal_wrapper =
                 std::make_shared<TransformationWrapper>(
                     std::vector<std::shared_ptr<MarkingStrategy>>{
@@ -454,7 +450,7 @@ public:
                     get_particle_group(particle_sub_group)->position_dat->sym,
                     this->time_step_prop_sym,
                     this->composite_intersection->previous_position_sym);
-                reaction_controller->apply_reactions(
+                this->reaction_controller->apply_reactions(
                     groupx.second, dt, ControllerMode::surface_mode);
             }
         }
@@ -465,7 +461,6 @@ public:
         SYCLTargetSharedPtr sycl_target;
         std::shared_ptr<CompositeInteraction::CompositeIntersection>
             composite_intersection;
-        // std::vector<int> composite_indices;
         std::map<int, std::vector<int>> boundary_groups;
 
         int ndim;
