@@ -49,8 +49,7 @@ public:
         std::uint64_t seed      = NESO::RNGToolkit::create_seeds(
             sycl_target->comm_pair.size_parent, rank, root_seed);
 
-        // Create a Normal distribution with mean 4.0 and standard
-        // deviation 2.0.
+        // Create a Uniform distribution
         auto rng_normal = NESO::RNGToolkit::create_rng<REAL>(
             NESO::RNGToolkit::Distribution::Uniform<REAL>{
                 NESO::RNGToolkit::Distribution::next_value(0.0), 1.0},
@@ -413,7 +412,7 @@ public:
                     this->sycl_target, mesh, boundary_groups);
 
             this->reset_distance =
-                store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
+                store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-4);
 
             this->boundary_truncation = std::make_shared<BoundaryTruncation>(
                 this->ndim, this->reset_distance);
