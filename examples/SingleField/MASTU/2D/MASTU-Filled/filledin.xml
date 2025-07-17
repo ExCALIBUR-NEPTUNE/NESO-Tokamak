@@ -24,7 +24,4 @@
         </Provenance>
         <NekMeshCommandLine>-m detect filledin.msh filledin.xml </NekMeshCommandLine>
     </Metadata>
-    <EXPANSIONS>
-        <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="u" />
-    </EXPANSIONS>
 </NEKTAR>

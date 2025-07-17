@@ -461,7 +461,10 @@ protected:
                 ->execute();
         }
     };
-
+    const long size;
+    const long rank;
+    std::mt19937 rng_phasespace;
+    
     uint64_t total_num_particles_added = 0;
 
     const int particle_remove_key = -1;
