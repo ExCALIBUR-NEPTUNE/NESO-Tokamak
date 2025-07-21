@@ -46,6 +46,9 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
+    void DoExtra(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                 Array<OneD, Array<OneD, NekDouble>> &outarray);
+
     void DoParticles(const Array<OneD, Array<OneD, NekDouble>> &inarray,
                      Array<OneD, Array<OneD, NekDouble>> &outarray);
 
@@ -96,7 +99,7 @@ protected:
                           const Array<OneD, Array<OneD, NekDouble>> &pFwd,
                           const Array<OneD, Array<OneD, NekDouble>> &pBwd);
     void DoParticlesCoeff(const Array<OneD, Array<OneD, NekDouble>> &inarray,
-                     Array<OneD, Array<OneD, NekDouble>> &out_arr);
+                          Array<OneD, Array<OneD, NekDouble>> &out_arr);
     void DoDiffusionCoeff(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
         Array<OneD, Array<OneD, NekDouble>> &outarray,
@@ -109,6 +112,7 @@ protected:
                           std::vector<std::string> &variables) override;
 
 private:
+    int phi_idx;
     int omega_idx;
     int pe_idx;
 
@@ -125,9 +129,6 @@ private:
     /// Hasegawa-Wakatani κ
     NekDouble kappa;
 
-    // Electric Potential
-    MR::ContFieldSharedPtr phi;
-
     /// Velocities
     /// Storage for ExB drift velocity
     Array<OneD, Array<OneD, NekDouble>> v_ExB;
@@ -135,9 +136,9 @@ private:
     Array<OneD, NekDouble> v_e_par;
     // Ion parallel velocities
     std::vector<Array<OneD, NekDouble>> v_i_par;
-    // Electron diagmagnetic drift velocity
+    // Electron diamagnetic drift velocity
     Array<OneD, Array<OneD, NekDouble>> v_de;
-    // Ion diagmagnetic drift velocities
+    // Ion diamagnetic drift velocities
     std::vector<Array<OneD, Array<OneD, NekDouble>>> v_di;
     // Per field advection velocities
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel;

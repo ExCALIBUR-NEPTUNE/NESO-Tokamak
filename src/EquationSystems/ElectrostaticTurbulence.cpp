@@ -29,8 +29,8 @@ ElectrostaticTurbulence::ElectrostaticTurbulence(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->n_indep_fields       = 2;
-    this->n_fields_per_species = 3;
+    this->n_indep_fields       = 2; // p_e, w, phi
+    this->n_fields_per_species = 3; // n_i, v_i, p_i
 }
 
 void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
@@ -38,15 +38,6 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     TokamakSystem::v_InitObject(DeclareFields);
     m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
         m_session, m_spacedim, m_graph);
-
-    // Since we are starting from a setup where each field is defined to be a
-    // discontinuous field (and thus support DG), the first thing we do is to
-    // recreate the phi field so that it is continuous, in order to support the
-    // Poisson solve. Note that you can still perform a Poisson solve using a
-    // discontinuous field, which is done via the hybridisable discontinuous
-    // Galerkin (HDG) approach.
-    this->phi = MemoryManager<MR::ContField>::AllocateSharedPtr(
-        m_session, m_graph, "phi", true, true);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -58,14 +49,6 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     // Create storage for velocities
     int npts = GetNpoints();
-
-    auto tmp_fields = Array<OneD, MultiRegions::ExpListSharedPtr>(
-        m_fields.size() + n_species * 3);
-
-    for (int i = 0; i < m_fields.size(); ++i)
-    {
-        tmp_fields[i] = m_fields[i];
-    }
 
     // ExB velocity
     this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -80,7 +63,7 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     // Per-field advection velocities
     this->adv_vel =
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(2 + 3 * n_species);
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(m_indfields.size());
 
     for (int i = 0; i < this->adv_vel.size(); ++i)
     {
@@ -91,12 +74,13 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     {
         this->v_ExB[d] = Array<OneD, NekDouble>(npts, 0.0);
         this->v_de[d]  = Array<OneD, NekDouble>(npts, 0.0);
-        // this->adv_vel[ne_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
 
     pe_idx    = 3 * this->n_species;
     omega_idx = 3 * this->n_species + 1;
-    int s     = 0;
+    // phi_idx   = 3 * this->n_species + 2;
+
+    int s = 0;
     for (const auto &[k, v] : this->neso_config->get_species())
     {
         ni_idx.push_back(3 * s);
@@ -121,11 +105,18 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
         s++;
     }
 
-    m_fields = tmp_fields;
-
     m_varConv->ni_idx = ni_idx;
     m_varConv->vi_idx = vi_idx;
     m_varConv->pi_idx = pi_idx;
+
+    // Since we are starting from a setup where each field is defined to be a
+    // discontinuous field (and thus support DG), the first thing we do is to
+    // recreate the phi field so that it is continuous, in order to support the
+    // Poisson solve. Note that you can still perform a Poisson solve using a
+    // discontinuous field, which is done via the hybridisable discontinuous
+    // Galerkin (HDG) approach.
+    // m_indfields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
+    //    m_session, m_graph, "phi", true, true);
 
     if (m_fields[0]->GetTrace())
     {
@@ -211,7 +202,6 @@ void ElectrostaticTurbulence::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time)
 {
-
     // Get field indices
     int npts      = GetNpoints();
     int nTracePts = GetTraceTotPoints();
@@ -221,9 +211,6 @@ void ElectrostaticTurbulence::DoOdeRhs(
         zero_array_of_arrays(outarray);
     }
     int nvariables = inarray.size();
-
-    Array<OneD, Array<OneD, NekDouble>> tmp(nvariables);
-    tmp = inarray;
 
     Array<OneD, NekDouble> ne(npts);
     m_varConv->GetElectronDensity(inarray, ne);
@@ -236,92 +223,20 @@ void ElectrostaticTurbulence::DoOdeRhs(
     {
         Fwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
         Bwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
-        m_indfields[i]->GetFwdBwdTracePhys(tmp[i], Fwd[i], Bwd[i]);
+        m_indfields[i]->GetFwdBwdTracePhys(inarray[i], Fwd[i], Bwd[i]);
     }
 
     // Helmholtz Solve for electrostatic potential
-    SolvePhi(tmp, ne);
+    // SolvePhi(inarray, ne);
     // Calculate E
-    ComputeE();
+    // ComputeE();
     // Calculate ExB, parallel and diamagnetic velocities
-    CalcVelocities(tmp, ne);
+    CalcVelocities(inarray, ne);
 
     // Perform advection
-    DoAdvection(tmp, outarray, time, Fwd, Bwd);
+    DoAdvection(inarray, outarray, time, Fwd, Bwd);
 
-    // add extra terms to electron momentum
-    Array<OneD, Array<OneD, NekDouble>> gradp(m_spacedim);
-    Array<OneD, NekDouble> extra(npts);
-    // m_fields[3]->PhysDeriv(tmp[pe_idx], gradp[0], gradp[1], gradp[2]);
-    //
-    // for (int d = 0; d < m_spacedim; ++d)
-    //{
-    //    Vmath::Vvtvp(npts, b_unit[d], 1, gradp[d], 1, extra, 1, extra, 1);
-    //}
-    // Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-    // Vmath::Vadd(npts, extra, 1, outarray[ve_idx], 1, outarray[ve_idx], 1);
-    // Vmath::Zero(npts, extra, 1);
-    // for (int d = 0; d < m_spacedim; ++d)
-    //{
-    //    Vmath::Vvtvp(npts, b_unit[d], 1, this->E[d]->GetPhys(), 1, extra, 1,
-    //                 extra, 1);
-    //}
-    // Vmath::Vmul(npts, outarray[ne_idx], 1, extra, 1, extra, 1);
-    // Vmath::Vadd(npts, extra, 1, outarray[ve_idx], 1, outarray[ve_idx], 1);
-
-    // Add extra terms to electron energy
-    Array<OneD, Array<OneD, NekDouble>> vel(m_spacedim);
-
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, this->v_ExB[d],
-                     1, vel[d], 1);
-        m_fields[0]->PhysDeriv(d, vel[d], gradp[d]);
-        Vmath::Vadd(npts, gradp[d], 1, extra, 1, extra, 1);
-    }
-    Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-    Vmath::Vadd(npts, extra, 1, outarray[pe_idx], 1, outarray[pe_idx], 1);
-    Vmath::Zero(npts, extra, 1);
-
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        double charge;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        // Add extra terms to ion momentum
-        m_fields[0]->PhysDeriv(tmp[pi_idx[s]], gradp[0], gradp[1], gradp[2]);
-
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vvtvp(npts, b_unit[d], 1, gradp[d], 1, extra, 1, extra, 1);
-        }
-        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
-                    1);
-        Vmath::Zero(npts, extra, 1);
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vvtvp(npts, b_unit[d], 1, this->E[d]->GetPhys(), 1, extra, 1,
-                         extra, 1);
-        }
-        Vmath::Vmul(npts, outarray[0], 1, extra, 1, extra, 1);
-        Vmath::Smul(npts, charge, extra, 1, extra, 1);
-
-        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
-                    1);
-        // Add extra terms to ion energy
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
-                         this->v_ExB[d], 1, vel[d], 1);
-            m_fields[0]->PhysDeriv(d, vel[d], gradp[d]);
-            Vmath::Vadd(npts, gradp[d], 1, extra, 1, extra, 1);
-        }
-        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-        Vmath::Vadd(npts, extra, 1, outarray[pi_idx[s]], 1, outarray[pi_idx[s]],
-                    1);
-        s++;
-    }
+    DoExtra(inarray, outarray);
 
     for (int i = 0; i < nvariables; ++i)
     {
@@ -330,7 +245,7 @@ void ElectrostaticTurbulence::DoOdeRhs(
     CalcDiffTensor();
     CalcKappaTensor();
     // Perform Diffusion
-    DoDiffusion(tmp, outarray, Fwd, Bwd);
+    DoDiffusion(inarray, outarray, Fwd, Bwd);
 
     if (this->particles_enabled)
     {
@@ -341,6 +256,70 @@ void ElectrostaticTurbulence::DoOdeRhs(
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, inarray, outarray, time);
+    }
+}
+
+void ElectrostaticTurbulence::DoExtra(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray)
+{
+    int npts = GetNpoints();
+    Array<OneD, NekDouble> grad(npts, 0.0);
+    Array<OneD, NekDouble> extra(npts, 0.0);
+    Array<OneD, NekDouble> vel(npts, 0.0);
+    // Add extra terms to electron energy
+
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, this->v_ExB[d],
+                     1, vel, 1);
+        m_fields[0]->PhysDeriv(d, vel, grad);
+        Vmath::Vadd(npts, grad, 1, extra, 1, extra, 1);
+    }
+    Vmath::Vmul(npts, inarray[pe_idx], 1, extra, 1, extra, 1);
+    Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
+    Vmath::Vadd(npts, extra, 1, outarray[pe_idx], 1, outarray[pe_idx], 1);
+    Vmath::Zero(npts, extra, 1);
+
+    int s = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
+    {
+        double charge;
+        this->neso_config->load_species_parameter(k, "Charge", charge);
+        // Add extra terms to ion momentum
+
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            m_fields[0]->PhysDeriv(d, inarray[pi_idx[s]], grad);
+            Vmath::Vvtvp(npts, this->b_unit[d], 1, grad, 1, extra, 1, extra, 1);
+        }
+        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
+        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
+                    1);
+        Vmath::Zero(npts, extra, 1);
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->E[d]->GetPhys(), 1,
+                         extra, 1, extra, 1);
+        }
+        Vmath::Vmul(npts, inarray[ni_idx[s]], 1, extra, 1, extra, 1);
+        Vmath::Smul(npts, charge, extra, 1, extra, 1);
+        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
+                    1);
+        Vmath::Zero(npts, extra, 1);
+
+        // Add extra terms to ion energy
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
+                         this->v_ExB[d], 1, vel, 1);
+            m_fields[0]->PhysDeriv(d, vel, grad);
+            Vmath::Vadd(npts, grad, 1, extra, 1, extra, 1);
+        }
+        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
+        Vmath::Vadd(npts, extra, 1, outarray[pi_idx[s]], 1, outarray[pi_idx[s]],
+                    1);
+        s++;
     }
 }
 
@@ -442,9 +421,11 @@ void ElectrostaticTurbulence::SolvePhi(
     // Solve for phi. Output of this routine is in coefficient (spectral)
     // space, so backwards transform to physical space since we'll need that
     // for the advection step & computing drift velocity.
-    this->phi->HelmSolve(inarray[omega_idx], this->phi->UpdateCoeffs(), factors,
-                         m_phi_varcoeff);
-    this->phi->BwdTrans(this->phi->GetCoeffs(), this->phi->UpdatePhys());
+    m_indfields[phi_idx]->HelmSolve(inarray[omega_idx],
+                                    m_indfields[phi_idx]->UpdateCoeffs(),
+                                    factors, m_phi_varcoeff);
+    m_indfields[phi_idx]->BwdTrans(m_indfields[phi_idx]->GetCoeffs(),
+                                   m_indfields[phi_idx]->UpdatePhys());
 }
 
 /**
@@ -469,8 +450,9 @@ void ElectrostaticTurbulence::CalcInitPhi()
  */
 void ElectrostaticTurbulence::ComputeE()
 {
-    this->phi->PhysDeriv(this->phi->GetPhys(), this->E[0]->UpdatePhys(),
-                         this->E[1]->UpdatePhys(), this->E[2]->UpdatePhys());
+    m_indfields[phi_idx]->PhysDeriv(
+        m_indfields[phi_idx]->GetPhys(), this->E[0]->UpdatePhys(),
+        this->E[1]->UpdatePhys(), this->E[2]->UpdatePhys());
     int npts = GetNpoints();
 
     Vmath::Smul(npts, 1.0, this->E[0]->GetPhys(), 1, this->E[0]->UpdatePhys(),
@@ -490,7 +472,7 @@ void ElectrostaticTurbulence::CalcVelocities(
     const Array<OneD, NekDouble> &ne)
 {
     int npts = GetNpoints();
-
+    std::cout << "A\n";
     // Calculate ExB velocity
     Vmath::Vvtvvtm(npts, this->E[1]->GetPhys(), 1, this->B[2]->GetPhys(), 1,
                    this->E[2]->GetPhys(), 1, this->B[1]->GetPhys(), 1,
@@ -502,7 +484,7 @@ void ElectrostaticTurbulence::CalcVelocities(
                    this->v_ExB[1], 1);
     Vmath::Vdiv(npts, this->v_ExB[1], 1, this->mag_B, 1, this->v_ExB[1], 1);
 
-    if (this->m_graph->GetMeshDimension() == 3)
+    if (m_spacedim == 3)
     {
         Vmath::Vvtvvtm(npts, this->E[0]->GetPhys(), 1, this->B[1]->GetPhys(), 1,
                        this->E[1]->GetPhys(), 1, this->B[0]->GetPhys(), 1,
@@ -510,24 +492,116 @@ void ElectrostaticTurbulence::CalcVelocities(
         Vmath::Vdiv(npts, this->v_ExB[2], 1, this->mag_B, 1, this->v_ExB[2], 1);
     }
 
-    // Calculate Electron parallel velocity
-    Vmath::Vdiv(npts, inarray[2], 1, inarray[0], 1, this->v_e_par, 1);
-
-    // Calculate Ion parallel velocities
+    // Zero Electron velocity
+    Vmath::Zero(npts, this->v_e_par, 1);
     int s = 0;
     for (const auto &[k, v] : this->neso_config->get_species())
     {
-        double mass;
+        double charge, mass;
+        this->neso_config->load_species_parameter(k, "Charge", charge);
         this->neso_config->load_species_parameter(k, "Mass", mass);
-        Vmath::Vdiv(npts, inarray[vi_idx[s]], 1, inarray[ni_idx[s]], 1,
+
+        // Calculate Ion parallel velocities
+        Vmath::Smul(npts, 1.0 / mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
+                    1);
+        Vmath::Svtvp(npts, charge, this->v_i_par[s], 1, this->v_e_par, 1,
+                     this->v_e_par, 1);
+
+        Vmath::Vdiv(npts, this->v_i_par[s], 1, inarray[ni_idx[s]], 1,
                     this->v_i_par[s], 1);
-        Vmath::Smul(npts, 1.0 / mass, this->v_i_par[s], 1, this->v_i_par[s], 1);
+
+        // Calculate ion diamagnetic velocity
+        std::cout << "B\n";
+
+        Array<OneD, NekDouble> gradp[3];
+        std::cout << "C\n";
+
+        for (int d = 0; d < 3; ++d)
+        {
+            std::cout << "D\n";
+
+            gradp[d] = Array<OneD, NekDouble>(npts, 0.0);
+        }
+        std::cout << "E\n";
+
+        if (m_spacedim == 2)
+            m_indfields[pi_idx[s]]->PhysDeriv(inarray[pi_idx[s]], gradp[0],
+                                              gradp[1], NullNekDouble1DArray);
+        else if (m_spacedim == 3)
+            m_indfields[pi_idx[s]]->PhysDeriv(inarray[pi_idx[s]], gradp[0],
+                                              gradp[1], gradp[2]);
+        std::cout << "F\n";
+
+        Vmath::Vvtvvtm(npts, gradp[1], 1, this->B[2]->GetPhys(), 1, gradp[2], 1,
+                       this->B[1]->GetPhys(), 1, this->v_di[s][0], 1);
+        Vmath::Vdiv(npts, this->v_di[s][0], 1, this->mag_B, 1, this->v_di[s][0],
+                    1);
+        Vmath::Vdiv(npts, this->v_di[s][0], 1, ne, 1, this->v_di[s][0], 1);
+        Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][0], 1,
+                    this->v_di[s][0], 1);
+        Vmath::Vvtvvtm(npts, gradp[2], 1, this->B[0]->GetPhys(), 1, gradp[0], 1,
+                       this->B[2]->GetPhys(), 1, this->v_di[s][1], 1);
+        Vmath::Vdiv(npts, this->v_di[s][1], 1, this->mag_B, 1, this->v_di[s][1],
+                    1);
+        Vmath::Vdiv(npts, this->v_di[s][1], 1, ne, 1, this->v_di[s][1], 1);
+        Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][1], 1,
+                    this->v_di[s][1], 1);
+
+        if (m_spacedim == 3)
+        {
+            Vmath::Vvtvvtm(npts, gradp[0], 1, this->B[1]->GetPhys(), 1,
+                           gradp[1], 1, this->B[0]->GetPhys(), 1,
+                           this->v_di[s][2], 1);
+            Vmath::Vdiv(npts, this->v_di[s][2], 1, this->mag_B, 1,
+                        this->v_di[s][2], 1);
+            Vmath::Vdiv(npts, this->v_di[s][2], 1, ne, 1, this->v_di[s][2], 1);
+            Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][2], 1,
+                        this->v_di[s][2], 1);
+        }
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
+                         this->v_ExB[d], 1, this->adv_vel[ni_idx[s]][d], 1);
+            Vmath::Vadd(npts, this->v_di[s][d], 1, this->adv_vel[ni_idx[s]][d],
+                        1, this->adv_vel[ni_idx[s]][d], 1);
+            Vmath::Vcopy(npts, this->adv_vel[ni_idx[s]][d], 1,
+                         this->adv_vel[vi_idx[s]][d], 1);
+            Vmath::Vcopy(npts, this->adv_vel[ni_idx[s]][d], 1,
+                         this->adv_vel[pi_idx[s]][d], 1);
+            Vmath::Svtvp(npts, 5.0 / 3.0, this->v_di[s][d], 1,
+                         this->adv_vel[pi_idx[s]][d], 1,
+                         this->adv_vel[pi_idx[s]][d], 1);
+        }
         s++;
     }
 
+    // Calculate Electron parallel velocity
+    Vmath::Vdiv(npts, this->v_e_par, 1, ne, 1, this->v_e_par, 1);
+
     // Calculate electron diagmagnetic velocity
-    Array<OneD, Array<OneD, NekDouble>> gradp(m_spacedim);
-    m_fields[3]->PhysDeriv(inarray[pe_idx], gradp[0], gradp[1], gradp[2]);
+    std::cout << "G\n";
+
+    Array<OneD, NekDouble> gradp[3];
+    std::cout << "H\n";
+
+    for (int d = 0; d < 3; ++d)
+    {
+        std::cout << "I\n";
+
+        gradp[d] = Array<OneD, NekDouble>(npts, 0.0);
+    }
+    if (m_spacedim == 2)
+    {
+        m_indfields[pe_idx]->PhysDeriv(inarray[pe_idx], gradp[0], gradp[1],
+                                       NullNekDouble1DArray);
+    }
+
+    else if (m_spacedim == 3)
+    {
+        m_indfields[pe_idx]->PhysDeriv(inarray[pe_idx], gradp[0], gradp[1],
+                                       gradp[2]);
+    }
+    std::cout << "J\n";
 
     Vmath::Vvtvvtm(npts, gradp[1], 1, this->B[2]->GetPhys(), 1, gradp[2], 1,
                    this->B[1]->GetPhys(), 1, this->v_de[0], 1);
@@ -541,7 +615,7 @@ void ElectrostaticTurbulence::CalcVelocities(
     Vmath::Vdiv(npts, this->v_de[1], 1, ne, 1, this->v_de[1], 1);
     Vmath::Smul(npts, 2.0 / 3.0, this->v_de[1], 1, this->v_de[1], 1);
 
-    if (this->m_graph->GetMeshDimension() == 3)
+    if (m_spacedim == 3)
     {
         Vmath::Vvtvvtm(npts, gradp[0], 1, this->B[1]->GetPhys(), 1, gradp[1], 1,
                        this->B[0]->GetPhys(), 1, this->v_de[2], 1);
@@ -552,47 +626,10 @@ void ElectrostaticTurbulence::CalcVelocities(
 
     for (int d = 0; d < m_spacedim; ++d)
     {
-        Vmath::Svtvp(npts, 5.0 / 3.0, this->v_de[d], 1, this->v_ExB[d], 1,
-                     this->adv_vel[pe_idx][d], 1);
-    }
-
-    // Calculate ion diamagnetic velocity
-    s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        double charge;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        m_fields[pi_idx[s]]->PhysDeriv(inarray[pi_idx[s]], gradp[0], gradp[1],
-                                       gradp[2]);
-
-        Vmath::Vvtvvtm(npts, gradp[1], 1, this->B[2]->GetPhys(), 1, gradp[2], 1,
-                       this->B[1]->GetPhys(), 1, this->v_di[s][0], 1);
-        Vmath::Vdiv(npts, this->v_di[s][0], 1, this->mag_B, 1, this->v_di[s][0],
-                    1);
-        Vmath::Vdiv(npts, this->v_di[s][0], 1, inarray[0], 1, this->v_di[s][0],
-                    1);
-        Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][0], 1,
-                    this->v_di[s][0], 1);
-        Vmath::Vvtvvtm(npts, gradp[2], 1, this->B[0]->GetPhys(), 1, gradp[0], 1,
-                       this->B[2]->GetPhys(), 1, this->v_di[s][1], 1);
-        Vmath::Vdiv(npts, this->v_di[s][1], 1, this->mag_B, 1, this->v_di[s][1],
-                    1);
-        Vmath::Vdiv(npts, this->v_di[s][1], 1, ne, 1, this->v_di[s][1], 1);
-        Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][1], 1,
-                    this->v_di[s][1], 1);
-
-        if (this->m_graph->GetMeshDimension() == 3)
-        {
-            Vmath::Vvtvvtm(npts, gradp[0], 1, this->B[1]->GetPhys(), 1,
-                           gradp[1], 1, this->B[0]->GetPhys(), 1,
-                           this->v_di[s][2], 1);
-            Vmath::Vdiv(npts, this->v_di[s][2], 1, this->mag_B, 1,
-                        this->v_di[s][2], 1);
-            Vmath::Vdiv(npts, this->v_di[s][2], 1, ne, 1, this->v_di[s][2], 1);
-            Vmath::Smul(npts, 2.0 / (3.0 * charge), this->v_di[s][2], 1,
-                        this->v_di[s][2], 1);
-        }
-        s++;
+        Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, this->v_ExB[d],
+                     1, this->adv_vel[pe_idx][d], 1);
+        Vmath::Svtvp(npts, 5.0 / 3.0, this->v_de[d], 1,
+                     this->adv_vel[pe_idx][d], 1, this->adv_vel[pe_idx][d], 1);
     }
 }
 
@@ -1106,15 +1143,14 @@ void ElectrostaticTurbulence::v_SetInitialConditions(NekDouble init_time,
                                                      const int domain)
 {
     TokamakSystem::v_SetInitialConditions(init_time, dump_ICs, domain);
-    CalcInitPhi();
+    // CalcInitPhi();
 }
 
 void ElectrostaticTurbulence::load_params()
 {
     TokamakSystem::load_params();
     std::string boussinesq_str;
-    m_session->LoadSolverInfo("Boussinesq Approximation", boussinesq_str,
-                              "Off");
+    m_session->LoadSolverInfo("Boussinesq Approximation", boussinesq_str, "On");
     this->m_boussinesq = (boussinesq_str == "On");
 }
 
@@ -1123,74 +1159,26 @@ void ElectrostaticTurbulence::v_ExtraFldOutput(
     std::vector<std::string> &variables)
 {
     TokamakSystem::v_ExtraFldOutput(fieldcoeffs, variables);
+    const int nPhys   = m_fields[0]->GetNpoints();
+    const int nCoeffs = m_fields[0]->GetNcoeffs();
 
-    bool extraFields;
-    m_session->MatchSolverInfo("OutputExtraFields", "True", extraFields, true);
-    if (extraFields)
+    if (this->particles_enabled)
     {
-        const int nPhys   = m_fields[0]->GetNpoints();
-        const int nCoeffs = m_fields[0]->GetNcoeffs();
-        Array<OneD, Array<OneD, NekDouble>> tmp(m_fields.size());
-
-        for (int i = 0; i < m_fields.size(); ++i)
+        int i = 0;
+        for (auto &[k, v] : this->particle_sys->get_species())
         {
-            tmp[i] = m_fields[i]->GetPhys();
-        }
-
-        Array<OneD, NekDouble> pressure(nPhys), temperature(nPhys);
-        m_varConv->GetElectronPressure(tmp, pressure);
-        m_varConv->GetElectronTemperature(tmp, temperature);
-
-        Array<OneD, NekDouble> pFwd(nCoeffs), TFwd(nCoeffs);
-
-        m_fields[0]->FwdTransLocalElmt(pressure, pFwd);
-        m_fields[0]->FwdTransLocalElmt(temperature, TFwd);
-
-        variables.push_back("pe");
-        variables.push_back("Te");
-
-        fieldcoeffs.push_back(pFwd);
-        fieldcoeffs.push_back(TFwd);
-        int s = 0;
-        for (const auto &[k, v] : this->particle_sys->get_species())
-        {
-            m_varConv->GetIonPressure(s, v.mass, tmp, pressure);
-            m_varConv->GetIonTemperature(s, v.mass, tmp, temperature);
-
-            Array<OneD, NekDouble> pFwd(nCoeffs), TFwd(nCoeffs);
-
-            m_fields[0]->FwdTransLocalElmt(pressure, pFwd);
-            m_fields[0]->FwdTransLocalElmt(temperature, TFwd);
-
-            variables.push_back("pi");
-            variables.push_back("Ti");
-
-            fieldcoeffs.push_back(pFwd);
-            fieldcoeffs.push_back(TFwd);
-            s++;
-        }
-
-        if (this->particles_enabled)
-        {
-            variables.push_back("ELECTRON_SOURCE_DENSITY");
-            Array<OneD, NekDouble> SrcFwd0(nCoeffs);
-            m_fields[0]->FwdTransLocalElmt(this->src_fields[0]->GetPhys(),
-                                           SrcFwd0);
-            fieldcoeffs.push_back(SrcFwd0);
-            variables.push_back("ELECTRON_SOURCE_ENERGY");
+            variables.push_back(v.name + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd1(nCoeffs);
-            m_fields[0]->FwdTransLocalElmt(this->src_fields[1]->GetPhys(),
+            m_fields[0]->FwdTransLocalElmt(this->src_fields[i]->GetPhys(),
                                            SrcFwd1);
             fieldcoeffs.push_back(SrcFwd1);
 
-            for (auto s : this->particle_sys->get_species())
-            {
-                variables.push_back(s.second.name + "_SOURCE_ENERGY");
-                Array<OneD, NekDouble> SrcFwd2(nCoeffs);
-                m_fields[0]->FwdTransLocalElmt(
-                    this->src_fields[2 + s.first]->GetPhys(), SrcFwd2);
-                fieldcoeffs.push_back(SrcFwd2);
-            }
+            variables.push_back(v.name + "_SOURCE_ENERGY");
+            Array<OneD, NekDouble> SrcFwd2(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(this->src_fields[i + 1]->GetPhys(),
+                                           SrcFwd2);
+            fieldcoeffs.push_back(SrcFwd2);
+            i += (2 + m_spacedim);
         }
     }
 }
