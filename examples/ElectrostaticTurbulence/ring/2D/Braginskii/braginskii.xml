@@ -4,7 +4,7 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w" />
+       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w,phi" />
     </EXPANSIONS>
 
     <CONDITIONS>
@@ -61,7 +61,7 @@
             <V ID="1"> v  </V>
             <V ID="2"> e  </V>
             <V ID="3"> w  </V>
-            <!-- <V ID="4"> phi  </V> -->
+            <V ID="4"> phi  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -75,14 +75,14 @@
                 <N VAR="v"  VALUE="0.0" />
                 <N VAR="e"  VALUE="0.0" />
                 <N VAR="w"  VALUE="0.0" />
-                <!-- <N VAR="phi"  VALUE="0.0" /> -->
+                <N VAR="phi"  VALUE="0.0" />
             </REGION>
             <REGION REF="2">
                 <N VAR="n"  VALUE="0.0" />
                 <N VAR="v"  VALUE="0.0" />
                 <N VAR="e"  VALUE="0.0" />
                 <N VAR="w"  VALUE="0.0" />
-                <!-- <N VAR="phi"  VALUE="0.0" /> -->
+                <N VAR="phi"  VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
@@ -90,7 +90,7 @@
             <E VAR="v"  DOMAIN="0" VALUE="1" />
             <E VAR="e"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
             <E VAR="w"  DOMAIN="0" VALUE="1" />
-            <!-- <E VAR="phi"  DOMAIN="0" VALUE="1" /> -->
+            <E VAR="phi"  DOMAIN="0" VALUE="1" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />

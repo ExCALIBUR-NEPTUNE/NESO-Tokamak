@@ -29,7 +29,7 @@ ElectrostaticTurbulence::ElectrostaticTurbulence(
     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
-    this->n_indep_fields       = 2; // p_e, w, phi
+    this->n_indep_fields       = 3; // p_e, w, phi
     this->n_fields_per_species = 3; // n_i, v_i, p_i
 }
 
@@ -45,13 +45,21 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
         SolverUtils::GetDiffusionFactory().CreateInstance(diffName, diffName);
     m_diffusion->SetFluxVector(&ElectrostaticTurbulence::GetFluxVectorDiff,
                                this);
-    m_diffusion->InitObject(m_session, m_indfields);
+
+    // workaround for bug in DiffusionLDG
+    m_difffields = Array<OneD, MR::ExpListSharedPtr>(m_indfields.size() - 1);
+    for (int f = 0; f < m_difffields.size(); ++f)
+    {
+        m_difffields[f] = m_indfields[f];
+    }
+
+    m_diffusion->InitObject(m_session, m_difffields);
 
     // Create storage for velocities
     int npts  = GetNpoints();
     pe_idx    = 3 * this->n_species;
     omega_idx = 3 * this->n_species + 1;
-    // phi_idx   = 3 * this->n_species + 2;
+    phi_idx   = 3 * this->n_species + 2;
 
     // ExB velocity
     this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -64,9 +72,9 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     this->v_de = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
     this->v_di = std::vector<Array<OneD, Array<OneD, NekDouble>>>(n_species);
 
-    // Per-field advection velocities
-    this->adv_vel =
-        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(m_indfields.size());
+    // Per-field advection velocities (phi not advected)
+    this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
+        m_indfields.size() - 1);
 
     for (int i = 0; i < this->adv_vel.size(); ++i)
     {
@@ -78,6 +86,7 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
         this->v_ExB[d]           = Array<OneD, NekDouble>(npts, 0.0);
         this->v_de[d]            = Array<OneD, NekDouble>(npts, 0.0);
         this->adv_vel[pe_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
+        this->adv_vel[omega_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
 
     int s = 0;
@@ -115,8 +124,8 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     // Poisson solve. Note that you can still perform a Poisson solve using a
     // discontinuous field, which is done via the hybridisable discontinuous
     // Galerkin (HDG) approach.
-    // m_indfields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
-    //    m_session, m_graph, "phi", true, true);
+    m_indfields[phi_idx] = MemoryManager<MR::ContField>::AllocateSharedPtr(
+        m_session, m_graph, "phi", true, true);
 
     if (m_fields[0]->GetTrace())
     {
@@ -206,34 +215,27 @@ void ElectrostaticTurbulence::DoOdeRhs(
     int npts      = GetNpoints();
     int nTracePts = GetTraceTotPoints();
 
-    if (this->m_explicitAdvection)
-    {
-        zero_array_of_arrays(outarray);
-    }
     int nvariables = inarray.size();
     Array<OneD, NekDouble> ne(npts);
     m_varConv->GetElectronDensity(inarray, ne);
 
     // Store forwards/backwards space along trace space
-    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
-    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables);
-    Array<OneD, Array<OneD, NekDouble>> C(m_spacedim);
+    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables - 1);
+    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables - 1);
 
-    for (int i = 0; i < nvariables; ++i)
+    for (int i = 0; i < nvariables - 1; ++i)
     {
         Fwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
         Bwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
         m_indfields[i]->GetFwdBwdTracePhys(inarray[i], Fwd[i], Bwd[i]);
     }
-    Array<OneD, Array<OneD, NekDouble>> D(m_spacedim);
 
     // Helmholtz Solve for electrostatic potential
-    // SolvePhi(inarray, ne);
+    SolvePhi(inarray, ne);
     // Calculate E
-    // ComputeE();
+    ComputeE();
     // Calculate ExB, parallel and diamagnetic velocities
     CalcVelocities(inarray, ne);
-    Array<OneD, Array<OneD, NekDouble>> Ee(m_spacedim);
 
     // Perform advection
     DoAdvection(inarray, outarray, time, Fwd, Bwd);
@@ -336,7 +338,7 @@ void ElectrostaticTurbulence::DoAdvection(
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
-    int nvariables = inarray.size();
+    int nvariables = inarray.size() - 1;
     Array<OneD, Array<OneD, NekDouble>> advVel(m_spacedim);
 
     m_advection->Advect(nvariables, m_indfields, advVel, inarray, outarray,
@@ -397,7 +399,6 @@ void ElectrostaticTurbulence::SolvePhi(
     [[maybe_unused]] const Array<OneD, NekDouble> &ne)
 {
     int npts = GetNpoints();
-
     StdRegions::ConstFactorMap factors;
     // Helmholtz => Poisson (lambda = 0)
     factors[StdRegions::eFactorLambda] = 0.0;
@@ -647,6 +648,7 @@ void ElectrostaticTurbulence::CalcVelocities(
     {
         Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, this->v_ExB[d],
                      1, this->adv_vel[pe_idx][d], 1);
+        Vmath::Vcopy(npts, this->v_ExB[d], 1, this->adv_vel[omega_idx][d], 1);
         //          Vmath::Svtvp(npts, 5.0 / 3.0, this->v_de[d], 1,
         //                       this->adv_vel[pe_idx][d], 1,
         //                       this->adv_vel[pe_idx][d], 1);
@@ -737,7 +739,7 @@ void ElectrostaticTurbulence::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
-    int nvariables = inarray.size();
+    int nvariables = inarray.size() - 1;
     int npointsIn  = GetNpoints();
     int npointsOut = npointsIn;
     int nTracePts  = GetTraceTotPoints();
@@ -794,8 +796,8 @@ void ElectrostaticTurbulence::DoDiffusion(
         }
     }
 
-    m_diffusion->Diffuse(nvariables, m_indfields, inarrayDiff, outarrayDiff, inFwd,
-                         inBwd);
+    m_diffusion->Diffuse(nvariables, m_difffields, inarrayDiff, outarrayDiff,
+                         inFwd, inBwd);
 
     for (int i = 0; i < nvariables; ++i)
     {
@@ -1011,7 +1013,7 @@ void ElectrostaticTurbulence::DoAdvectionCoeff(
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
-    int nvariables = inarray.size();
+    int nvariables = inarray.size() - 1;
 
     std::dynamic_pointer_cast<SU::AdvectionWeakDG>(m_advection)
         ->AdvectCoeffs(nvariables, m_indfields, this->v_ExB, inarray, outarray,
@@ -1163,7 +1165,7 @@ void ElectrostaticTurbulence::v_SetInitialConditions(NekDouble init_time,
                                                      const int domain)
 {
     TokamakSystem::v_SetInitialConditions(init_time, dump_ICs, domain);
-    // CalcInitPhi();
+    CalcInitPhi();
 }
 
 void ElectrostaticTurbulence::load_params()

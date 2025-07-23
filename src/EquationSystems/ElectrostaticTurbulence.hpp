@@ -112,13 +112,13 @@ protected:
                           std::vector<std::string> &variables) override;
 
 private:
-    int phi_idx;
-    int omega_idx;
-    int pe_idx;
-
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
     std::vector<int> pi_idx;
+
+    int pe_idx;
+    int omega_idx;
+    int phi_idx;
 
     std::vector<int> ni_src_idx;
     std::vector<int> vi_src_idx;
@@ -145,12 +145,17 @@ private:
     // Per field advection velocities normal to trace elements
     Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
 
+    MR::ContFieldSharedPtr phi;
+
     StdRegions::VarCoeffMap m_phi_varcoeff;
 
     /// Whether the Boussinesq approximation is used for the vorticity
     bool m_boussinesq;
 
     // For Diffusion
+    // workaround for bug in DiffusionLDG
+    Array<OneD, MR::ExpListSharedPtr> m_difffields;
+    //
     StdRegions::ConstFactorMap m_factors;
 
     Array<OneD, NekDouble> m_kperp;
