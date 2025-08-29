@@ -50,7 +50,7 @@ class ImplicitHelper
 {
 public:
     ImplicitHelper(LibUtilities::SessionReaderSharedPtr session,
-                   Array<OneD, MultiRegions::ExpListSharedPtr> fields,
+                   Array<OneD, MultiRegions::ExpListSharedPtr>& fields,
                    LibUtilities::TimeIntegrationSchemeOperators &ode,
                    int nFields)
         : m_session(session), m_fields(fields), m_ode(ode), m_nFields(nFields)

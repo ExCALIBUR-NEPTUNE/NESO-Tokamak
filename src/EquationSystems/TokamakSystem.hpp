@@ -1,7 +1,7 @@
 #ifndef TOKAMAKSYSTEM_HPP
 #define TOKAMAKSYSTEM_HPP
 
-#include "../BoundaryConditions/TokamakBndCond.hpp"
+#include "../BoundaryConditions/TokamakBndConds.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 
 #include "../../NESO/include/nektar_interface/solver_base/neso_session_function.hpp"
@@ -67,7 +67,7 @@ protected:
     /// Normalised magnetic field vector
     Array<OneD, Array<OneD, NekDouble>> b_unit;
 
-    /// Magnitude of the magnetic field
+    /// Squared Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
     /// Trace of magnetic field
     Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
@@ -108,7 +108,7 @@ protected:
     bool energy_enstrophy_recording_enabled;
 
     /// Boundary Conditions
-    std::vector<TokamakBndCondSharedPtr> m_bndConds;
+    std::shared_ptr<TokamakBoundaryConditions> m_bndConds;
 
     /// Forcing terms
     std::vector<SolverUtils::ForcingSharedPtr> m_forcing;
@@ -147,8 +147,7 @@ protected:
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
-    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                               NekDouble time);
+    void SetBoundaryConditions(NekDouble time);
     void SetBoundaryConditionsBwdWeight();
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
@@ -160,6 +159,9 @@ protected:
     virtual bool v_PreIntegrate(int step) override;
     virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                         const int domain) override;
+    // virtual void v_InitBoundaryConditions() {};
+    // virtual void v_SetBoundaryConditions(
+    //     Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time);
 
     NESOSessionFunctionSharedPtr get_species_function(
         int s, std::string name,

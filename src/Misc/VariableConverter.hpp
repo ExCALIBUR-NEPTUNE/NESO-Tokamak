@@ -119,8 +119,8 @@ public:
         return m_eos;
     }
 
-    int omega_idx = 0;
-    int pe_idx    = 1;
+    int omega_idx;
+    int pe_idx;
 
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;

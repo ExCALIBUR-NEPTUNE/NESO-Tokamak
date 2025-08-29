@@ -35,6 +35,10 @@ protected:
     void v_InitObject(bool DeclareFields = true) override;
     void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                 const int domain) override;
+    // void v_SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>>
+    // &physarray,
+    //                              NekDouble time) override;
+    bool v_PostIntegrate(int step);
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   Array<OneD, Array<OneD, NekDouble>> &outarray,
                   const NekDouble time);
@@ -56,11 +60,21 @@ protected:
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   [[maybe_unused]] const Array<OneD, NekDouble> &ne);
     void ComputeE();
+    void ComputevExB();
+    void AddDriftVelocities(
+        const Array<OneD, Array<OneD, NekDouble>> &inarray,
+        const Array<OneD, NekDouble> &ne,
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &adv_vel);
 
     void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray,
-                        const Array<OneD, NekDouble> &ne);
+                        const Array<OneD, Array<OneD, NekDouble>> &v_ExB,
+                        const Array<OneD, NekDouble> &ne,
+                        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &);
 
     Array<OneD, Array<OneD, NekDouble>> &GetAdvVelNorm();
+    Array<OneD, Array<OneD, NekDouble>> &GetNormals();
+    Array<OneD, NekDouble> &GetBn();
+    Array<OneD, NekDouble> &GetNormalVelocity();
 
     // Advective Flux vector
     void GetFluxVector(
@@ -142,10 +156,12 @@ private:
     std::vector<Array<OneD, Array<OneD, NekDouble>>> v_di;
     // Per field advection velocities
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel;
+    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel_trace;
     // Per field advection velocities normal to trace elements
     Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
+    Array<OneD, NekDouble> trace_b_norm;
 
-    MR::ContFieldSharedPtr phi;
+    MR::ExpListSharedPtr phi;
 
     StdRegions::VarCoeffMap m_phi_varcoeff;
 

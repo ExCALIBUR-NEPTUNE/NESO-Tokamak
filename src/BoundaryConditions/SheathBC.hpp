@@ -1,51 +1,57 @@
 #ifndef TOKAMAK_SHEATH_HPP
 #define TOKAMAK_SHEATH_HPP
 
-#include "TokamakBndCond.hpp"
+#include "TokamakBaseBndCond.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-class SheathBC : public TokamakBndCond
+class SheathBC : public TokamakBaseBndCond
 {
 public:
     friend class MemoryManager<SheathBC>;
 
-    static TokamakBndCondSharedPtr create(
+    static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
-        const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion)
+        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+        Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+        Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+        const int bcRegion)
 
     {
-        TokamakBndCondSharedPtr p = MemoryManager<SheathBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
+        TokamakBaseBndCondSharedPtr p =
+            MemoryManager<SheathBC>::AllocateSharedPtr(
+                pSession, pFields, pB, pE, cond, exp, pSpaceDim, bcRegion);
         return p;
     }
 
     static std::string className;
 
 protected:
-    void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
+    void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+                 const Array<OneD, const Array<OneD, NekDouble>> &physarray,
                  const NekDouble &time) override;
 
 private:
     SheathBC(const LU::SessionReaderSharedPtr &pSession,
-              const Array<OneD, MR::ExpListSharedPtr> &pFields,
-              const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-              const int pSpaceDim, const int bcRegion);
+             const Array<OneD, MR::ExpListSharedPtr> &pFields,
+             const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+             const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+             Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+             Array<OneD, MultiRegions::ExpListSharedPtr> exp,
+             const int pSpaceDim, const int bcRegion);
     ~SheathBC() override {};
 
     // Hardcoded for now
-    NekDouble adiabatic = 5/3;
+    NekDouble gamma_i = 5 / 2;
+    NekDouble gamma_e = 9 / 2;
+    NekDouble wall    = 0;
+    NekDouble Ge      = 1;
+    NekDouble me      = 1 / 2000;
 
-    NekDouble lambda;
-    NekDouble Ge;
-    NekDouble Me;
-    NekDouble Mi;
-    NekDouble Zi;
-
-    Array<OneD, NekDouble> sin_alpha;
+    Array<OneD, Array<OneD, NekDouble>> v_ExB;
 };
 
 } // namespace NESO::Solvers::tokamak

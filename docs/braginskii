@@ -1,0 +1,11 @@
+\begin{aligned}
+\frac{\partial n_e}{\partial t} =& -\nabla\cdot\left[n_e \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||e} + \mathbf{v}_{de}\right)\right] + \underbrace{S_n}_{\text{sources}} \\\\
+\frac{\partial}{\partial t}\left(m_en_ev_{||e}\right) =& -\nabla\cdot\left[m_en_ev_{||e} \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||e} + \mathbf{v}_{de}\right)\right] \\\\&- \underbrace{\mathbf{b}\cdot\nabla p_e - en_eE_{||}}_{\text{forces}} + \underbrace{F_{ei}}_{\text{collisions}} \\\\
+\frac{\partial}{\partial t}\left(\frac{3}{2}p_e\right) =& -\nabla\cdot\left[\frac{3}{2}p_e \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||e}\right) + \frac{5}{2}p_e\mathbf{v}_{de}\right] \\\\&- \underbrace{p_e\nabla\cdot\left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||e}\right)}_{\text{work}} \nonumber + \underbrace{\nabla\cdot\left(\kappa_{||e}\mathbf{b}\mathbf{b}\cdot\nabla T_e\right)}_{\text{anisotropic diffusion}} + \underbrace{S_{Ee}}_{\text{sources}} + \underbrace{W_{ei}}_{\text{collisions}}
+\end{aligned}
+
+\begin{aligned}
+\frac{\partial n_i}{\partial t} =& -\nabla\cdot\left[n_i \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||i} + \mathbf{v}_{di}\right)\right] + \underbrace{S_n}_{\text{sources}} \\\\
+\frac{\partial}{\partial t}\left(m_in_iv_{||i}\right) =& -\nabla\cdot\left[m_in_iv_{||i} \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||i} + \mathbf{v}_{di}\right)\right] \\\\&- \underbrace{\mathbf{b}\cdot\nabla p_i + Z_ien_iE_{||}}_{\text{forces}} - \underbrace{F_{ei}}_{\text{collisions}} \\\\
+\frac{\partial}{\partial t}\left(\frac{3}{2}p_i\right) =& -\nabla\cdot\left[\frac{3}{2}p_i \left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||i}\right) + \frac{5}{2}p_i\mathbf{v}_{di}\right] \\\\&- \underbrace{p_i\nabla\cdot\left(\mathbf{v}_{E\times B} + \mathbf{b}v_{||i}\right)}_{\text{work}}  + \underbrace{\nabla\cdot\left(\kappa_{||i}\mathbf{b}\mathbf{b}\cdot\nabla T_i\right)}_{\text{anisotropic diffusion}} \\&+ \underbrace{S_{Ei} + S_n\frac{1}{2}m_in_iv_{||i}^2}_{\text{sources}} - \underbrace{W_{ei}}_{\text{collisions}} + \underbrace{\frac{p_i}{en_0}\nabla\cdot\left(\mathbf{J}_{||} + \mathbf{J}_d\right)}_{\text{currents}}
+\end{aligned}

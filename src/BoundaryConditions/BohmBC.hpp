@@ -1,42 +1,57 @@
-#ifndef BOHM_BC_HPP
-#define BOHM_BC_HPP
+#ifndef TOKAMAK_BOHM_HPP
+#define TOKAMAK_BOHM_HPP
 
-#include "TokamakBndCond.hpp"
+#include "TokamakBaseBndCond.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-class BohmBC : public TokamakBndCond
+class BohmBC : public TokamakBaseBndCond
 {
 public:
-    friend class MemoryManager<ObliqueBC>;
+    friend class MemoryManager<BohmBC>;
 
-    static TokamakBndCondSharedPtr create(
+    static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
-        const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion)
+        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+        Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+        Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+        const int bcRegion)
+
     {
-        TokamakBndCondSharedPtr p = MemoryManager<ObliqueBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
+        TokamakBaseBndCondSharedPtr p =
+            MemoryManager<BohmBC>::AllocateSharedPtr(
+                pSession, pFields, pB, cond, exp, pE, pSpaceDim, bcRegion);
         return p;
     }
 
     static std::string className;
 
 protected:
-    void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
+    void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+                 const Array<OneD, const Array<OneD, NekDouble>> &physarray,
                  const NekDouble &time) override;
 
 private:
     BohmBC(const LU::SessionReaderSharedPtr &pSession,
            const Array<OneD, MR::ExpListSharedPtr> &pFields,
-           const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
-           const int pSpaceDim, const int bcRegion);
+           const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+           const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+           Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+           Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+           const int bcRegion);
     ~BohmBC() override {};
 
-    // indices of fields to which this BC is applied
-    std::vector<int> idx;
+    // Hardcoded for now
+    NekDouble gamma_i = 5 / 2;
+    NekDouble gamma_e = 9 / 2;
+
+    Array<OneD, Array<OneD, NekDouble>> v_ExB;
+
+    NekDouble lambda;
+    NekDouble Ge;
 };
 
 } // namespace NESO::Solvers::tokamak

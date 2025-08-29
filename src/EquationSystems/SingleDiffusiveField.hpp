@@ -31,7 +31,6 @@ protected:
     SingleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
-
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
         Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,

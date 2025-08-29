@@ -54,13 +54,15 @@ void MultiFieldUpwindSolver::v_Solve(
 {
     ASSERTL1(CheckVectors("Vn"), "Vn not defined.");
     const Array<OneD, Array<OneD, NekDouble>> &traceVel = m_vectors["Vn"]();
+    const Array<OneD, NekDouble> &bn                    = m_scalars["bn"]();
+    const Array<OneD, Array<OneD, NekDouble>> &normals  = m_vectors["N"]();
 
-    for (int i = 0; i < Fwd.size(); ++i)
+    for (int p = 0; p < traceVel[0].size(); ++p)
     {
-        for (int j = 0; j < traceVel.size(); ++j)
+        for (int i = 0; i < traceVel.size(); ++i)
         {
-            NekDouble tmp = traceVel[i][j] >= 0 ? Fwd[i][j] : Bwd[i][j];
-            flux[i][j]    = traceVel[i][j] * tmp;
+            NekDouble tmp = traceVel[i][p] > 0 ? Fwd[i][p] : Bwd[i][p];
+            flux[i][p]    = traceVel[i][p] * tmp;
         }
     }
 }

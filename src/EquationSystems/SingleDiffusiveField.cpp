@@ -99,6 +99,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
                                          src_components);
     }
 }
+
 void SingleDiffusiveField::ImplicitTimeIntCG(
     const Array<OneD, const Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,

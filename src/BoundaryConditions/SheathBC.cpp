@@ -6,138 +6,215 @@ namespace NESO::Solvers::tokamak
 {
 
 std::string SheathBC::className =
-    GetTokamakBndCondFactory().RegisterCreatorFunction(
+    GetTokamakBaseBndCondFactory().RegisterCreatorFunction(
         "Sheath", SheathBC::create, "Sheath boundary condition.");
 
 SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
-                   const Array<OneD, Array<OneD, NekDouble>> &pObliqueField,
+                   const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+                   const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+                   Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+                   Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                    const int pSpaceDim, const int bcRegion)
-    : TokamakBndCond(pSession, pFields, pObliqueField, pSpaceDim, bcRegion)
+    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
+                         bcRegion)
 {
-    m_session->LoadParameter("Ge", Ge, 0.0);
-    m_session->LoadParameter("lambda", lambda, 0.0);
-    m_session->LoadParameter("m_e", Me, 0.0);
-    m_session->LoadParameter("m_i", Mi, 0.0);
-    m_session->LoadParameter("Z", Zi, 0.0);
+    className = "Sheath";
+    for (size_t i = 0; i < m_spacedim; ++i)
+    {
+        m_bndConds[i] = cond[i];
+        if (cond[i]->GetUserDefined() == className)
+        {
+            m_bndExp[i] = exp[i];
+        }
+    }
 
-    int nBCEdgePts =
-        m_fields[0]->GetBndCondExpansions()[m_bcRegion]->GetTotPoints();
-
-    // Take dot product of unit b with normals to
-    // get wall angle
-    sin_alpha = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
+    m_session->LoadParameter("Ge", Ge, 1.0);
+    m_session->LoadParameter("wall", wall, 0.0);
+    this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
     for (int d = 0; d < m_spacedim; ++d)
     {
-        // B.n = Bncos(pi-alpha)=sin(alpha)
-        Vmath::Vvtvp(nBCEdgePts, m_b[d], 1, m_normals[d], 1, sin_alpha, 1,
-                     sin_alpha, 1);
+        v_ExB[d] = Array<OneD, NekDouble>(m_nEdgePts);
     }
+    this->mag_B = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
 }
 
-void SheathBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                       [[maybe_unused]] const NekDouble &time)
+void SheathBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+    const Array<OneD, const Array<OneD, NekDouble>> &physarray,
+    [[maybe_unused]] const NekDouble &time)
 {
-    int nBCEdgePts = m_bndExp[0]->GetTotPoints();
-    int Te_idx     = 1;
-    int ne_idx     = 2;
-    int Ti_idx     = 3;
-    int ni_idx     = 4;
+    // Get ExB velocity on boundary
+    Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[1], 1, this->B_bnd[2], 1,
+                   this->E_bnd[2], 1, this->B_bnd[1], 1, this->v_ExB[0], 1);
+    Vmath::Vdiv(m_nEdgePts, this->v_ExB[0], 1, this->mag_B, 1, this->v_ExB[0],
+                1);
+    Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[2], 1, this->B_bnd[0], 1, E_bnd[0],
+                   1, B_bnd[2], 1, this->v_ExB[1], 1);
+    Vmath::Vdiv(m_nEdgePts, this->v_ExB[1], 1, this->mag_B, 1, this->v_ExB[1],
+                1);
 
-    // Get electron density gradient
-    Array<OneD, NekDouble> ne_bnd;
-    m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[ne_idx], ne_bnd);
-    Array<OneD, Array<OneD, NekDouble>> ne_grad(m_spacedim);
-    for (int d = 0; d < m_spacedim; d++)
+    if (m_spacedim == 3)
     {
-        ne_grad[d] = Array<OneD, NekDouble>(ne_bnd.size(), 0.0);
+        Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[0], 1, this->B_bnd[1], 1,
+                       this->E_bnd[1], 1, this->B_bnd[0], 1, this->v_ExB[2], 1);
+        Vmath::Vdiv(m_nEdgePts, this->v_ExB[2], 1, this->mag_B, 1,
+                    this->v_ExB[2], 1);
     }
-    if (m_spacedim == 2)
-    {
-        m_bndElmtExp->PhysDeriv(ne_bnd, ne_grad[0], ne_grad[1]);
-    }
-    else if (m_spacedim == 3)
-    {
-        m_bndElmtExp->PhysDeriv(ne_bnd, ne_grad[0], ne_grad[1], ne_grad[2]);
-    }
-    Array<OneD, Array<OneD, NekDouble>> bndGrad(m_spacedim);
-    for (int k = 0; k < m_spacedim; k++)
-    {
-        bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
-        m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, ne_grad[k], bndGrad[k]);
-    }
-    Array<OneD, NekDouble> grad_ne(nBCEdgePts, 0.0);
+
+    Array<OneD, NekDouble> bn(m_nEdgePts, 0.0);
     for (int d = 0; d < m_spacedim; ++d)
     {
-        Vmath::Vvtvp(nBCEdgePts, bndGrad[d], 1, m_normals[d], 1, grad_ne, 1,
-                     grad_ne, 1);
+        Vmath::Vvtvp(m_nEdgePts, B_bnd[d], 1, m_normals[d], 1, bn, 1, bn, 1);
+    }
+    for (int p = 0; p < m_nEdgePts; ++p)
+    {
+        bn[p] = mag_B[p] == 0 ? 0 : bn[p] / std::sqrt(mag_B[p]);
     }
 
-    // // Get ion density gradients and calculate ion sum
-    Array<OneD, NekDouble> ion_sum(nBCEdgePts, 0.0);
-    // Add support for multiple ions later
-    int n_species = 1;
-    for (int s = 0; s < n_species; ++s)
+    // Get electron density on boundary
+    Array<OneD, NekDouble> ne(m_nEdgePts, 0.0);
+    int s = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        Array<OneD, NekDouble> ni_bnd;
+        double charge;
+        this->neso_config->load_species_parameter(k, "Charge", charge);
 
-        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[ni_idx],
-                                          ni_bnd);
+        Vmath::Svtvp(m_nEdgePts, charge, Fwd[ni_idx[s]], 1, ne, 1, ne, 1);
+    }
 
-        // Obtain field derivative
-        Array<OneD, Array<OneD, NekDouble>> ni_grad(m_spacedim);
+    Array<OneD, NekDouble> ion_sum(m_nEdgePts, 0.0);
+
+    s = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
+    {
+        double mass, charge;
+        this->neso_config->load_species_parameter(k, "Mass", mass);
+        this->neso_config->load_species_parameter(k, "Charge", charge);
+
+        // Obtain pressure gradient in boundary elements
+        Array<OneD, NekDouble> pi_bndelmt;
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[pi_idx[s]],
+                                          pi_bndelmt);
+
+        Array<OneD, Array<OneD, NekDouble>> pi_grad(m_spacedim);
         for (int d = 0; d < m_spacedim; d++)
         {
-            ni_grad[d] = Array<OneD, NekDouble>(ni_bnd.size(), 0.0);
+            pi_grad[d] = Array<OneD, NekDouble>(pi_bndelmt.size(), 0.0);
         }
         if (m_spacedim == 2)
         {
-            m_bndElmtExp->PhysDeriv(ni_bnd, ni_grad[0], ni_grad[1]);
+            m_bndElmtExp->PhysDeriv(pi_bndelmt, pi_grad[0], pi_grad[1]);
         }
         else if (m_spacedim == 3)
         {
-            m_bndElmtExp->PhysDeriv(ni_bnd, ni_grad[0], ni_grad[1], ni_grad[2]);
-        }
-        Array<OneD, Array<OneD, NekDouble>> bndGrad(m_spacedim);
-        for (int k = 0; k < m_spacedim; k++)
-        {
-            bndGrad[k] = Array<OneD, NekDouble>(nBCEdgePts, 0.0);
-            m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, ni_grad[k],
-                                              bndGrad[k]);
+            m_bndElmtExp->PhysDeriv(pi_bndelmt, pi_grad[0], pi_grad[1],
+                                    pi_grad[2]);
         }
 
-        Array<OneD, NekDouble> grad_ni(nBCEdgePts, 0.0);
-        for (int d = 0; d < m_spacedim; ++d)
+        // Obtain pressure gradient on boundary
+        Array<OneD, Array<OneD, NekDouble>> pi_bndGrad(m_spacedim);
+        Array<OneD, Array<OneD, NekDouble>> v_di(m_spacedim);
+
+        for (int d = 0; d < m_spacedim; d++)
         {
-            Vmath::Vvtvp(nBCEdgePts, bndGrad[d], 1, m_normals[d], 1, grad_ni, 1,
-                         grad_ni, 1);
+            pi_bndGrad[d] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
+            v_di[d]       = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
+
+            m_fields[0]->ExtractElmtToBndPhys(m_bcRegion, pi_grad[d],
+                                              pi_bndGrad[d]);
+        }
+        if (m_spacedim == 2)
+        {
+            Vmath::Vmul(m_nEdgePts, pi_bndGrad[1], 1, B_bnd[2], 1, v_di[0], 1);
+            Vmath::Vdiv(m_nEdgePts, v_di[0], 1, this->mag_B, 1, v_di[0], 1);
+
+            Vmath::Vmul(m_nEdgePts, pi_bndGrad[0], 1, B_bnd[2], 1, v_di[1], 1);
+            Vmath::Smul(m_nEdgePts, -1.0, v_di[1], 1, v_di[1], 1);
+            Vmath::Vdiv(m_nEdgePts, v_di[1], 1, this->mag_B, 1, v_di[1], 1);
         }
 
-        Array<OneD, NekDouble> s_i(nBCEdgePts, 0.0);
-        Vmath::Vdiv(nBCEdgePts, m_bndExp[ni_idx]->GetPhys(), 1,
-                    m_bndExp[ne_idx]->GetPhys(), 1, s_i, 1);
-
-        for (int i = 0; i < nBCEdgePts; ++i)
+        if (m_spacedim == 3)
         {
-            NekDouble C_i_sq = (adiabatic * m_bndExp[Ti_idx]->GetPhys()[i] +
-                                Zi * s_i[i] * m_bndExp[Te_idx]->GetPhys()[i] *
-                                    grad_ne[i] / grad_ni[i]) /
-                               Mi;
-            ion_sum[i] += s_i[i] * Zi * sin_alpha[i] * std::sqrt(C_i_sq);
+            Vmath::Vvtvvtm(m_nEdgePts, pi_bndGrad[1], 1, B_bnd[2], 1,
+                           pi_bndGrad[2], 1, B_bnd[1], 1, v_di[0], 1);
+            Vmath::Vdiv(m_nEdgePts, v_di[0], 1, this->mag_B, 1, v_di[0], 1);
+
+            Vmath::Vvtvvtm(m_nEdgePts, pi_bndGrad[2], 1, B_bnd[0], 1,
+                           pi_bndGrad[0], 1, B_bnd[2], 1, v_di[1], 1);
+            Vmath::Vdiv(m_nEdgePts, v_di[1], 1, this->mag_B, 1, v_di[1], 1);
+            Vmath::Vvtvvtm(m_nEdgePts, pi_bndGrad[0], 1, B_bnd[1], 1,
+                           pi_bndGrad[1], 1, B_bnd[0], 1, v_di[2], 1);
+            Vmath::Vdiv(m_nEdgePts, v_di[2], 1, this->mag_B, 1, v_di[2], 1);
         }
+
+        // Loop over points to set parallel ion momentum boundary condition
+        Array<OneD, NekDouble> vi_bc(m_nEdgePts);
+        Array<OneD, NekDouble> pi_bc(m_nEdgePts);
+        Array<OneD, NekDouble> ni_bc(m_nEdgePts);
+
+        for (int p = 0; p < m_nEdgePts; ++p)
+        {
+            NekDouble v_en = 0;
+            NekDouble v_dn = 0;
+            for (int d = 0; d < m_spacedim; ++d)
+            {
+                v_en += m_normals[d][p] * v_ExB[d][p];
+                v_dn += m_normals[d][p] * v_di[d][p];
+            }
+
+            NekDouble c_i_sq =
+                (gamma_i * Fwd[pi_idx[s]][p] / Fwd[ni_idx[s]][p] +
+                 charge * Fwd[pe_idx][p] / ne[p]) /
+                mass;
+            NekDouble c_i = bn[p] > 0 ? std::sqrt(c_i_sq) : -std::sqrt(c_i_sq);
+            NekDouble v_trial =
+                Fwd[vi_idx[s]][p] * bn[p] / (mass * Fwd[ni_idx[s]][p]) + v_en +
+                v_dn;
+            NekDouble v_sheath = std::max(v_trial, c_i * bn[p]);
+
+            vi_bc[p] = bn[p] == 0 ? Fwd[vi_idx[s]][p]
+                                  : mass * Fwd[ni_idx[s]][p] *
+                                        (v_sheath - v_en - v_dn) / bn[p];
+            pi_bc[p] =
+                ((2 / 3) * gamma_i * Fwd[pi_idx[s]][p] +
+                 0.5 * vi_bc[p] * vi_bc[p] / (mass * Fwd[ni_idx[s]][p])) *
+                v_sheath;
+            ni_bc[p] = Fwd[ni_idx[s]][p] * v_sheath;
+        }
+
+        Vmath::Vadd(m_nEdgePts, ni_bc, 1, ion_sum, 1, ion_sum, 1);
+
+        // Momentum
+        m_bndExp[vi_idx[s]]->FwdTransBndConstrained(
+            vi_bc, m_bndExp[vi_idx[s]]->UpdateCoeffs());
+        // Density
+        m_bndExp[ni_idx[s]]->IProductWRTBase(
+            ni_bc, m_bndExp[ni_idx[s]]->UpdateCoeffs());
+        // Ion Pressure
+        m_bndExp[pi_idx[s]]->IProductWRTBase(
+            pi_bc, m_bndExp[pi_idx[s]]->UpdateCoeffs());
+
+        s++;
     }
 
-    Array<OneD, NekDouble> phi(nBCEdgePts, 0.0);
-    for (int i = 0; i < nBCEdgePts; ++i)
+    Array<OneD, NekDouble> phi_bc(m_nEdgePts, 0.0);
+    Array<OneD, NekDouble> pe_bc(m_nEdgePts, 0.0);
+    for (int p = 0; p < m_nEdgePts; ++p)
     {
-        phi[i] = m_bndExp[Te_idx]->GetPhys()[i] *
-                 log(sqrt(m_bndExp[Te_idx]->GetPhys()[i] / (Me * 2 * M_PI)) *
-                     (1. - Ge) / ion_sum[i]);
-    }
-    Array<OneD, NekDouble> wall_potential(nBCEdgePts, lambda);
-    Vmath::Vadd(nBCEdgePts, wall_potential, 1, phi, 1, phi, 1);
+        NekDouble Te = Fwd[pe_idx][p] / ne[p];
+        phi_bc[p]    = wall + Te * std::log(std::sqrt(Te / (me * 2 * M_PI)) *
+                                            (1. - Ge) * ne[p] / ion_sum[p]);
+        NekDouble ve = -std::sqrt(Te / (me * 2 * M_PI)) * (1. - Ge) *
+                       std::exp(-(phi_bc[p] - wall) / Te);
 
-    m_bndExp[0]->FwdTrans(phi, m_bndExp[0]->UpdateCoeffs());
+        pe_bc[p] = (2 / 3) * gamma_e * Fwd[pe_idx][p] * ve * bn[p];
+    }
+
+    // Electron Pressure
+    m_bndExp[pe_idx]->IProductWRTBase(pe_bc, m_bndExp[pe_idx]->UpdateCoeffs());
+    // Potential
+    m_bndExp[phi_idx]->FwdTransBndConstrained(
+        phi_bc, m_bndExp[phi_idx]->UpdateCoeffs());
 }
 
 } // namespace NESO::Solvers::tokamak

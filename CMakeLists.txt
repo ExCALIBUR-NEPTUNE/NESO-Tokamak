@@ -23,7 +23,8 @@ src/EquationSystems/TokamakSystem.cpp
 src/EquationSystems/SingleDiffusiveField.cpp
 src/EquationSystems/DoubleDiffusiveField.cpp
 src/EquationSystems/ElectrostaticTurbulence.cpp
-src/BoundaryConditions/TokamakBndCond.cpp
+src/BoundaryConditions/TokamakBaseBndCond.cpp
+src/BoundaryConditions/TokamakBndConds.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/ObliqueOutflowBC.cpp
 src/BoundaryConditions/SheathBC.cpp

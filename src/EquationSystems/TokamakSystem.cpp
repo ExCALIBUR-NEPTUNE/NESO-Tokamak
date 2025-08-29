@@ -277,6 +277,8 @@ void TokamakSystem::DoOdeProjection(
     int i;
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
+    SetBoundaryConditions(time);
+
     switch (m_projectionType)
     {
         case MultiRegions::eDiscontinuous:
@@ -310,7 +312,6 @@ void TokamakSystem::DoOdeProjection(
             break;
         }
     }
-    SetBoundaryConditions(out_arr, time);
 }
 
 void TokamakSystem::v_ExtraFldOutput(
@@ -413,8 +414,11 @@ void TokamakSystem::v_InitObject(bool create_field)
 {
     TimeEvoEqnSysBase::v_InitObject(create_field);
 
-    // Turn off forward-transform of initial conditions.
-    m_homoInitialFwd = false;
+    // ASSERTL0(m_fields[1]->GetTrace(), "Trace 1 not found init 0");
+    // ASSERTL0(m_fields[1]->GetTraceMap(), "Trace map 1 not found init 0");
+    // ASSERTL0(m_fields[1]->GetInterfaceMap(), "Interface map 1 not found init
+    // 0"); ASSERTL0(m_fields[1]->GetLocTraceToTraceMap(), " LocalTrace map 1
+    // not found init 0");
 
     // Store FieldSharedPtr casts of fields in a map, indexed by name
 
@@ -448,17 +452,20 @@ void TokamakSystem::v_InitObject(bool create_field)
             {
                 m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::ContField>::AllocateSharedPtr(
-                        *std::dynamic_pointer_cast<MR::ContField>(m_fields[f]),
+                        *std::dynamic_pointer_cast<MR::ContField>(m_fields[0]),
                         m_graph, m_session->GetVariable(f), true,
                         m_checkIfSystemSingular[f]);
             }
             else
             {
+                // m_indfields[k * n_fields_per_species + f] =
+                //     MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                //         *std::dynamic_pointer_cast<MR::DisContField>(
+                //             m_fields[0]),
+                //         m_graph, m_session->GetVariable(f));
                 m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                        *std::dynamic_pointer_cast<MR::DisContField>(
-                            m_fields[f]),
-                        m_graph, m_session->GetVariable(f));
+                        m_session, m_graph, m_session->GetVariable(f));
             }
         }
     }
@@ -467,12 +474,19 @@ void TokamakSystem::v_InitObject(bool create_field)
         m_indfields[n_fields_per_species * n_species + i] =
             m_fields[m_fields.size() - n_indep_fields + i];
     }
+    // Ensure DG is setup
+    for (int i = 1; i < m_indfields.size(); ++i)
+    {
+        m_indfields[i]->GetTrace();
+    }
 
     // Bind projection function for time integration object
     m_ode.DefineProjection(&TokamakSystem::DoOdeProjection, this);
     if (m_projectionType == MR::eDiscontinuous)
     {
-        m_implHelper = std::make_shared<ImplicitHelper>(
+        // Turn off forward-transform of initial conditions.
+        m_homoInitialFwd = false;
+        m_implHelper     = std::make_shared<ImplicitHelper>(
             m_session, m_indfields, m_ode, m_indfields.size());
         m_implHelper->InitialiseNonlinSysSolver();
         m_ode.DefineImplicitSolve(&ImplicitHelper::ImplicitTimeInt,
@@ -483,47 +497,8 @@ void TokamakSystem::v_InitObject(bool create_field)
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_indfields,
                                   m_indfields.size());
 
-    Array<OneD, const SD::BoundaryConditionShPtr> BndConds =
-        m_fields[0]->GetBndConditions();
-
-    for (size_t n = 0; n < BndConds.size(); ++n)
-    {
-        std::string type = BndConds[n]->GetUserDefined();
-        if (type.rfind("ObliqueOutflow", 0) == 0)
-        {
-            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
-                     "Oblique outflow boundary condition must be of type "
-                     "Neumann <N>");
-        }
-
-        else if (type.rfind("Oblique", 0) == 0)
-        {
-            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eNeumann,
-                     "Oblique boundary condition must be of type Neumann <N>");
-        }
-        else if (type.rfind("Sheath", 0) == 0)
-        {
-            ASSERTL0(BndConds[n]->GetBoundaryConditionType() == SD::eDirichlet,
-                     "Sheath boundary condition must be of type Dirichlet <D>");
-        }
-        if (BndConds[n]->GetBoundaryConditionType() == SD::ePeriodic)
-        {
-            continue;
-        }
-
-        if (!type.empty())
-        {
-            Array<OneD, Array<OneD, NekDouble>> magneticFieldBndElmt(3);
-            for (int d = 0; d < 3; d++)
-            {
-                m_fields[0]->ExtractPhysToBnd(n, b_unit[d],
-                                              magneticFieldBndElmt[d]);
-            }
-            m_bndConds.push_back(GetTokamakBndCondFactory().CreateInstance(
-                type, m_session, m_fields, magneticFieldBndElmt, m_spacedim,
-                n));
-        }
-    }
+    m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
+    m_bndConds->Initialize(m_session, m_indfields, B, E, m_spacedim);
 
     SetBoundaryConditionsBwdWeight();
 }
@@ -791,25 +766,23 @@ bool TokamakSystem::v_PreIntegrate(int step)
         ReadMagneticField(m_time);
     }
 
-    // for (int f = 0; f < this->n_fields_per_species; ++f)
-    //{
-    Vmath::Zero(n_pts, m_fields[0]->UpdatePhys(), 1);
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        Vmath::Vadd(n_pts, m_fields[0]->GetPhys(), 1,
-                    m_indfields[k * n_fields_per_species]->GetPhys(), 1,
-                    m_fields[0]->UpdatePhys(), 1);
-    }
-    m_fields[0]->FwdTransLocalElmt(this->m_fields[0]->GetPhys(),
-                                   m_fields[0]->UpdateCoeffs());
+    // Vmath::Zero(n_pts, m_fields[0]->UpdatePhys(), 1);
+    // for (const auto &[k, v] : this->neso_config->get_species())
+    // {
+    //     Vmath::Vadd(n_pts, m_fields[0]->GetPhys(), 1,
+    //                 m_indfields[k * n_fields_per_species]->GetPhys(), 1,
+    //                 m_fields[0]->UpdatePhys(), 1);
+    // }
+    // m_fields[0]->FwdTransLocalElmt(this->m_fields[0]->GetPhys(),
+    //                                m_fields[0]->UpdateCoeffs());
 
     if (this->Te)
     {
-        Vmath::Vdiv(n_pts, m_indfields[m_indfields.size() - 1]->GetPhys(), 1,
-                    m_fields[0]->GetPhys(), 1, Te->UpdatePhys(), 1);
+        Vmath::Vdiv(n_pts,
+                    m_indfields[m_indfields.size() - n_indep_fields]->GetPhys(),
+                    1, m_fields[0]->GetPhys(), 1, Te->UpdatePhys(), 1);
         Te->FwdTransLocalElmt(this->Te->GetPhys(), Te->UpdateCoeffs());
     }
-    //}
 
     if (this->particles_enabled)
     {
@@ -820,7 +793,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
         {
             this->particle_sys->write(step);
         }
-        for(auto& fld : this->src_fields)
+        for (auto &fld : this->src_fields)
         {
             Vmath::Zero(fld->GetNpoints(), fld->UpdatePhys(), 1);
         }
@@ -973,29 +946,28 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
     }
 }
 
-void TokamakSystem::SetBoundaryConditions(
-    Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time)
+void TokamakSystem::SetBoundaryConditions(NekDouble time)
 {
-    if (!m_bndConds.empty())
+    EquationSystem::SetBoundaryConditions(time);
+    std::string varName;
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        // Loop over user-defined boundary conditions
-        for (auto &x : m_bndConds)
+        for (int f = 0; f < this->n_fields_per_species; ++f)
         {
-            x->Apply(physarray, time);
+            int fi  = f + k * this->n_fields_per_species;
+            varName = m_session->GetVariable(f);
+            m_indfields[fi]->EvaluateBoundaryConditions(time, varName);
         }
     }
 }
 
 void TokamakSystem::SetBoundaryConditionsBwdWeight()
 {
-    if (m_bndConds.size())
-    {
-        // Loop over user-defined boundary conditions
-        for (auto &x : m_bndConds)
-        {
-            x->ApplyBwdWeight();
-        }
-    }
+    // Loop over user-defined boundary conditions
+    // for (auto &bc : m_bndConds)
+    // {
+    //     bc->ApplyBwdWeight();
+    // }
 }
 
 } // namespace NESO::Solvers::tokamak

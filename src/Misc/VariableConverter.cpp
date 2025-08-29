@@ -25,7 +25,7 @@ void VariableConverter::GetElectronDensity(
     Array<OneD, NekDouble> &density)
 {
     size_t nPts = physfield[0].size();
-
+    Vmath::Zero(nPts, density, 1);
     for (int s = 0; s < ni_idx.size(); ++s)
     {
         Vmath::Svtvp(nPts, charge[s], physfield[ni_idx[s]], 1, density, 1,
@@ -82,13 +82,12 @@ void VariableConverter::GetElectronTemperature(
 {
     size_t nPts = physfield[0].size();
 
-    Array<OneD, NekDouble> energy(nPts);
     Array<OneD, NekDouble> ne(nPts);
     GetElectronDensity(physfield, ne);
 
     for (size_t i = 0; i < nPts; ++i)
     {
-        temperature[i] = m_eos->GetTemperature(ne[i], energy[i]);
+        temperature[i] = m_eos->GetTemperature(ne[i], physfield[pe_idx][i]);
     }
 }
 
