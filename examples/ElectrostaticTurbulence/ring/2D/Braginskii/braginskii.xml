@@ -39,7 +39,7 @@
             <P> IO_InfoSteps  = 1     </P>
             <P> IO_CheckSteps = 1     </P>
             <P> particle_output_freq = 1          </P>
-            <P> NekNonlinSysMaxIterations = 10       </P>
+            <P> NekNonlinSysMaxIterations = 30       </P>
 
 
             <P> epsilon         = 1.0   </P>
@@ -94,7 +94,7 @@
             </REGION>
             <REGION REF="2">
                 <!-- <N VAR="n"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
-                <N VAR="v"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
+                <D VAR="v"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
                 <N VAR="e"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
                 <N VAR="w"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
                 <D VAR="phi" USERDEFINEDTYPE="Sheath" VALUE="0.0" /> -->
@@ -108,11 +108,10 @@
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="0" />
             <E VAR="v"  DOMAIN="0" VALUE="0" />
-            <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-            <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
-            <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*(sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri)))^2*sin(16*ang(x-rc, y-yc))" /> -->
-            <E VAR="w"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-            <!-- <E VAR="w"  DOMAIN="0" VALUE="sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(11*ang(x-rc, y-yc))" /> -->
+            <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
+            <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))^2" />
+            <!-- <E VAR="w"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
+            <E VAR="w"  DOMAIN="0" VALUE="sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(11*ang(x-rc, y-yc))" />
 
             <!-- <E VAR="w"  DOMAIN="0" VALUE="0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy))) * (-4*sy^4*(x-rc-rs)^2-4*sr^4*(y-yc-ys)^2-2*sr^2*sy^4-2*sr^4*sy^2) / (sr^4*sy^4)" /> -->
             <E VAR="phi"  DOMAIN="0" VALUE="0" />
@@ -130,14 +129,14 @@
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <E VAR="n"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
-                    <!-- <E VAR="n"  DOMAIN="0" VALUE="1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" /> -->
-                    <E VAR="v"  DOMAIN="0" VALUE="100*sin(PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*(1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))) " />
+                    <!-- <E VAR="n"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
+                    <E VAR="n"  DOMAIN="0" VALUE="1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
+                    <E VAR="v"  DOMAIN="0" VALUE="100*sin(PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*(1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))) " />
                     <!-- <E VAR="v"  DOMAIN="0" VALUE="100" /> -->
                     <!-- <E VAR="v"  DOMAIN="0" VALUE="10*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(11*ang(x-rc, y-yc))" /> -->
                     <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
-                    <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" /> -->
-                    <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
+                    <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))^2" />
+                    <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
                 </FUNCTION>
             </S>
         </SPECIES> 

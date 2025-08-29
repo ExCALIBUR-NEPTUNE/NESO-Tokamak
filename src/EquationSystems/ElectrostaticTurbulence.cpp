@@ -617,15 +617,6 @@ void ElectrostaticTurbulence::CalcVelocities(
             Vmath::Zero(npts, adv_vel[f][d], 1);
         }
     }
-    // for (int f = 0; f < adv_vel.size(); ++f)
-    // {
-    //     for (int d = 0; d < m_spacedim; ++d)
-    //     {
-    //         adv_vel[f][d] = Array<OneD, NekDouble>(npts, 0.01);
-    //         // Vmath::Vcopy(npts, b_unit[d], 1, adv_vel[f][d], 1);
-    //         // Vmath::Smul(npts, 100.0, adv_vel[f][d], 1, adv_vel[f][d], 1);
-    //     }
-    // }
 
     // Zero Electron velocity
     Vmath::Zero(npts, m_fields[1]->UpdatePhys(), 1);
@@ -904,8 +895,8 @@ void ElectrostaticTurbulence::GetFluxVector(
         // Electron Energy Flux
         Vmath::Vmul(npts, field_vals[pe_idx], 1, this->adv_vel[pe_idx][d], 1,
                     fluxes[pe_idx][d], 1);
-        Vmath::Vmul(npts, field_vals[omega_idx], 1, this->adv_vel[omega_idx][d],
-                    1, fluxes[omega_idx][d], 1);
+        // Vmath::Vmul(npts, field_vals[omega_idx], 1, this->adv_vel[omega_idx][d],
+        //             1, fluxes[omega_idx][d], 1);
     }
 
     Array<OneD, NekDouble> tmp(npts, 0.0);
@@ -935,36 +926,36 @@ void ElectrostaticTurbulence::GetFluxVector(
                         this->adv_vel[pi_idx[s]][d], 1, fluxes[pi_idx[s]][d],
                         1);
 
-            // for (int d2 = 0; d2 < m_spacedim; ++d2)
-            // {
-            //     // Calculate w = (m_i n_i/Z_i e B) v0 X b
-            //     if (m_spacedim == 3)
-            //     {
-            //         Vmath::Vvtvvtm(npts, this->adv_vel[ni_idx[s]][(d2 + 1) %
-            //         3],
-            //                        1, this->b_unit[(d2 + 2) % 3], 1,
-            //                        this->adv_vel[ni_idx[s]][(d2 + 2) % 3], 1,
-            //                        this->b_unit[(d2 + 1) % 3], 1, w, 1);
-            //     }
-            //     else if (m_spacedim == 2)
-            //     {
-            //         Vmath::Vmul(npts, this->adv_vel[ni_idx[s]][1 - d2], 1,
-            //                     this->b_unit[2], 1, w, 1);
-            //         if (d2 == 1)
-            //             Vmath::Smul(npts, -1.0, w, 1, w, 1);
-            //     }
-            //     Vmath::Vmul(npts, w, 1, field_vals[ni_idx[s]], 1, w, 1);
-            //     Vmath::Vdiv(npts, w, 1, this->mag_B, 1, w, 1);
-            //     Vmath::Smul(npts, mass / charge, w, 1, w, 1);
+            for (int d2 = 0; d2 < m_spacedim; ++d2)
+            {
+                // Calculate w = (m_i n_i/Z_i e B) v0 X b
+                if (m_spacedim == 3)
+                {
+                    Vmath::Vvtvvtm(npts, this->adv_vel[ni_idx[s]][(d2 + 1) %
+                    3],
+                                   1, this->b_unit[(d2 + 2) % 3], 1,
+                                   this->adv_vel[ni_idx[s]][(d2 + 2) % 3], 1,
+                                   this->b_unit[(d2 + 1) % 3], 1, w, 1);
+                }
+                else if (m_spacedim == 2)
+                {
+                    Vmath::Vmul(npts, this->adv_vel[ni_idx[s]][1 - d2], 1,
+                                this->b_unit[2], 1, w, 1);
+                    if (d2 == 1)
+                        Vmath::Smul(npts, -1.0, w, 1, w, 1);
+                }
+                Vmath::Vmul(npts, w, 1, field_vals[ni_idx[s]], 1, w, 1);
+                Vmath::Vdiv(npts, w, 1, this->mag_B, 1, w, 1);
+                Vmath::Smul(npts, mass / charge, w, 1, w, 1);
 
-            //     // Calculate ∇⋅(w⊗v0)
-            //     Vmath::Vmul(npts, this->adv_vel[ni_idx[s]][d], 1, w, 1, w,
-            //     1); m_indfields[omega_idx]->PhysDeriv(d2, w, tmp2);
-            //     Vmath::Vadd(npts, tmp2, 1, tmp, 1, tmp, 1);
-            // }
-            // // Vorticity Flux
-            // Vmath::Svtvp(npts, charge, tmp, 1, fluxes[omega_idx][d], 1,
-            //              fluxes[omega_idx][d], 1);
+                // Calculate ∇⋅(w⊗v0)
+                Vmath::Vmul(npts, this->adv_vel[ni_idx[s]][d], 1, w, 1, w,
+                1); m_indfields[omega_idx]->PhysDeriv(d2, w, tmp2);
+                Vmath::Vadd(npts, tmp2, 1, tmp, 1, tmp, 1);
+            }
+            // Vorticity Flux
+            Vmath::Svtvp(npts, charge, tmp, 1, fluxes[omega_idx][d], 1,
+                         fluxes[omega_idx][d], 1);
         }
         s++;
     }
