@@ -15,13 +15,13 @@ IdealGasEoS::IdealGasEoS(const LU::SessionReaderSharedPtr &pSession)
 NekDouble IdealGasEoS::v_GetTemperature([[maybe_unused]] const NekDouble &rho,
                                         const NekDouble &e)
 {
-    return GetTemperatureKernel(e);
+    return GetTemperatureKernel(rho, e);
 }
 
 vec_t IdealGasEoS::v_GetTemperature([[maybe_unused]] const vec_t &rho,
                                     const vec_t &e)
 {
-    return GetTemperatureKernel(e);
+    return GetTemperatureKernel(rho, e);
 }
 
 NekDouble IdealGasEoS::v_GetPressure(const NekDouble &rho, const NekDouble &e)

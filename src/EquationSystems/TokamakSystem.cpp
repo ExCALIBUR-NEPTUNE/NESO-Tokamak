@@ -414,12 +414,6 @@ void TokamakSystem::v_InitObject(bool create_field)
 {
     TimeEvoEqnSysBase::v_InitObject(create_field);
 
-    // ASSERTL0(m_fields[1]->GetTrace(), "Trace 1 not found init 0");
-    // ASSERTL0(m_fields[1]->GetTraceMap(), "Trace map 1 not found init 0");
-    // ASSERTL0(m_fields[1]->GetInterfaceMap(), "Interface map 1 not found init
-    // 0"); ASSERTL0(m_fields[1]->GetLocTraceToTraceMap(), " LocalTrace map 1
-    // not found init 0");
-
     // Store FieldSharedPtr casts of fields in a map, indexed by name
 
     this->E = Array<OneD, MR::DisContFieldSharedPtr>(3);

@@ -57,6 +57,7 @@ protected:
                      Array<OneD, Array<OneD, NekDouble>> &outarray);
 
     void CalcInitPhi();
+    void CalcInitOmega();
     void SolvePhi(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   [[maybe_unused]] const Array<OneD, NekDouble> &ne);
     void ComputeE();
@@ -65,6 +66,8 @@ protected:
         const Array<OneD, Array<OneD, NekDouble>> &inarray,
         const Array<OneD, NekDouble> &ne,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &adv_vel);
+    void CalcOmegaFlux(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                       Array<OneD, Array<OneD, NekDouble>> &omega_flux);
 
     void CalcVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray,
                         const Array<OneD, Array<OneD, NekDouble>> &v_ExB,
@@ -72,9 +75,7 @@ protected:
                         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &);
 
     Array<OneD, Array<OneD, NekDouble>> &GetAdvVelNorm();
-    Array<OneD, Array<OneD, NekDouble>> &GetNormals();
-    Array<OneD, NekDouble> &GetBn();
-    Array<OneD, NekDouble> &GetNormalVelocity();
+    Array<OneD, NekDouble> &GetOmegaFlux();
 
     // Advective Flux vector
     void GetFluxVector(
@@ -159,6 +160,12 @@ private:
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> adv_vel_trace;
     // Per field advection velocities normal to trace elements
     Array<OneD, Array<OneD, NekDouble>> trace_vel_norm;
+
+    // Vorticity Flux
+    Array<OneD, Array<OneD, NekDouble>> omega_flux;
+    Array<OneD, Array<OneD, NekDouble>> omega_flux_trace;
+    // Vorticity flux normal to trace elements
+    Array<OneD, NekDouble> omega_flux_norm;
     Array<OneD, NekDouble> trace_b_norm;
 
     MR::ExpListSharedPtr phi;

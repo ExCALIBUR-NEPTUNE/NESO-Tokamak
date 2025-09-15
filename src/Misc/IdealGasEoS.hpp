@@ -57,9 +57,9 @@ private:
     template <class T, typename = typename std::enable_if<
                            std::is_floating_point<T>::value ||
                            tinysimd::is_vector_floating_point<T>::value>::type>
-    inline T GetTemperatureKernel(const T &e)
+    inline T GetTemperatureKernel(const T& rho, const T &e)
     {
-        return e * m_gammaMoneOgasConst;
+        return (2.0 / 3.0) * e / rho;
     }
 
     template <class T, typename = typename std::enable_if<

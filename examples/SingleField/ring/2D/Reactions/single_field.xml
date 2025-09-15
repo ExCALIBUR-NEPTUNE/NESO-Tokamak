@@ -23,7 +23,7 @@
         <PARAMETERS>
             <!-- Timestepping and output options -->
             <P> TimeStep      = 0.0005            </P>
-            <P> NumSteps      = 50              </P>
+            <P> NumSteps      = 300              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 10     </P>
             <P> IO_CheckSteps = 10     </P>

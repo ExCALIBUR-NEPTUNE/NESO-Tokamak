@@ -43,6 +43,7 @@ void SheathBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
     const Array<OneD, const Array<OneD, NekDouble>> &physarray,
     [[maybe_unused]] const NekDouble &time)
 {
+
     // Get ExB velocity on boundary
     Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[1], 1, this->B_bnd[2], 1,
                    this->E_bnd[2], 1, this->B_bnd[1], 1, this->v_ExB[0], 1);
@@ -208,6 +209,7 @@ void SheathBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
                        std::exp(-(phi_bc[p] - wall) / Te);
 
         pe_bc[p] = (2 / 3) * gamma_e * Fwd[pe_idx][p] * ve * bn[p];
+        pe_bc[p] = 0.0;
     }
 
     // Electron Pressure

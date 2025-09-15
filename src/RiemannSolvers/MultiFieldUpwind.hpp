@@ -1,14 +1,14 @@
 #ifndef MULTIFIELD_UPWINDSOLVER
 #define MULTIFIELD_UPWINDSOLVER
 
-#include <SolverUtils/RiemannSolvers/RiemannSolver.h>
+#include "TokamakSolver.hpp"
 
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
 namespace SU = Nektar::SolverUtils;
 namespace NESO::Solvers::tokamak
 {
-class MultiFieldUpwindSolver : public SU::RiemannSolver
+class MultiFieldUpwindSolver : public TokamakSolver
 {
 public:
     static SU::RiemannSolverSharedPtr create(
@@ -20,13 +20,11 @@ public:
     static std::string solverName;
 
 protected:
-    MultiFieldUpwindSolver(
-        const LU::SessionReaderSharedPtr &pSession);
+    MultiFieldUpwindSolver(const LU::SessionReaderSharedPtr &pSession);
 
-    void v_Solve(const int nDim,
-                 const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
-                 const Array<OneD, const Array<OneD, NekDouble>> &Bwd,
-                 Array<OneD, Array<OneD, NekDouble>> &flux) final;
+    void v_ArraySolve(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+                      const Array<OneD, const Array<OneD, NekDouble>> &Bwd,
+                      Array<OneD, Array<OneD, NekDouble>> &flux) final;
 };
 } // namespace NESO::Solvers::tokamak
 

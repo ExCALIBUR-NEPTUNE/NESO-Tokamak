@@ -29,8 +29,9 @@ std::string MultiFieldUpwindSolver::solverName =
  */
 MultiFieldUpwindSolver::MultiFieldUpwindSolver(
     const LU::SessionReaderSharedPtr &pSession)
-    : RiemannSolver(pSession)
+    : TokamakSolver(pSession)
 {
+    m_pointSolve = false;
 }
 
 /**
@@ -46,16 +47,14 @@ MultiFieldUpwindSolver::MultiFieldUpwindSolver(
  * @param Bwd   Backwards trace space.
  * @param flux  Resulting flux.
  */
-void MultiFieldUpwindSolver::v_Solve(
-    [[maybe_unused]] const int nDim,
+void MultiFieldUpwindSolver::v_ArraySolve(
     const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
     const Array<OneD, const Array<OneD, NekDouble>> &Bwd,
     Array<OneD, Array<OneD, NekDouble>> &flux)
 {
     ASSERTL1(CheckVectors("Vn"), "Vn not defined.");
     const Array<OneD, Array<OneD, NekDouble>> &traceVel = m_vectors["Vn"]();
-    const Array<OneD, NekDouble> &bn                    = m_scalars["bn"]();
-    const Array<OneD, Array<OneD, NekDouble>> &normals  = m_vectors["N"]();
+    const Array<OneD, NekDouble> &flux_omega            = m_scalars["wf"]();
 
     for (int p = 0; p < traceVel[0].size(); ++p)
     {
@@ -64,6 +63,8 @@ void MultiFieldUpwindSolver::v_Solve(
             NekDouble tmp = traceVel[i][p] > 0 ? Fwd[i][p] : Bwd[i][p];
             flux[i][p]    = traceVel[i][p] * tmp;
         }
+
+        flux[omega_idx][p] = flux_omega[p];
     }
 }
 } // namespace NESO::Solvers::tokamak
