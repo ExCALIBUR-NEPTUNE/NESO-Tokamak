@@ -34,8 +34,9 @@ src/Misc/VariableConverter.cpp
 src/Misc/EquationOfState.cpp
 src/Misc/IdealGasEoS.cpp
 src/RiemannSolvers/TokamakSolver.cpp
-src/RiemannSolvers/MultiFieldUpwind.cpp
-src/RiemannSolvers/MultiFieldAverage.cpp
+src/RiemannSolvers/Upwind.cpp
+src/RiemannSolvers/VorticityUpwind.cpp
+src/RiemannSolvers/VorticityAverage.cpp
 src/ParticleSystems/ReactionSystem.cpp
 )
 
