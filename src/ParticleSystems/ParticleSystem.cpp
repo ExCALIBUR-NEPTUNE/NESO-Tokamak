@@ -240,19 +240,39 @@ void ParticleSystem::add_sources(double time, double dt)
                                   this->sycl_target->comm));
                 if (N > 0)
                 {
+                    for (int d = 0; d < ndim; ++d)
+                    {
+                        velocities.emplace_back(std::vector<double>(N));
+                    }
                     if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                     {
                         double T = v->second.m_expression->Evaluate();
 
+                        std::normal_distribution normal(
+                            0., std::sqrt(T / particle_mass));
+
+                        for (int d = 0; d < ndim; ++d)
+                        {
+                            for (int p = 0; p < N; ++p)
+                            {
+                                velocities[d][p] = normal(this->rng_phasespace);
+                            }
+                        }
+                    }
+                    else if (auto v = vmap.find(std::pair("Tin", 0));
+                             v != vmap.end())
+                    {
+                        double T = v->second.m_expression->Evaluate();
+
                         std::uniform_real_distribution u(-1.0, 1.0);
-                        velocities.emplace_back(std::vector<double>(N));
-                        velocities.emplace_back(std::vector<double>(N));
-                        std::gamma_distribution mb(
-                            1.5, std::sqrt(T / particle_mass));
+                        std::gamma_distribution mb(1.5, T);
+
                         for (int p = 0; p < N; ++p)
                         {
+                            double energy = mb(this->rng_phasespace);
                             double speed =
-                                std::min(10000.0, mb(this->rng_phasespace));
+                                std::sqrt(2 * energy / particle_mass);
+                            // inverse transform sampling
                             velocities[1][p] =
                                 speed * 2 * std::asin(u(this->rng_phasespace)) /
                                 M_PI;
@@ -261,6 +281,7 @@ void ParticleSystem::add_sources(double time, double dt)
                                            velocities[1][p] * velocities[1][p]);
                         }
                     }
+
                     else // Explicit velocities
                     {
                         if (auto v = vmap.find(std::pair("VX", 0));

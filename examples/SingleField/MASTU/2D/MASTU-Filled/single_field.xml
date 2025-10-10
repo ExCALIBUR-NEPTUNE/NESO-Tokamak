@@ -122,7 +122,7 @@
                         <P N="100">
                             <E VAR="X" VALUE="199"/>
                             <E VAR="Y" VALUE="0"/>
-                            <E VAR="T" VALUE="10000000"/>
+                            <E VAR="Tin" VALUE="10000000"/>
                         </P>
                     </SOURCES>
                     <BOUNDARYINTERACTION>
