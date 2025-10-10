@@ -16,8 +16,8 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 0.1               </P>
-            <P> NumSteps      = 400              </P>
+            <P> TimeStep       = 0.0001               </P>
+            <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -108,21 +108,23 @@
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
-                <P> particle_thermal_velocity = 5  </P>
             </PARAMETERS>   
 
             <SPECIES>
                 <S ID="0" NAME="D">
                     <P> Mass = 2.0 </P>
                     <P> Charge = 1.0 </P>
-                    <INITIAL N="100">
-                        <E VAR="X" VALUE="190"/>
+                    <INITIAL N="1">
+                        <E VAR="X" VALUE="199"/>
                         <E VAR="Y" VALUE="0"/>
                     </INITIAL>
-                    <SOURCE N="10">
-                        <E VAR="X" VALUE="190"/>
-                        <E VAR="Y" VALUE="0"/>
-                    </SOURCE>
+                    <SOURCES>
+                        <P N="100">
+                            <E VAR="X" VALUE="199"/>
+                            <E VAR="Y" VALUE="0"/>
+                            <E VAR="Tin" VALUE="10000000"/>
+                        </P>
+                    </SOURCES>
                     <BOUNDARYINTERACTION>
                         <REGION REF="3">
                             <C VALUE="0.0" />
@@ -132,10 +134,6 @@
             </SPECIES>  
 
             <REACTIONS>
-                <R ID="0" TYPE="Ionisation" SPECIES="0">
-                    <RATE TYPE="AMJUEL" VALUE="1.0"/>
-                    <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
-                </R>
                 <S ID="0" TYPE="Specular" SPECIES="0">
                     <REGION REF="3"/>
                     <RATE TYPE="Constant" VALUE="1.0"/>

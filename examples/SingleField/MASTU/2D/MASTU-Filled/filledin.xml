@@ -20,7 +20,7 @@
             <GitSHA1></GitSHA1>
             <Hostname>jedge-XPS-16-9640</Hostname>
             <NektarVersion>5.7.0</NektarVersion>
-            <Timestamp>02-Jul-2025 10:11:35</Timestamp>
+            <Timestamp>08-Oct-2025 12:05:02</Timestamp>
         </Provenance>
         <NekMeshCommandLine>-m detect filledin.msh filledin.xml </NekMeshCommandLine>
     </Metadata>

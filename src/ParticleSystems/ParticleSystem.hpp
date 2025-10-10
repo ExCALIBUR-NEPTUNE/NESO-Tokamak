@@ -161,7 +161,7 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(particle_sub_group(this->particle_group),
+            this->apply_timestep(static_particle_sub_group(this->particle_group),
                                  dt_inner);
             this->transfer_particles();
 
@@ -371,70 +371,23 @@ protected:
         if (this->ndim == 3)
         {
             particle_loop(
-                "ParticleSystem:boris", sg,
-                [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
+                "euler_advection", sg,
+                [=](auto V, auto P, auto TSP)
                 {
-                    const REAL dt_left  = k_dt - TSP.at(0);
-                    const REAL hdt_left = dt_left * 0.5;
+                    const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
-                        const REAL QoM = Q.at(0) / M.at(0);
 
-                        const REAL scaling_t = QoM * hdt_left;
-                        const REAL t_0       = B.at(0) * scaling_t;
-                        const REAL t_1       = B.at(1) * scaling_t;
-                        const REAL t_2       = B.at(2) * scaling_t;
-
-                        const REAL tmagsq = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
-                        const REAL scaling_s = 2.0 / (1.0 + tmagsq);
-
-                        const REAL s_0 = scaling_s * t_0;
-                        const REAL s_1 = scaling_s * t_1;
-                        const REAL s_2 = scaling_s * t_2;
-
-                        const REAL V_0 = V.at(0);
-                        const REAL V_1 = V.at(1);
-                        const REAL V_2 = V.at(2);
-
-                        const REAL v_minus_0 = V_0 + (E.at(0)) * scaling_t;
-                        const REAL v_minus_1 = V_1 + (E.at(1)) * scaling_t;
-                        const REAL v_minus_2 = V_2 + (E.at(2)) * scaling_t;
-
-                        REAL v_prime_0, v_prime_1, v_prime_2;
-                        MAPPING_CROSS_PRODUCT_3D(
-                            v_minus_0, v_minus_1, v_minus_2, t_0, t_1, t_2,
-                            v_prime_0, v_prime_1, v_prime_2)
-
-                        v_prime_0 += v_minus_0;
-                        v_prime_1 += v_minus_1;
-                        v_prime_2 += v_minus_2;
-
-                        REAL v_plus_0, v_plus_1, v_plus_2;
-                        MAPPING_CROSS_PRODUCT_3D(v_prime_0, v_prime_1,
-                                                 v_prime_2, s_0, s_1, s_2,
-                                                 v_plus_0, v_plus_1, v_plus_2)
-
-                        v_plus_0 += v_minus_0;
-                        v_plus_1 += v_minus_1;
-                        v_plus_2 += v_minus_2;
-
-                        V.at(0) = v_plus_0 + scaling_t * (E.at(0));
-                        V.at(1) = v_plus_1 + scaling_t * (E.at(1));
-                        V.at(2) = v_plus_2 + scaling_t * (E.at(2));
-
-                        // update of position to next time step
                         P.at(0) += dt_left * V.at(0);
                         P.at(1) += dt_left * V.at(1);
                         P.at(2) += dt_left * V.at(2);
+
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
                     }
                 },
-                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
-                Access::read(Sym<REAL>("MAGNETIC_FIELD")),
-                Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
+                Access::read(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("POSITION")),
-                Access::write(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
@@ -464,7 +417,7 @@ protected:
     const long size;
     const long rank;
     std::mt19937 rng_phasespace;
-    
+
     uint64_t total_num_particles_added = 0;
 
     const int particle_remove_key = -1;
@@ -519,7 +472,7 @@ protected:
 
     auto find_partial_moves(ParticleSubGroupSharedPtr sg, const double dt)
     {
-        return particle_sub_group(
+        return static_particle_sub_group(
             sg, [=](auto TSP) { return TSP.at(0) < dt; },
             Access::read(Sym<REAL>("TSP")));
     };
