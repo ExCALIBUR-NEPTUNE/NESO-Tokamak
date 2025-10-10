@@ -487,7 +487,8 @@ public:
                                 const double dt_inner) override
     {
         ParticleSystem::integrate_inner(sg, dt_inner);
-        reaction_controller->apply_reactions(this->particle_group, dt_inner);
+        if(this->config->get_reactions().size())
+            reaction_controller->apply_reactions(this->particle_group, dt_inner);
     }
 
     inline void finish_setup(
