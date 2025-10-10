@@ -20,15 +20,13 @@ static SU::EquationSystemSharedPtr create(
     const SD::MeshGraphSharedPtr &graph)
 {
     SU::EquationSystemSharedPtr p =
-        MemoryManager<ReducedBraginskii>::AllocateSharedPtr(session,
-                                                                  graph);
+        MemoryManager<ReducedBraginskii>::AllocateSharedPtr(session, graph);
     p->InitObject();
     return p;
 }
 
-ReducedBraginskii::ReducedBraginskii(
-    const LU::SessionReaderSharedPtr &session,
-    const SD::MeshGraphSharedPtr &graph)
+ReducedBraginskii::ReducedBraginskii(const LU::SessionReaderSharedPtr &session,
+                                     const SD::MeshGraphSharedPtr &graph)
     : TokamakSystem(session, graph)
 {
     this->n_indep_fields       = 1; // p_e
@@ -45,11 +43,10 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
     m_diffusion =
         SolverUtils::GetDiffusionFactory().CreateInstance(diffName, diffName);
-    m_diffusion->SetFluxVector(&ReducedBraginskii::GetFluxVectorDiff,
-                               this);
+    m_diffusion->SetFluxVector(&ReducedBraginskii::GetFluxVectorDiff, this);
 
     // workaround for bug in DiffusionLDG
-    m_difffields = Array<OneD, MR::ExpListSharedPtr>(m_indfields.size() - 1);
+    m_difffields = Array<OneD, MR::ExpListSharedPtr>(m_indfields.size());
     for (int f = 0; f < m_difffields.size(); ++f)
     {
         m_difffields[f] = m_indfields[f];
@@ -58,23 +55,16 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     m_diffusion->InitObject(m_session, m_difffields);
 
     // Create storage for velocities
-    int npts  = GetNpoints();
-    pe_idx    = 3 * this->n_species;
-
-    // ExB velocity
-    this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
+    int npts = GetNpoints();
+    pe_idx   = 3 * this->n_species;
 
     // Parallel velocities
     this->v_e_par = Array<OneD, NekDouble>(npts, 0.0);
     this->v_i_par = std::vector<Array<OneD, NekDouble>>(n_species);
 
-    // Drift velocities
-    this->v_de = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
-    this->v_di = std::vector<Array<OneD, Array<OneD, NekDouble>>>(n_species);
-
-    // Per-field advection velocities (phi not advected)
+    // Per-field advection velocities
     this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
-        m_indfields.size() - 2);
+        m_indfields.size());
 
     for (int i = 0; i < this->adv_vel.size(); ++i)
     {
@@ -83,8 +73,6 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
 
     for (int d = 0; d < m_spacedim; ++d)
     {
-        this->v_ExB[d]           = Array<OneD, NekDouble>(npts, 0.0);
-        this->v_de[d]            = Array<OneD, NekDouble>(npts, 0.0);
         this->adv_vel[pe_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
 
@@ -96,10 +84,8 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
         pi_idx.push_back(2 + 3 * s);
 
         this->v_i_par[s] = Array<OneD, NekDouble>(npts, 0.0);
-        this->v_di[s]    = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
         for (int d = 0; d < m_graph->GetSpaceDimension(); ++d)
         {
-            this->v_di[s][d]            = Array<OneD, NekDouble>(npts, 0.0);
             this->adv_vel[ni_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
             this->adv_vel[vi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
             this->adv_vel[pi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
@@ -113,10 +99,10 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
         s++;
     }
 
-    m_varConv->ni_idx    = ni_idx;
-    m_varConv->vi_idx    = vi_idx;
-    m_varConv->pi_idx    = pi_idx;
-    m_varConv->pe_idx    = pe_idx;
+    m_varConv->ni_idx = ni_idx;
+    m_varConv->vi_idx = vi_idx;
+    m_varConv->pi_idx = pi_idx;
+    m_varConv->pe_idx = pe_idx;
 
     for (auto &[k, bnd] : m_bndConds->GetBounds())
     {
@@ -159,8 +145,8 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     // t->pi_idx    = pi_idx;
     // t->pe_idx    = pe_idx;
 
-    this->riemann_solver->SetVector(
-        "Vn", &ReducedBraginskii::GetAdvVelNorm, this);
+    this->riemann_solver->SetVector("Vn", &ReducedBraginskii::GetAdvVelNorm,
+                                    this);
 
     // Setup advection object
     m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
@@ -252,10 +238,10 @@ void ReducedBraginskii::DoOdeRhs(
     m_varConv->GetElectronDensity(inarray, m_fields[0]->UpdatePhys());
 
     // Store forwards/backwards space along trace space
-    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables - 1);
-    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables - 1);
+    Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> Bwd(nvariables);
 
-    for (int i = 0; i < nvariables - 1; ++i)
+    for (int i = 0; i < nvariables; ++i)
     {
         Fwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
         Bwd[i] = Array<OneD, NekDouble>(nTracePts, 0.0);
@@ -265,10 +251,7 @@ void ReducedBraginskii::DoOdeRhs(
     // Calculate E
     ComputeE();
     // Calculate ExB, parallel and diamagnetic velocities
-    // ComputevExB();
-    CalcVelocities(inarray, this->v_ExB, m_fields[0]->GetPhys(), this->adv_vel);
-    // AddDriftVelocities(inarray, m_fields[0]->GetPhys(), this->adv_vel);
-
+    CalcVelocities(inarray, m_fields[0]->GetPhys(), this->adv_vel);
 
     // Perform advection
     DoAdvection(inarray, outarray, time, Fwd, Bwd);
@@ -296,70 +279,6 @@ void ReducedBraginskii::DoOdeRhs(
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, inarray, outarray, time);
-    }
-}
-
-void ReducedBraginskii::DoExtra(
-    const Array<OneD, Array<OneD, NekDouble>> &inarray,
-    Array<OneD, Array<OneD, NekDouble>> &outarray)
-{
-    int npts = GetNpoints();
-    Array<OneD, NekDouble> grad(npts, 0.0);
-    Array<OneD, NekDouble> extra(npts, 0.0);
-    Array<OneD, NekDouble> vel(npts, 0.0);
-    // Add extra terms to electron energy
-
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, this->v_ExB[d],
-                     1, vel, 1);
-        m_fields[0]->PhysDeriv(d, vel, grad);
-        Vmath::Vadd(npts, grad, 1, extra, 1, extra, 1);
-    }
-    Vmath::Vmul(npts, inarray[pe_idx], 1, extra, 1, extra, 1);
-    Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-    Vmath::Vadd(npts, extra, 1, outarray[pe_idx], 1, outarray[pe_idx], 1);
-    Vmath::Zero(npts, extra, 1);
-
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        double charge;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        // Add extra terms to ion momentum
-
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            m_fields[0]->PhysDeriv(d, inarray[pi_idx[s]], grad);
-            Vmath::Vvtvp(npts, this->b_unit[d], 1, grad, 1, extra, 1, extra, 1);
-        }
-        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
-                    1);
-        Vmath::Zero(npts, extra, 1);
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->E[d]->GetPhys(), 1,
-                         extra, 1, extra, 1);
-        }
-        Vmath::Vmul(npts, inarray[ni_idx[s]], 1, extra, 1, extra, 1);
-        Vmath::Smul(npts, charge, extra, 1, extra, 1);
-        Vmath::Vadd(npts, extra, 1, outarray[vi_idx[s]], 1, outarray[vi_idx[s]],
-                    1);
-        Vmath::Zero(npts, extra, 1);
-
-        // Add extra terms to ion energy
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
-                         this->v_ExB[d], 1, vel, 1);
-            m_fields[0]->PhysDeriv(d, vel, grad);
-            Vmath::Vadd(npts, grad, 1, extra, 1, extra, 1);
-        }
-        Vmath::Smul(npts, 2.0 / 3.0, extra, 1, extra, 1);
-        Vmath::Vadd(npts, extra, 1, outarray[pi_idx[s]], 1, outarray[pi_idx[s]],
-                    1);
-        s++;
     }
 }
 
@@ -423,7 +342,6 @@ void ReducedBraginskii::DoParticles(
     }
 }
 
-
 /**
  * @brief Compute the gradient of phi for evaluation at the particle positions.
  */
@@ -440,31 +358,8 @@ void ReducedBraginskii::ComputeE()
     this->E[2]->FwdTrans(this->E[2]->GetPhys(), this->E[2]->UpdateCoeffs());
 }
 
-void ReducedBraginskii::ComputevExB()
-{
-    int npts = GetNpoints();
-    // Calculate ExB velocity
-    Vmath::Vvtvvtm(npts, this->E[1]->GetPhys(), 1, this->B[2]->GetPhys(), 1,
-                   this->E[2]->GetPhys(), 1, this->B[1]->GetPhys(), 1,
-                   this->v_ExB[0], 1);
-    Vmath::Vdiv(npts, this->v_ExB[0], 1, this->mag_B, 1, this->v_ExB[0], 1);
-    Vmath::Vvtvvtm(npts, this->E[2]->GetPhys(), 1, this->B[0]->GetPhys(), 1,
-                   this->E[0]->GetPhys(), 1, this->B[2]->GetPhys(), 1,
-                   this->v_ExB[1], 1);
-    Vmath::Vdiv(npts, this->v_ExB[1], 1, this->mag_B, 1, this->v_ExB[1], 1);
-
-    if (m_spacedim == 3)
-    {
-        Vmath::Vvtvvtm(npts, this->E[0]->GetPhys(), 1, this->B[1]->GetPhys(), 1,
-                       this->E[1]->GetPhys(), 1, this->B[0]->GetPhys(), 1,
-                       this->v_ExB[2], 1);
-        Vmath::Vdiv(npts, this->v_ExB[2], 1, this->mag_B, 1, this->v_ExB[2], 1);
-    }
-}
-
 void ReducedBraginskii::CalcVelocities(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
-    const Array<OneD, Array<OneD, NekDouble>> &v_ExB,
     const Array<OneD, NekDouble> &ne,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &adv_vel)
 {
@@ -498,8 +393,8 @@ void ReducedBraginskii::CalcVelocities(
 
         for (int d = 0; d < m_spacedim; ++d)
         {
-            Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
-                         v_ExB[d], 1, adv_vel[ni_idx[s]][d], 1);
+            Vmath::Vmul(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
+                        adv_vel[ni_idx[s]][d], 1);
             Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[vi_idx[s]][d],
                          1);
             Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[pi_idx[s]][d],
@@ -507,140 +402,15 @@ void ReducedBraginskii::CalcVelocities(
         }
         s++;
     }
-    // Array<OneD, NekDouble> j_par(npts, 0.0);
-    // for (int d = 0; d < m_spacedim; ++d)
-    // {
-    //     Vmath::Vvtvp(npts, this->E[d]->GetPhys(), 1, this->b_unit[d], 1, j_par,
-    //                  1, j_par, 1);
-    // }
-    // // Calculate Electron parallel velocity
-    // Vmath::Vsub(npts, m_fields[1]->GetPhys(), 1, j_par, 1,
-    //             m_fields[1]->UpdatePhys(), 1);
+
     Vmath::Vdiv(npts, m_fields[1]->GetPhys(), 1, ne, 1, this->v_e_par, 1);
 
     for (int d = 0; d < m_spacedim; ++d)
     {
-        Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, v_ExB[d], 1,
-                     adv_vel[pe_idx][d], 1);
+        Vmath::Vmul(npts, this->b_unit[d], 1, this->v_e_par, 1,
+                    adv_vel[pe_idx][d], 1);
     }
 }
-
-void ReducedBraginskii::AddDriftVelocities(
-    const Array<OneD, Array<OneD, NekDouble>> &inarray,
-    const Array<OneD, NekDouble> &ne,
-    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &adv_vel)
-{
-    int npts = inarray[0].size();
-
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        double charge = 1;
-        double mass   = 1;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-        Array<OneD, NekDouble> gradp[3];
-
-        for (int d = 0; d < 3; ++d)
-        {
-
-            gradp[d] = Array<OneD, NekDouble>(npts, 0.0);
-        }
-
-        if (m_spacedim == 2)
-            m_indfields[pi_idx[s]]->PhysDeriv(inarray[pi_idx[s]], gradp[0],
-                                              gradp[1]);
-        else if (m_spacedim == 3)
-            m_indfields[pi_idx[s]]->PhysDeriv(inarray[pi_idx[s]], gradp[0],
-                                              gradp[1], gradp[2]);
-
-        Vmath::Vvtvvtm(npts, gradp[1], 1, this->B[2]->GetPhys(), 1, gradp[2], 1,
-                       this->B[1]->GetPhys(), 1, this->v_di[s][0], 1);
-        Vmath::Vdiv(npts, this->v_di[s][0], 1, this->mag_B, 1, this->v_di[s][0],
-                    1);
-        Vmath::Vdiv(npts, this->v_di[s][0], 1, inarray[ni_idx[s]], 1,
-                    this->v_di[s][0], 1);
-        Vmath::Smul(npts, -2.0 / (3.0 * charge), this->v_di[s][0], 1,
-                    this->v_di[s][0], 1);
-        Vmath::Vvtvvtm(npts, gradp[2], 1, this->B[0]->GetPhys(), 1, gradp[0], 1,
-                       this->B[2]->GetPhys(), 1, this->v_di[s][1], 1);
-        Vmath::Vdiv(npts, this->v_di[s][1], 1, this->mag_B, 1, this->v_di[s][1],
-                    1);
-        Vmath::Vdiv(npts, this->v_di[s][1], 1, inarray[ni_idx[s]], 1,
-                    this->v_di[s][1], 1);
-        Vmath::Smul(npts, -2.0 / (3.0 * charge), this->v_di[s][1], 1,
-                    this->v_di[s][1], 1);
-
-        if (m_spacedim == 3)
-        {
-            Vmath::Vvtvvtm(npts, gradp[0], 1, this->B[1]->GetPhys(), 1,
-                           gradp[1], 1, this->B[0]->GetPhys(), 1,
-                           this->v_di[s][2], 1);
-            Vmath::Vdiv(npts, this->v_di[s][2], 1, this->mag_B, 1,
-                        this->v_di[s][2], 1);
-            Vmath::Vdiv(npts, this->v_di[s][2], 1, inarray[ni_idx[s]], 1,
-                        this->v_di[s][2], 1);
-            Vmath::Smul(npts, -2.0 / (3.0 * charge), this->v_di[s][2], 1,
-                        this->v_di[s][2], 1);
-        }
-        for (int d = 0; d < m_spacedim; ++d)
-        {
-            Vmath::Vadd(npts, this->v_di[s][d], 1, this->adv_vel[ni_idx[s]][d],
-                        1, this->adv_vel[ni_idx[s]][d], 1);
-            Vmath::Svtvp(npts, 5.0 / 3.0, this->v_di[s][d], 1,
-                         adv_vel[pi_idx[s]][d], 1, adv_vel[pi_idx[s]][d], 1);
-        }
-        s++;
-    }
-    // Calculate electron diagmagnetic velocity
-
-    Array<OneD, NekDouble> gradp[3];
-
-    for (int d = 0; d < 3; ++d)
-    {
-
-        gradp[d] = Array<OneD, NekDouble>(npts, 0.0);
-    }
-    if (m_spacedim == 2)
-    {
-        m_indfields[pe_idx]->PhysDeriv(inarray[pe_idx], gradp[0], gradp[1],
-                                       NullNekDouble1DArray);
-    }
-
-    else if (m_spacedim == 3)
-    {
-        m_indfields[pe_idx]->PhysDeriv(inarray[pe_idx], gradp[0], gradp[1],
-                                       gradp[2]);
-    }
-
-    Vmath::Vvtvvtm(npts, gradp[1], 1, this->B[2]->GetPhys(), 1, gradp[2], 1,
-                   this->B[1]->GetPhys(), 1, this->v_de[0], 1);
-    Vmath::Vdiv(npts, this->v_de[0], 1, this->mag_B, 1, this->v_de[0], 1);
-    Vmath::Vdiv(npts, this->v_de[0], 1, ne, 1, this->v_de[0], 1);
-    Vmath::Smul(npts, 2.0 / 3.0, this->v_de[0], 1, this->v_de[0], 1);
-
-    Vmath::Vvtvvtm(npts, gradp[2], 1, this->B[0]->GetPhys(), 1, gradp[0], 1,
-                   this->B[2]->GetPhys(), 1, this->v_de[1], 1);
-    Vmath::Vdiv(npts, this->v_de[1], 1, this->mag_B, 1, this->v_de[1], 1);
-    Vmath::Vdiv(npts, this->v_de[1], 1, ne, 1, this->v_de[1], 1);
-    Vmath::Smul(npts, 2.0 / 3.0, this->v_de[1], 1, this->v_de[1], 1);
-
-    if (m_spacedim == 3)
-    {
-        Vmath::Vvtvvtm(npts, gradp[0], 1, this->B[1]->GetPhys(), 1, gradp[1], 1,
-                       this->B[0]->GetPhys(), 1, this->v_de[2], 1);
-        Vmath::Vdiv(npts, this->v_de[2], 1, this->mag_B, 1, this->v_de[2], 1);
-        Vmath::Vdiv(npts, this->v_de[2], 1, ne, 1, this->v_de[2], 1);
-        Vmath::Smul(npts, 2.0 / 3.0, this->v_de[2], 1, this->v_de[2], 1);
-    }
-
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        Vmath::Svtvp(npts, 5.0 / 3.0, this->v_de[d], 1, adv_vel[pe_idx][d], 1,
-                     adv_vel[pe_idx][d], 1);
-    }
-}
-
 
 /**
  *  @brief Compute components of advection velocities normal to trace elements
@@ -678,7 +448,6 @@ Array<OneD, Array<OneD, NekDouble>> &ReducedBraginskii::GetAdvVelNorm()
     }
     return this->trace_vel_norm;
 }
-
 
 /**
  *  @brief Construct flux array.
@@ -734,7 +503,7 @@ void ReducedBraginskii::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
-    int nvariables = inarray.size() - 1;
+    int nvariables = inarray.size();
     int npointsIn  = GetNpoints();
     int npointsOut = npointsIn;
     int nTracePts  = GetTraceTotPoints();
@@ -1010,10 +779,10 @@ void ReducedBraginskii::DoAdvectionCoeff(
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
     int nvariables = inarray.size();
-
+    Array<OneD, Array<OneD, NekDouble>> advVel(m_spacedim);
     std::dynamic_pointer_cast<SU::AdvectionWeakDG>(m_advection)
-        ->AdvectCoeffs(nvariables, m_indfields, this->v_ExB, inarray, outarray,
-                       time, pFwd, pBwd);
+        ->AdvectCoeffs(nvariables, m_indfields, advVel, inarray, outarray, time,
+                       pFwd, pBwd);
 }
 
 void ReducedBraginskii::DoDiffusionCoeff(
@@ -1048,9 +817,9 @@ void ReducedBraginskii::DoDiffusionCoeff(
     // {
     ASSERTL1(false, "LDGNS not yet validated for implicit compressible "
                     "flow solver");
-    Array<OneD, Array<OneD, NekDouble>> inarrayDiff{nvariables - 1};
-    Array<OneD, Array<OneD, NekDouble>> inFwd{nvariables - 1};
-    Array<OneD, Array<OneD, NekDouble>> inBwd{nvariables - 1};
+    Array<OneD, Array<OneD, NekDouble>> inarrayDiff{nvariables};
+    Array<OneD, Array<OneD, NekDouble>> inFwd{nvariables};
+    Array<OneD, Array<OneD, NekDouble>> inBwd{nvariables};
 
     for (int i = 0; i < nvariables; ++i)
     {
@@ -1157,8 +926,7 @@ void ReducedBraginskii::DoParticlesCoeff(
  * @brief After reading ICs, calculate phi and grad(phi)
  */
 void ReducedBraginskii::v_SetInitialConditions(NekDouble init_time,
-                                                     bool dump_ICs,
-                                                     const int domain)
+                                               bool dump_ICs, const int domain)
 {
     TokamakSystem::v_SetInitialConditions(init_time, dump_ICs, domain);
     Checkpoint_Output(0);
@@ -1183,7 +951,6 @@ void ReducedBraginskii::v_SetInitialConditions(NekDouble init_time,
 //         bc->Apply(Fwd, physarray, time);
 //     }
 // }
-
 
 void ReducedBraginskii::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,

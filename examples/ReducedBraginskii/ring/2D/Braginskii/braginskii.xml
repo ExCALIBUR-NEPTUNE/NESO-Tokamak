@@ -4,7 +4,7 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e," />
+       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e" />
     </EXPANSIONS>
 
     <CONDITIONS>
@@ -79,17 +79,17 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
-                <N VAR="n"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
-                <D VAR="v"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
-                <N VAR="e"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
+                <N VAR="n"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
+                <D VAR="v"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
+                <N VAR="e"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <!-- <N VAR="n"   VALUE="0.0" />
                 <N VAR="v"   VALUE="0.0" />
                 <N VAR="e"   VALUE="0.0" /> -->
             </REGION>
             <REGION REF="2">
-                <N VAR="n"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
-                <D VAR="v"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
-                <N VAR="e"   USERDEFINEDTYPE="Sheath" VALUE="0.0" />
+                <N VAR="n"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
+                <D VAR="v"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
+                <N VAR="e"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <!-- <N VAR="n"   VALUE="0.0" />
                 <N VAR="v"   VALUE="0.0" />
                 <N VAR="e"   VALUE="0.0" /> -->

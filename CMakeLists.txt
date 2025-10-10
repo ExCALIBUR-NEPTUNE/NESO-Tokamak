@@ -29,6 +29,7 @@ src/BoundaryConditions/TokamakBndConds.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/ObliqueOutflowBC.cpp
 src/BoundaryConditions/SheathBC.cpp
+src/BoundaryConditions/ReducedSheathBC.cpp
 src/ParticleSystems/ParticleSystem.cpp
 src/Misc/VariableConverter.cpp
 src/Misc/EquationOfState.cpp

@@ -74,7 +74,8 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     this->v_de = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
     this->v_di = std::vector<Array<OneD, Array<OneD, NekDouble>>>(n_species);
 
-    // Per-field advection velocities (phi not advected)
+    // Per-field advection velocities (phi not advected, omega is calculates
+    // separately)
     this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
         m_indfields.size() - 2);
 
@@ -635,7 +636,8 @@ void ElectrostaticTurbulence::CalcVelocities(
     // Array<OneD, NekDouble> j_par(npts, 0.0);
     // for (int d = 0; d < m_spacedim; ++d)
     // {
-    //     Vmath::Vvtvp(npts, this->E[d]->GetPhys(), 1, this->b_unit[d], 1, j_par,
+    //     Vmath::Vvtvp(npts, this->E[d]->GetPhys(), 1, this->b_unit[d], 1,
+    //     j_par,
     //                  1, j_par, 1);
     // }
     // // Calculate Electron parallel velocity
