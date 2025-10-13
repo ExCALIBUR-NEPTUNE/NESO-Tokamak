@@ -21,7 +21,7 @@
         </TIMEINTEGRATIONSCHEME>
 
         <GLOBALSYSSOLNINFO>
-            <V VAR="n,v,e,phi,omega">
+            <V VAR="n,v,e">
                 <I PROPERTY="GlobalSysSoln"             VALUE="XxtMultiLevelStaticCond"/>
                 <I PROPERTY="LinSysIterSolver"          VALUE="GMRES"/>
                 <I PROPERTY="Preconditioner"            VALUE="Diagonal"        />
@@ -44,10 +44,10 @@
 
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
-            <P> k_par           = 0   </P>
+            <P> k_par           = 1   </P>
             <P> k_perp          = 0.1   </P>
-            <P> kappa_par           = 0   </P>
-            <P> kappa_perp          = 0.0   </P>
+            <P> kappa_par           = 1   </P>
+            <P> kappa_perp          = 0.1   </P>
             <P> TCore           = 300.0 </P>
             <P> T_bnd            = 1.0 </P>
             <P> k_B             = 1.0 </P>
@@ -82,23 +82,16 @@
                 <N VAR="n"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <D VAR="v"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <N VAR="e"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
-                <!-- <N VAR="n"   VALUE="0.0" />
-                <N VAR="v"   VALUE="0.0" />
-                <N VAR="e"   VALUE="0.0" /> -->
             </REGION>
             <REGION REF="2">
                 <N VAR="n"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <D VAR="v"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
                 <N VAR="e"   USERDEFINEDTYPE="ReducedSheath" VALUE="0.0" />
-                <!-- <N VAR="n"   VALUE="0.0" />
-                <N VAR="v"   VALUE="0.0" />
-                <N VAR="e"   VALUE="0.0" /> -->
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="0" />
             <E VAR="v"  DOMAIN="0" VALUE="0" />
-            <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
             <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
         </FUNCTION>
         <FUNCTION NAME="MagneticField">
@@ -113,14 +106,9 @@
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <!-- <E VAR="n"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
                     <E VAR="n"  DOMAIN="0" VALUE="1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
                     <E VAR="v"  DOMAIN="0" VALUE="100*sin(PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*(1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))) " />
-                    <!-- <E VAR="v"  DOMAIN="0" VALUE="100" /> -->
-                    <!-- <E VAR="v"  DOMAIN="0" VALUE="10*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(11*ang(x-rc, y-yc))" /> -->
-                    <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
                     <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
-                    <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.01*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
                 </FUNCTION>
             </S>
         </SPECIES> 

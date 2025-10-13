@@ -63,8 +63,8 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     this->v_i_par = std::vector<Array<OneD, NekDouble>>(n_species);
 
     // Per-field advection velocities
-    this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
-        m_indfields.size());
+    this->adv_vel =
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(m_indfields.size());
 
     for (int i = 0; i < this->adv_vel.size(); ++i)
     {
@@ -535,7 +535,9 @@ void ReducedBraginskii::DoDiffusion(
     for (const auto &[k, v] : this->neso_config->get_species())
     {
         this->neso_config->load_species_parameter(k, "Mass", mass);
-        m_varConv->GetIonTemperature(s, mass, inarray, inarrayDiff[pi_idx[s]]);
+        m_varConv->GetIonTemperature(s, mass, inarray,
+        inarrayDiff[pi_idx[s]]);
+
         s++;
     }
 

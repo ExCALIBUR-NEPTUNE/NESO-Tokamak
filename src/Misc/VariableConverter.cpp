@@ -163,8 +163,10 @@ void VariableConverter::GetIonTemperature(
 
     for (size_t p = 0; p < nPts; ++p)
     {
+        // temperature[p] =
+        //     m_eos->GetTemperature(physfield[ni_idx[s]][p], energy[p]);
         temperature[p] =
-            m_eos->GetTemperature(physfield[ni_idx[s]][p], energy[p]);
+            m_eos->GetTemperature(physfield[ni_idx[s]][p], physfield[pi_idx[s]][p]);
     }
 }
 
