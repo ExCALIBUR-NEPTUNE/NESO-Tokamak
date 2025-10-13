@@ -22,10 +22,22 @@ set(SRC_FILES
 src/EquationSystems/TokamakSystem.cpp
 src/EquationSystems/SingleDiffusiveField.cpp
 src/EquationSystems/DoubleDiffusiveField.cpp
-src/BoundaryConditions/TokamakBndCond.cpp
+src/EquationSystems/ReducedBraginskii.cpp
+src/EquationSystems/ElectrostaticTurbulence.cpp
+src/BoundaryConditions/TokamakBaseBndCond.cpp
+src/BoundaryConditions/TokamakBndConds.cpp
 src/BoundaryConditions/ObliqueBC.cpp
 src/BoundaryConditions/ObliqueOutflowBC.cpp
+src/BoundaryConditions/SheathBC.cpp
+src/BoundaryConditions/ReducedSheathBC.cpp
 src/ParticleSystems/ParticleSystem.cpp
+src/Misc/VariableConverter.cpp
+src/Misc/EquationOfState.cpp
+src/Misc/IdealGasEoS.cpp
+src/RiemannSolvers/TokamakSolver.cpp
+src/RiemannSolvers/Upwind.cpp
+src/RiemannSolvers/VorticityUpwind.cpp
+src/RiemannSolvers/VorticityAverage.cpp
 src/ParticleSystems/ReactionSystem.cpp
 )
 

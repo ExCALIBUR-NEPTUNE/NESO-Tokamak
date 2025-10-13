@@ -9,7 +9,9 @@ std::string ParticleSystem::class_name =
 
 ParticleSystem::ParticleSystem(NESOReaderSharedPtr session,
                                SD::MeshGraphSharedPtr graph, MPI_Comm comm)
-    : PartSysBase(session, graph, comm), simulation_time(0.0) {};
+    : PartSysBase(session, graph, comm), simulation_time(0.0),
+      size(this->sycl_target->comm_pair.size_parent),
+      rank(this->sycl_target->comm_pair.rank_parent) {};
 
 void ParticleSystem::set_up_species()
 {
@@ -18,6 +20,7 @@ void ParticleSystem::set_up_species()
     int seed;
 
     this->config->load_parameter("particle_position_seed", seed, std::rand());
+    this->rng_phasespace = std::mt19937(seed + this->rank);
     double particle_B_scaling;
     this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
 
@@ -27,8 +30,7 @@ void ParticleSystem::set_up_species()
     double particle_velocity_B_scaling;
     this->config->load_parameter("particle_velocity_B_scaling",
                                  particle_velocity_B_scaling, 0.0);
-    const long rank = this->sycl_target->comm_pair.rank_parent;
-    std::mt19937 rng_phasespace(seed + rank);
+
     for (const auto &[k, v] : this->config->get_particle_species())
     {
         std::string name = std::get<0>(v);
@@ -36,16 +38,47 @@ void ParticleSystem::set_up_species()
         this->config->load_particle_species_parameter(k, "Mass", particle_mass);
         this->config->load_particle_species_parameter(k, "Charge",
                                                       particle_charge);
-        int particle_number = this->config->get_particle_species_initial_N(k);
+        long particle_number = this->config->get_particle_species_initial_N(k);
 
         if (particle_number > 0)
         {
             std::vector<std::vector<double>> positions, velocities;
             std::vector<int> cells;
-            auto neqn = this->config->get_particle_species_initial(k, "n");
-            rng_phasespace =
-                dist_within_extents(this->graph, neqn, 0, particle_number,
-                                    positions, cells, 1.0e-10, rng_phasespace);
+            auto initial = this->config->get_particle_species_initial(k);
+            if (auto v = initial.find(std::pair("n", 0)); v != initial.end())
+            {
+                rng_phasespace = dist_within_extents(
+                    this->graph, v->second.m_expression, 0, particle_number,
+                    positions, cells, 1.0e-10, this->rng_phasespace);
+            }
+            else // Point source
+            {
+                long rstart, rend;
+                get_decomp_1d(this->size, particle_number, this->rank, &rstart,
+                              &rend);
+                const long local_particle_number = rend - rstart;
+
+                double x =
+                    initial.at(std::pair("X", 0)).m_expression->Evaluate();
+
+                double y =
+                    initial.at(std::pair("Y", 0)).m_expression->Evaluate();
+
+                positions.emplace_back(
+                    std::vector<double>(local_particle_number, x));
+
+                positions.emplace_back(
+                    std::vector<double>(local_particle_number, y));
+                cells = std::vector<int>(local_particle_number, 0);
+
+                if (ndim == 3)
+                {
+                    double z =
+                        initial.at(std::pair("Z", 0)).m_expression->Evaluate();
+                    positions.emplace_back(
+                        std::vector<double>(local_particle_number, z));
+                }
+            }
             // auto veqn  = this->config->get_species_initial(k, "v");
             int N         = cells.size();
             int id_offset = 0;
@@ -56,7 +89,7 @@ void ParticleSystem::set_up_species()
 
                 velocities = NESO::Particles::normal_distribution(
                     N, this->ndim, 0.0, particle_thermal_velocity,
-                    rng_phasespace);
+                    this->rng_phasespace);
                 ParticleSet initial_distribution(
                     N, this->particle_group->get_particle_spec());
 
@@ -116,13 +149,22 @@ void ParticleSystem::set_up_species()
     set_up_boundaries();
 }
 
+template <typename RNG>
+inline std::vector<double> gamma_distribution(const int N, const double alpha,
+                                              const double beta, RNG &rng)
+{
+    std::gamma_distribution<> d{alpha, beta};
+    std::vector<double> array(N);
+    for (int px = 0; px < N; px++)
+    {
+        array[px] = d(rng);
+    }
+
+    return array;
+}
+
 void ParticleSystem::add_sources(double time, double dt)
 {
-    // get seed from file
-    std::srand(std::time(nullptr));
-    int seed;
-
-    this->config->load_parameter("particle_position_seed", seed, std::rand());
     double particle_B_scaling;
     this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
 
@@ -133,7 +175,6 @@ void ParticleSystem::add_sources(double time, double dt)
     this->config->load_parameter("particle_velocity_B_scaling",
                                  particle_velocity_B_scaling, 0.0);
     const long rank = this->sycl_target->comm_pair.rank_parent;
-    std::mt19937 rng_phasespace(seed + rank);
 
     for (const auto &[k, v] : this->config->get_particle_species())
     {
@@ -144,32 +185,34 @@ void ParticleSystem::add_sources(double time, double dt)
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
-            long particle_number = source.first;
+            long particle_number = std::get<0>(source);
+            auto &vmap           = std::get<3>(source);
             if (particle_number > 0)
             {
                 std::vector<std::vector<double>> positions, velocities;
                 std::vector<int> cells;
-                if (auto v = source.second.find(std::pair("n", 0));
-                    v != source.second.end()) // Diffuse source
+                if (std::get<1>(source) ==
+                    ParticleSourceType::eBulk) // Diffuse source
                 {
-                    rng_phasespace =
-                        dist_within_extents(this->graph, v->second.m_expression,
-                                            time, particle_number, positions,
-                                            cells, 1.0e-10, rng_phasespace);
+                    auto v         = vmap.find(std::pair("n", 0));
+                    rng_phasespace = dist_within_extents(
+                        this->graph, v->second.m_expression, time,
+                        particle_number, positions, cells, 1.0e-10,
+                        this->rng_phasespace);
                 }
-                else // Point source
+                else if (std::get<1>(source) ==
+                         ParticleSourceType::ePoint) // Point source
                 {
                     long rstart, rend;
-                    const long size = this->sycl_target->comm_pair.size_parent;
-                    const long rank = this->sycl_target->comm_pair.rank_parent;
-                    get_decomp_1d(size, particle_number, rank, &rstart, &rend);
+                    get_decomp_1d(this->size, particle_number, this->rank,
+                                  &rstart, &rend);
                     const long local_particle_number = rend - rstart;
 
-                    double x = source.second.at(std::pair("X", 0))
-                                   .m_expression->Evaluate();
+                    double x =
+                        vmap.at(std::pair("X", 0)).m_expression->Evaluate();
 
-                    double y = source.second.at(std::pair("Y", 0))
-                                   .m_expression->Evaluate();
+                    double y =
+                        vmap.at(std::pair("Y", 0)).m_expression->Evaluate();
 
                     positions.emplace_back(
                         std::vector<double>(local_particle_number, x));
@@ -180,11 +223,15 @@ void ParticleSystem::add_sources(double time, double dt)
 
                     if (ndim == 3)
                     {
-                        double z = source.second.at(std::pair("Z", 0))
-                                       .m_expression->Evaluate();
+                        double z =
+                            vmap.at(std::pair("Z", 0)).m_expression->Evaluate();
                         positions.emplace_back(
                             std::vector<double>(local_particle_number, z));
                     }
+                }
+                else if (std::get<1>(source) == ParticleSourceType::eSurface)
+                {
+                    int br = *std::get<2>(source);
                 }
 
                 int N         = cells.size();
@@ -193,46 +240,92 @@ void ParticleSystem::add_sources(double time, double dt)
                                   this->sycl_target->comm));
                 if (N > 0)
                 {
-                    if (auto v = source.second.find(std::pair("VX", 0));
-                        v != source.second.end())
+                    for (int d = 0; d < ndim; ++d)
                     {
-                        double vx = v->second.m_expression->Evaluate();
-                        velocities.emplace_back(std::vector<double>(N, vx));
+                        velocities.emplace_back(std::vector<double>(N));
                     }
-                    else
+                    if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                     {
-                        velocities.emplace_back(
-                            NESO::Particles::normal_distribution(
-                                N, 1, 0.0, particle_thermal_velocity,
-                                rng_phasespace)[0]);
-                    }
-                    if (auto v = source.second.find(std::pair("VY", 0));
-                        v != source.second.end())
-                    {
-                        double vy = v->second.m_expression->Evaluate();
-                        velocities.emplace_back(std::vector<double>(N, vy));
-                    }
-                    else
-                    {
-                        velocities.emplace_back(
-                            NESO::Particles::normal_distribution(
-                                N, 1, 0.0, particle_thermal_velocity,
-                                rng_phasespace)[0]);
-                    }
-                    if (this->ndim == 3)
-                    {
-                        if (auto v = source.second.find(std::pair("VZ", 0));
-                            v != source.second.end())
+                        double T = v->second.m_expression->Evaluate();
+
+                        std::normal_distribution normal(
+                            0., std::sqrt(T / particle_mass));
+
+                        for (int d = 0; d < ndim; ++d)
                         {
-                            double vz = v->second.m_expression->Evaluate();
-                            velocities.emplace_back(std::vector<double>(N, vz));
+                            for (int p = 0; p < N; ++p)
+                            {
+                                velocities[d][p] = normal(this->rng_phasespace);
+                            }
+                        }
+                    }
+                    else if (auto v = vmap.find(std::pair("Tin", 0));
+                             v != vmap.end())
+                    {
+                        double T = v->second.m_expression->Evaluate();
+
+                        std::uniform_real_distribution u(-1.0, 1.0);
+                        std::gamma_distribution mb(1.5, T);
+
+                        for (int p = 0; p < N; ++p)
+                        {
+                            double energy = mb(this->rng_phasespace);
+                            double speed =
+                                std::sqrt(2 * energy / particle_mass);
+                            // inverse transform sampling
+                            velocities[1][p] =
+                                speed * 2 * std::asin(u(this->rng_phasespace)) /
+                                M_PI;
+                            velocities[0][p] =
+                                -std::sqrt(speed * speed -
+                                           velocities[1][p] * velocities[1][p]);
+                        }
+                    }
+
+                    else // Explicit velocities
+                    {
+                        if (auto v = vmap.find(std::pair("VX", 0));
+                            v != vmap.end())
+                        {
+                            double vx = v->second.m_expression->Evaluate();
+                            velocities.emplace_back(std::vector<double>(N, vx));
                         }
                         else
                         {
                             velocities.emplace_back(
                                 NESO::Particles::normal_distribution(
                                     N, 1, 0.0, particle_thermal_velocity,
-                                    rng_phasespace)[0]);
+                                    this->rng_phasespace)[0]);
+                        }
+                        if (auto v = vmap.find(std::pair("VY", 0));
+                            v != vmap.end())
+                        {
+                            double vy = v->second.m_expression->Evaluate();
+                            velocities.emplace_back(std::vector<double>(N, vy));
+                        }
+                        else
+                        {
+                            velocities.emplace_back(
+                                NESO::Particles::normal_distribution(
+                                    N, 1, 0.0, particle_thermal_velocity,
+                                    this->rng_phasespace)[0]);
+                        }
+                        if (this->ndim == 3)
+                        {
+                            if (auto v = vmap.find(std::pair("VZ", 0));
+                                v != vmap.end())
+                            {
+                                double vz = v->second.m_expression->Evaluate();
+                                velocities.emplace_back(
+                                    std::vector<double>(N, vz));
+                            }
+                            else
+                            {
+                                velocities.emplace_back(
+                                    NESO::Particles::normal_distribution(
+                                        N, 1, 0.0, particle_thermal_velocity,
+                                        this->rng_phasespace)[0]);
+                            }
                         }
                     }
                     ParticleSet src_distribution(
@@ -279,7 +372,7 @@ void ParticleSystem::add_sources(double time, double dt)
                     }
 
                     this->particle_group->add_particles_local(src_distribution);
-                    this->total_num_particles_added += N;
+                    this->total_num_particles_added += particle_number;
                 }
             }
         }
@@ -296,13 +389,6 @@ void ParticleSystem::add_sources(double time, double dt)
 
 void ParticleSystem::add_sinks(double time, double dt)
 {
-    // get seed from file
-    std::srand(std::time(nullptr));
-    int seed;
-
-    const long rank = this->sycl_target->comm_pair.rank_parent;
-    std::mt19937 rng_phasespace(seed + rank);
-
     std::uniform_real_distribution<> rng_dist(0, 1);
 
     Array<OneD, Array<OneD, NekDouble>> posarr(3);
@@ -367,7 +453,8 @@ void ParticleSystem::add_sinks(double time, double dt)
                                   ->cell_dat.get_cell(cellx);
                     for (int rowx = 0; rowx < nrow; rowx++)
                     {
-                        if (eqnarr[particle_index] > rng_dist(rng_phasespace) &&
+                        if (eqnarr[particle_index] >
+                                rng_dist(this->rng_phasespace) &&
                             k == (*is)[0][rowx])
                         {
                             (*id)[0][rowx] = particle_remove_key;
@@ -387,7 +474,9 @@ void ParticleSystem::set_up_boundaries()
 {
     auto store = std::make_shared<ParameterStore>();
     store->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",
-                     1.0e-6);
+                     1.0e-3);
+    store->set<REAL>("CompositeIntersection/newton_tol", 1.0e-8);
+    store->set<REAL>("CompositeIntersection/line_intersection_tol", 1.0e-10);
     auto mesh = std::make_shared<ParticleMeshInterface>(this->graph);
 
     std::vector<int> reflection_composites;
@@ -402,30 +491,6 @@ void ParticleSystem::set_up_boundaries()
     this->reflection = std::make_shared<NektarCompositeTruncatedReflection>(
         Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target, mesh,
         reflection_composites, store);
-
-    // for (auto &[k, v] : this->get_species())
-    // {
-    //     std::cout << "Setup\n";
-
-    //     for (auto &[sk, sv] : this->config->get_particle_species_boundary(k))
-    //     {
-    //         if (sv == ParticleBoundaryConditionType::eReflective)
-    //         {
-    //             std::cout << "Composites\n";
-
-    //             v.reflection_composites.push_back(sk);
-    //         }
-    //     }
-    //     if (!v.reflection_composites.empty())
-    //     {
-    //         std::cout << "Reflection\n";
-
-    //         v.reflection =
-    //         std::make_shared<NektarCompositeTruncatedReflection>(
-    //             Sym<REAL>("VELOCITY"), Sym<REAL>("TSP"), this->sycl_target,
-    //             mesh, v.reflection_composites, store);
-    //     }
-    // }
 }
 
 } // namespace NESO::Solvers::tokamak

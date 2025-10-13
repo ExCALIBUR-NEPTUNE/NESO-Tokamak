@@ -50,7 +50,7 @@ class ImplicitHelper
 {
 public:
     ImplicitHelper(LibUtilities::SessionReaderSharedPtr session,
-                   Array<OneD, MultiRegions::ExpListSharedPtr> fields,
+                   Array<OneD, MultiRegions::ExpListSharedPtr>& fields,
                    LibUtilities::TimeIntegrationSchemeOperators &ode,
                    int nFields)
         : m_session(session), m_fields(fields), m_ode(ode), m_nFields(nFields)
@@ -90,7 +90,7 @@ public:
         }
     }
 
-    void InitialiseNonlinSysSolver()
+    void InitialiseNonlinSysSolver(bool coeff = false)
     {
         int ntotal = m_nFields * m_fields[0]->GetNpoints();
 
@@ -100,11 +100,12 @@ public:
         // Load required LinSys parameters:
         m_session->LoadParameter("NekLinSysMaxIterations",
                                  key.m_NekLinSysMaxIterations, 30);
-        m_session->LoadParameter("LinSysMaxStorage", key.m_LinSysMaxStorage, 30);
+        m_session->LoadParameter("LinSysMaxStorage", key.m_LinSysMaxStorage,
+                                 30);
         m_session->LoadParameter("LinSysRelativeTolInNonlin",
                                  key.m_NekLinSysTolerance, 5.0E-2);
-        m_session->LoadParameter("GMRESMaxHessMatBand", key.m_KrylovMaxHessMatBand,
-                                 31);
+        m_session->LoadParameter("GMRESMaxHessMatBand",
+                                 key.m_KrylovMaxHessMatBand, 31);
 
         // Load required NonLinSys parameters:
         m_session->LoadParameter("JacobiFreeEps", m_jacobiFreeEps, 5.0E-8);
@@ -122,10 +123,20 @@ public:
 
         // Set up operators
         LibUtilities::NekSysOperators nekSysOp;
-        nekSysOp.DefineNekSysResEval(&ImplicitHelper::NonlinSysEvaluator1D,
-                                     this);
-        nekSysOp.DefineNekSysLhsEval(&ImplicitHelper::MatrixMultiplyMatrixFree,
-                                     this);
+        if (coeff)
+        {
+            nekSysOp.DefineNekSysResEval(
+                &ImplicitHelper::NonlinSysEvaluatorCoeff1D, this);
+            nekSysOp.DefineNekSysLhsEval(
+                &ImplicitHelper::MatrixMultiplyMatrixFreeCoeff, this);
+        }
+        else
+        {
+            nekSysOp.DefineNekSysResEval(&ImplicitHelper::NonlinSysEvaluator1D,
+                                         this);
+            nekSysOp.DefineNekSysLhsEval(
+                &ImplicitHelper::MatrixMultiplyMatrixFree, this);
+        }
         nekSysOp.DefineNekSysPrecon(&ImplicitHelper::DoNullPrecon, this);
 
         // Initialize non-linear system
@@ -136,7 +147,7 @@ public:
 
 protected:
     // Implicit solver parameters
-    int m_nFields = 0;
+    int m_nFields               = 0;
     int m_TotNewtonIts          = 0;
     int m_TotLinIts             = 0;
     int m_TotImpStages          = 0;
@@ -157,7 +168,8 @@ protected:
     {
         CalcRefValues(inarray);
         m_nonlinsol->SetRhsMagnitude(m_inArrayNorm);
-        m_TotNewtonIts += m_nonlinsol->SolveSystem(inarray.size(), inarray, out, 0);
+        m_TotNewtonIts +=
+            m_nonlinsol->SolveSystem(inarray.size(), inarray, out, 0);
         m_TotLinIts += m_nonlinsol->GetNtotLinSysIts();
         m_TotImpStages++;
     }
@@ -219,7 +231,51 @@ protected:
             Vmath::Svtvp(npoints, -m_TimeIntegLambda, out[i], 1, inarray[i], 1,
                          out[i], 1);
             Vmath::Vsub(npoints, out[i], 1,
-                        m_nonlinsol->GetRefSourceVec() + i * npoints, 1, out[i], 1);
+                        m_nonlinsol->GetRefSourceVec() + i * npoints, 1, out[i],
+                        1);
+        }
+    }
+    void NonlinSysEvaluatorCoeff1D(const Array<OneD, const NekDouble> &inarray,
+                                   Array<OneD, NekDouble> &out,
+                                   [[maybe_unused]] const bool &flag)
+    {
+        unsigned int ncoeffs = m_fields[0]->GetNcoeffs();
+        Array<OneD, Array<OneD, NekDouble>> in2D(m_nFields);
+        Array<OneD, Array<OneD, NekDouble>> out2D(m_nFields);
+        for (int i = 0; i < m_nFields; ++i)
+        {
+            int offset = i * ncoeffs;
+            in2D[i]    = inarray + offset;
+            out2D[i]   = out + offset;
+        }
+
+        NonlinSysEvaluatorCoeff(in2D, out2D);
+    }
+
+    void NonlinSysEvaluatorCoeff(
+        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+        Array<OneD, Array<OneD, NekDouble>> &out)
+    {
+        unsigned int ncoeffs = m_fields[0]->GetNcoeffs();
+        unsigned int npoints = m_fields[0]->GetNpoints();
+
+        Array<OneD, Array<OneD, NekDouble>> inpnts(m_nFields);
+
+        for (int i = 0; i < m_nFields; ++i)
+        {
+            inpnts[i] = Array<OneD, NekDouble>(npoints, 0.0);
+            m_fields[i]->BwdTrans(inarray[i], inpnts[i]);
+        }
+
+        m_ode.DoProjection(inpnts, inpnts, m_bndEvaluateTime);
+        m_ode.DoOdeRhs(inpnts, out, m_bndEvaluateTime);
+        for (int i = 0; i < m_nFields; ++i)
+        {
+            Vmath::Svtvp(ncoeffs, -m_TimeIntegLambda, out[i], 1, inarray[i], 1,
+                         out[i], 1);
+            Vmath::Vsub(ncoeffs, out[i], 1,
+                        m_nonlinsol->GetRefSourceVec() + i * ncoeffs, 1, out[i],
+                        1);
         }
     }
 
@@ -227,8 +283,10 @@ protected:
                                   Array<OneD, NekDouble> &out,
                                   [[maybe_unused]] const bool &flag)
     {
-        const Array<OneD, const NekDouble> solref = m_nonlinsol->GetRefSolution();
-        const Array<OneD, const NekDouble> resref = m_nonlinsol->GetRefResidual();
+        const Array<OneD, const NekDouble> solref =
+            m_nonlinsol->GetRefSolution();
+        const Array<OneD, const NekDouble> resref =
+            m_nonlinsol->GetRefResidual();
 
         unsigned int ntotal   = inarray.size();
         NekDouble magninarray = Vmath::Dot(ntotal, inarray, inarray);
@@ -242,6 +300,31 @@ protected:
 
         Vmath::Svtvp(ntotal, eps, inarray, 1, solref, 1, solplus, 1);
         NonlinSysEvaluator1D(solplus, resplus, flag);
+        Vmath::Vsub(ntotal, resplus, 1, resref, 1, out, 1);
+        Vmath::Smul(ntotal, 1.0 / eps, out, 1, out, 1);
+    }
+
+    void MatrixMultiplyMatrixFreeCoeff(
+        const Array<OneD, const NekDouble> &inarray,
+        Array<OneD, NekDouble> &out, [[maybe_unused]] const bool &flag)
+    {
+        const Array<OneD, const NekDouble> solref =
+            m_nonlinsol->GetRefSolution();
+        const Array<OneD, const NekDouble> resref =
+            m_nonlinsol->GetRefResidual();
+
+        unsigned int ntotal   = inarray.size();
+        NekDouble magninarray = Vmath::Dot(ntotal, inarray, inarray);
+        m_comm->GetSpaceComm()->AllReduce(magninarray,
+                                          Nektar::LibUtilities::ReduceSum);
+        NekDouble eps =
+            m_jacobiFreeEps * sqrt((sqrt(m_inArrayNorm) + 1.0) / magninarray);
+
+        Array<OneD, NekDouble> solplus{ntotal};
+        Array<OneD, NekDouble> resplus{ntotal};
+
+        Vmath::Svtvp(ntotal, eps, inarray, 1, solref, 1, solplus, 1);
+        NonlinSysEvaluatorCoeff1D(solplus, resplus, flag);
         Vmath::Vsub(ntotal, resplus, 1, resref, 1, out, 1);
         Vmath::Smul(ntotal, 1.0 / eps, out, 1, out, 1);
     }

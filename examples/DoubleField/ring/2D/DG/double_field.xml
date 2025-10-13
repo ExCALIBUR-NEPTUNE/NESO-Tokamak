@@ -68,7 +68,7 @@
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
                 <N VAR="n"  VALUE="0.0" />
-                <N VAR="e"  VALUE="0.0" />
+                <D VAR="e"  VALUE="0.0" />
             </REGION>
             <REGION REF="2">
                 <N VAR="n"  VALUE="0.0" />
