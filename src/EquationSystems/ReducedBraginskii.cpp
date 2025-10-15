@@ -954,6 +954,16 @@ void ReducedBraginskii::v_SetInitialConditions(NekDouble init_time,
 //     }
 // }
 
+void ReducedBraginskii::load_params()
+{
+    TokamakSystem::load_params();
+    // Type of advection to use. Default is DG.
+    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+    // Type of Riemann solver to use. Default = "Upwind"
+    m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
+                              "MultiFieldUpwind");
+}
+
 void ReducedBraginskii::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)

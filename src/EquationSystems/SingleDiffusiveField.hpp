@@ -39,9 +39,9 @@ protected:
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcDiffTensor();
+    void CalcKPar(int f);
+    void CalcKPerp(int f);
+    void CalcDiffTensor(int f);
 
     // Diffusive Flux vector
     void GetFluxVectorDiff(
@@ -62,7 +62,6 @@ protected:
         m_sVVCutoffRatio; // Cut-off ratio from which to start decaying modes
     NekDouble m_sVVDiffCoeff; // Diffusion coefficient of SVV modes
 
-    NekDouble m_k_B;
     NekDouble k_par;
     NekDouble k_perp;
     Array<OneD, NekDouble> m_kperp;

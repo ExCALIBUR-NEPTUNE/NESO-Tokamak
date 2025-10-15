@@ -61,6 +61,15 @@ protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
                   const SD::MeshGraphSharedPtr &graph);
 
+    NekDouble mesh_length; // mesh conversion to m
+    NekDouble Nnorm;       // Density normalisation to m^-3
+    NekDouble Tnorm;       // Temperature normalisation to eV
+    NekDouble Bnorm;       // B field normalisation to T
+    NekDouble omega_c;     // Reference ion gyrofrequency
+    NekDouble rho_s;       // Reference ion length scale
+    NekDouble cs;          // Reference ion sound speed
+    NekDouble me;          // Electron mass
+
     bool transient_field;
     /// Magnetic field vector
     Array<OneD, MR::DisContFieldSharedPtr> B;
@@ -75,16 +84,8 @@ protected:
     /// Electric Field
     Array<OneD, MR::DisContFieldSharedPtr> E;
 
-    /// Advection object used in the electron density equation
-    SU::AdvectionSharedPtr m_advection;
-    /// Advection type
-    std::string adv_type;
-
     /// Diffusion object used in anisotropic diffusion
     SU::DiffusionSharedPtr m_diffusion;
-
-    /// Sheath potential
-    NekDouble lambda;
 
     MR::DisContFieldSharedPtr ne;
     MR::DisContFieldSharedPtr Te;
@@ -129,11 +130,6 @@ protected:
     /// Particle timestep size.
     double part_timestep;
 
-    /// Riemann solver type (used for all advection terms)
-    std::string riemann_solver_type;
-    /// Riemann solver object used in electron advection
-    SU::RiemannSolverSharedPtr riemann_solver;
-
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
@@ -153,15 +149,12 @@ protected:
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
         std::vector<std::string> &variables) override;
     void v_DoSolve() override;
-    virtual void v_GenerateSummary(SU::SummaryList &s) override;
+
     virtual void v_InitObject(bool DeclareField) override;
     virtual bool v_PostIntegrate(int step) override;
     virtual bool v_PreIntegrate(int step) override;
     virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                         const int domain) override;
-    // virtual void v_InitBoundaryConditions() {};
-    // virtual void v_SetBoundaryConditions(
-    //     Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time);
 
     NESOSessionFunctionSharedPtr get_species_function(
         int s, std::string name,

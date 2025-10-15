@@ -47,7 +47,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
         m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
         m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff / m_epsilon;
     }
-    CalcDiffTensor();
+    // CalcDiffTensor();
 
     // Setup diffusion object
     m_ode.DefineOdeRhs(&SingleDiffusiveField::DoOdeRhs, this);
@@ -126,9 +126,9 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
             x->Apply(m_indfields, inarray, outarray, time);
         }
     }
-    CalcDiffTensor();
     for (int i = 0; i < nvariables; ++i)
     {
+        CalcDiffTensor(i);
         if (m_intScheme->GetIntegrationSchemeType() == LibUtilities::eImplicit)
         {
             // Multiply forcing term by -1 for definition of HelmSolve function
@@ -155,28 +155,38 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
     }
 }
 
-void SingleDiffusiveField::CalcKPar()
+void SingleDiffusiveField::CalcKPar(int f)
 {
     // Change to fn of fields
     int npoints     = m_fields[0]->GetNpoints();
     NekDouble k_par = this->k_par;
-    m_kpar          = Array<OneD, NekDouble>(npoints, k_par);
+    // m_session->LoadParameter("k_par", k_par, 1.0);
+    double Z;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    m_kpar = Array<OneD, NekDouble>(npoints, k_par / (Z * Z));
+    Vmath::Vdiv(npoints, m_kpar, 1, m_indfields[f]->GetPhys(), 1, m_kpar, 1);
 }
 
-void SingleDiffusiveField::CalcKPerp()
+void SingleDiffusiveField::CalcKPerp(int f)
 {
     // Change to fn of fields
     int npoints      = m_fields[0]->GetNpoints();
     NekDouble k_perp = this->k_perp;
-    m_session->LoadParameter("k_perp", k_perp, 1.0);
-    m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
+    // m_session->LoadParameter("k_perp", k_perp, 1.0);
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+    m_kperp = Array<OneD, NekDouble>(npoints, k_perp * Z * Z * std::sqrt(A));
+    Vmath::Vmul(npoints, m_kpar, 1, m_indfields[f]->GetPhys(), 1, m_kpar, 1);
+    Vmath::Vdiv(npoints, m_kpar, 1, this->mag_B, 1, m_kpar, 1);
+
 }
 
-void SingleDiffusiveField::CalcDiffTensor()
+void SingleDiffusiveField::CalcDiffTensor(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
-    CalcKPar();
-    CalcKPerp();
+    CalcKPar(f);
+    CalcKPerp(f);
     for (int i = 0; i < 3; i++)
     {
         for (int j = 0; j < 3; j++)
@@ -206,7 +216,6 @@ void SingleDiffusiveField::DoOdeRhs(
 {
     if (m_explicitDiffusion || m_projectionType == MR::eDiscontinuous)
     {
-        CalcDiffTensor();
         size_t nvariables = in_arr.size();
         m_diffusion->Diffuse(nvariables, m_indfields, in_arr, out_arr);
     }
@@ -249,6 +258,7 @@ void SingleDiffusiveField::GetFluxVectorDiff(
 
     for (unsigned int f = 0; f < nFld; ++f)
     {
+        CalcDiffTensor(f);
         for (unsigned int j = 0; j < nDim; ++j)
         {
             // Calc diffusion of n with D tensor
@@ -266,10 +276,34 @@ void SingleDiffusiveField::GetFluxVectorDiff(
 void SingleDiffusiveField::load_params()
 {
     TokamakSystem::load_params();
-    // Adiabatic gamma
-    m_session->LoadParameter("k_B", this->m_k_B);
-    m_session->LoadParameter("k_par", this->k_par, 100.0);
-    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+    NekDouble epsilon_0, m_e, c, k_c, lambda, T_bg;
+
+    m_session->LoadParameter("epsilon_0", epsilon_0);
+    m_session->LoadParameter("m_e", m_e);
+    m_session->LoadParameter("c", c);
+    m_session->LoadParameter("k_c", k_c);
+    m_session->LoadParameter("lambda", lambda);
+    m_session->LoadParameter("T_bg", T_bg);
+
+    k_par = 6.0 * k_c * (sqrt(2.0 * pow(M_PI, 3)) / lambda) * epsilon_0 *
+            epsilon_0 * c * pow(T_bg, 2.5) / sqrt(m_e);
+    // Correct for microns in epsilon_0 and density scale
+    k_par *= 1e12 / this->Nnorm;
+    // Convert to solver length and time scale
+    k_par /= (this->omega_c * this->mesh_length * this->mesh_length);
+    // multiply k_par by Z^-2 n^-1 in solver
+    std::cout << "k_par = " << k_par << "\n";
+
+    NekDouble m_p;
+    m_session->LoadParameter("m_p", m_p);
+    NekDouble e = 1.602176634e-19;
+    m_session->LoadParameter("epsilon_0_si", epsilon_0);
+    k_perp = lambda / (6.0 * sqrt(T_bg * pow(M_PI, 3.0))) * (sqrt(m_p) / c) *
+             pow((e / epsilon_0), 2);
+    k_perp *= this->Nnorm;
+    k_perp /= (this->omega_c * this->mesh_length * this->mesh_length);
+    // multiply k_perp by A^0.5 Z^2 n B^-1 in solver
+    std::cout << "k_perp = " << k_perp << "\n";
 }
 
 void SingleDiffusiveField::v_ExtraFldOutput(

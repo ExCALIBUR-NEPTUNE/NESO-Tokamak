@@ -22,7 +22,16 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 0.1               </P>
+            <!-- Conversion of mesh unit to m -->
+            <P> mesh_length = 1</P> 
+            <!-- Normalised temperature in eV -->
+            <P> Tnorm = 1</P>
+            <!-- Normalised density in m^-3 -->
+            <P> Nnorm = 1e18</P>
+            <!-- Normalised magnetic field in T -->
+            <P> Bnorm = 1.0</P>
+            <!-- Time step in cyclotron units -->
+            <P> TimeStep       = 50               </P>
             <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 1                </P>
