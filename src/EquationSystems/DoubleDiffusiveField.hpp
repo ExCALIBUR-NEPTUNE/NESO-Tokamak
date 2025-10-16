@@ -42,8 +42,13 @@ protected:
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
 
-    void CalcKPar(int f);
-    void CalcKPerp(int f);
+    void CalcKPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappaPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
+                       int f);
+    void CalcKappaPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
+    void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -61,6 +66,15 @@ protected:
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
+private:
+    std::vector<int> ni_idx;
+    std::vector<int> pi_idx;
+
+    int pe_idx;
+
+    std::vector<int> ni_src_idx;
+    std::vector<int> pi_src_idx;
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
     NekDouble m_epsilon;
@@ -72,13 +86,13 @@ protected:
 
     NekDouble k_par;
     NekDouble k_perp;
+    NekDouble k_ci;
+    NekDouble k_ce;
 
-    std::vector<Array<OneD, NekDouble>> m_kperp;
-    std::vector<Array<OneD, NekDouble>> m_kpar;
-    // StdRegions::VarCoeffMap m_D;
-    std::vector<StdRegions::VarCoeffMap> m_D;
+    Array<OneD, NekDouble> m_kperp;
+    Array<OneD, NekDouble> m_kpar;
+    StdRegions::VarCoeffMap m_D;
 
-    NekDouble m_k_B;
     VariableConverterSharedPtr m_varConv;
 };
 

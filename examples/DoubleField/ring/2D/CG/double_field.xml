@@ -15,19 +15,18 @@
             <I PROPERTY="EQTYPE"                       VALUE="DoubleDiffusiveField"/>
             <I PROPERTY="Projection"                   VALUE="Continuous" />
             <I PROPERTY="GlobalSysSoln"                VALUE="XxtMultiLevelStaticCond"/>
-            <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
+            <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
+            <I PROPERTY="DiffusionAdvancement"         VALUE="Implicit"/>
         </SOLVERINFO>
 
         <TIMEINTEGRATIONSCHEME>
-            <METHOD> DIRK </METHOD>
+            <METHOD> IMEX </METHOD>
             <ORDER> 2 </ORDER>
         </TIMEINTEGRATIONSCHEME>
 
         <GLOBALSYSSOLNINFO>
             <V VAR="u">
                 <I PROPERTY="GlobalSysSoln"             VALUE="XxtMultiLevelStaticCond"/>
-                <!-- <I PROPERTY="GlobalSysSoln"         VALUE="IterativeMultiLevelStaticCond" /> -->
-                <!-- <I PROPERTY="GlobalSysSoln"         VALUE="IterativeFull"    /> -->
                 <I PROPERTY="LinSysIterSolver"          VALUE="GMRES"/>
                 <I PROPERTY="Preconditioner"            VALUE="Diagonal"        />
                 <I PROPERTY="MaxIterations"             VALUE="1000"/>
@@ -37,22 +36,36 @@
         </GLOBALSYSSOLNINFO>
 
         <PARAMETERS>
-            <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.0005            </P>
-            <P> NumSteps      = 20              </P>
+            <!-- Conversion of mesh unit to m -->
+            <P> mesh_length = 1 </P> 
+            <!-- Normalised temperature in eV -->
+            <P> Tnorm = 1 </P>
+            <!-- Normalised density in m^-3 -->
+            <P> Nnorm = 1e18 </P>
+            <!-- Normalised magnetic field in T -->
+            <P> Bnorm = 1.0 </P>
+            <!-- Time step in gyro times -->
+            <P> TimeStep = 10 </P>
+            <P> NumSteps = 100 </P>
             <P> TFinal        = NumSteps*TimeStep </P>
-            <P> IO_InfoSteps  = 10     </P>
-            <P> IO_CheckSteps = 10     </P>
-            <P> particle_output_freq = 1          </P>
+            <P> IO_CheckSteps  = 10                </P>
+            <P> IO_InfoSteps   = 10                </P>
 
-            <P> epsilon         = 1.0   </P>
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 1e-6   </P>
-            <P> TCore           = 300.0 </P>
-            <P> T_bnd            = 1.0 </P>
-            <P> k_B             = 1.0 </P>
-            <P> m_i             = 1.0 </P>
+            <P> particle_output_freq = 1          </P>
+            <!-- Electron mass in eV/c -->
+            <P> m_e = 0.51099895069e+6 </P>
+            <P> m_p = 938.272089e+6       </P>
+            <P> c   = 299792458        </P>
+
+            <!-- epsilon_0 in e^2 eV^-1 um^-1 -->
+            <P> epsilon_0 = 55.26349406 </P>
+            <P> epsilon_0_si = 8.8541878188e-12 </P>
+            <!-- Coulomb logarithm -->
+            <P> lambda    = 13          </P>
+            <P> k_ce       = 3.16        </P>
+            <P> k_ci       = 3.9        </P>
+            <!-- Background temperature in Tnorm eV -->
+            <P> T_bg      = 10         </P>
 
             <!-- Scaling factor for ICs -->
             <P> rc = 2 </P>
@@ -63,13 +76,11 @@
             <P> sy = 0.1 </P>
             
             <!-- Implicit solve params -->
-            <P> IterativeSolverTolerance  = 1.0E-12  </P>
-            <P> NekNonlinSysMaxIterations = 100       </P>
-            <P> NewtonRelativeIteTol      = 1.0E-12  </P>
-            <P> NonlinIterTolRelativeL2   = 1.0E-12  </P>
+            <P> IterativeSolverTolerance  = 1.0E-6  </P>
+            <P> NekNonlinSysMaxIterations = 30       </P>
+            <P> NewtonRelativeIteTol      = 1.0E-10  </P>
+            <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
-
-            <P> num_particles_total = 1 </P>
         </PARAMETERS>
 
         <VARIABLES>

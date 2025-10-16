@@ -144,7 +144,7 @@ protected:
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
     void SetBoundaryConditions(NekDouble time);
-    void SetBoundaryConditionsBwdWeight();
+
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
         std::vector<std::string> &variables) override;

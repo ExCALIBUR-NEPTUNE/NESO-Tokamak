@@ -35,20 +35,30 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
+    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
+        m_session, m_spacedim, m_graph);
 
     this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
     this->Te = MemoryManager<MR::DisContField>::AllocateSharedPtr(*ne);
-    for (int d = 0; d < m_spaceDim; ++d)
+
+    pe_idx = 2 * this->n_species;
+    int s  = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        this->ve[d] = this->B[d];
+        ni_idx.push_back(2 * s);
+        pi_idx.push_back(1 + 2 * s);
+
+        double charge, mass;
+        this->neso_config->load_species_parameter(k, "Charge", charge);
+        this->neso_config->load_species_parameter(k, "Mass", mass);
+        m_varConv->charge[s] = charge;
+        m_varConv->mass[s]   = mass;
+        s++;
     }
 
     m_session->MatchSolverInfo("SpectralVanishingViscosity", "True",
                                m_useSpecVanVisc, false);
     m_session->LoadParameter("epsilon", m_epsilon, 1.0);
-    m_D     = std::vector<StdRegions::VarCoeffMap>(m_indfields.size());
-    m_kpar  = std::vector<Array<OneD, NekDouble>>(m_indfields.size());
-    m_kperp = std::vector<Array<OneD, NekDouble>>(m_indfields.size());
 
     // Setup diffusion object
 
@@ -59,7 +69,6 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
         m_factors[StdRegions::eFactorSVVCutoffRatio] = m_sVVCutoffRatio;
         m_factors[StdRegions::eFactorSVVDiffCoeff] = m_sVVDiffCoeff / m_epsilon;
     }
-    CalcDiffTensor();
 
     m_ode.DefineOdeRhs(&DoubleDiffusiveField::DoOdeRhs, this);
 
@@ -204,7 +213,7 @@ void DoubleDiffusiveField::ImplicitTimeIntCG(
                         outarray[i], 1);
         }
         m_indfields[i]->HelmSolve(outarray[i], m_indfields[i]->UpdateCoeffs(),
-                                  m_factors, m_D[i]);
+                                  m_factors, m_D);
 
         m_indfields[i]->BwdTrans(m_indfields[i]->GetCoeffs(), outarray[i]);
     }
@@ -228,21 +237,79 @@ void DoubleDiffusiveField::ImplicitTimeIntCG(
     }
 }
 
-void DoubleDiffusiveField::CalcKPar(int f)
+void DoubleDiffusiveField::CalcKPar(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f)
 {
-    // Change to fn of fields
-    int npoints     = m_fields[0]->GetNpoints();
-    NekDouble k_par = this->k_par;
-    m_kpar[f]       = Array<OneD, NekDouble>(npoints, k_par);
+    int npoints = m_fields[0]->GetNpoints();
+    double Z;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+
+    for (int p = 0; p < npoints; ++p)
+    {
+        m_kpar[p] = this->k_ci * this->k_par * pow(in_arr[pi_idx[f]][p], 2.5) /
+                    (Z * Z * in_arr[ni_idx[f]][p]);
+    }
 }
 
-void DoubleDiffusiveField::CalcKPerp(int f)
+void DoubleDiffusiveField::CalcKPerp(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+
+    for (int p = 0; p < npoints; ++p)
+    {
+        m_kperp[p] = this->k_perp * Z * Z * std::sqrt(A) *
+                     in_arr[ni_idx[f]][p] /
+                     (sqrt(in_arr[pi_idx[f]][p]) * this->mag_B[p]);
+    }
+}
+
+void DoubleDiffusiveField::CalcKappaPar(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+    for (int p = 0; p < npoints; ++p)
+    {
+        m_kpar[p] = this->k_ci * this->k_par * sqrt(this->me) *
+                    pow(in_arr[pi_idx[f]][p], 2.5) / (sqrt(A) * Z * Z);
+    }
+}
+
+void DoubleDiffusiveField::CalcKappaPerp(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+    for (int p = 0; p < npoints; ++p)
+    {
+        m_kperp[p] = this->k_perp * Z * Z * std::sqrt(A) *
+                     in_arr[ni_idx[f]][p] /
+                     (sqrt(in_arr[pi_idx[f]][p]) * this->mag_B[p]);
+    }
+}
+void DoubleDiffusiveField::CalcKappaPar(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    m_kpar      = Array<OneD, NekDouble>(npoints, k_par);
+    m_kpar      = Array<OneD, NekDouble>(npoints, this->k_ce * this->k_par);
+}
+
+void DoubleDiffusiveField::CalcKappaPerp(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr)
 {
     // Change to fn of fields
     int npoints      = m_fields[0]->GetNpoints();
     NekDouble k_perp = this->k_perp;
-    m_session->LoadParameter("k_perp", k_perp, 1.0);
-    m_kperp[f] = Array<OneD, NekDouble>(npoints, k_perp);
+    m_kperp          = Array<OneD, NekDouble>(npoints, k_perp);
 }
 
 void DoubleDiffusiveField::CalcDiffTensor()
@@ -250,29 +317,22 @@ void DoubleDiffusiveField::CalcDiffTensor()
     int npoints    = m_fields[0]->GetNpoints();
     int nvariables = m_indfields.size();
 
-    for (int f = 0; f < nvariables; ++f)
+    for (int i = 0; i < 3; i++)
     {
-        CalcKPar(f);
-        CalcKPerp(f);
-        for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
         {
-            for (int j = 0; j < 3; j++)
+            Array<OneD, NekDouble> d(npoints, 0.0);
+
+            for (int k = 0; k < npoints; k++)
             {
-                Array<OneD, NekDouble> d(npoints, 0.0);
+                d[k] = (m_kpar[k] - m_kperp[k]) * b_unit[i][k] * b_unit[j][k];
 
-                for (int k = 0; k < npoints; k++)
+                if (i == j)
                 {
-                    d[k] = (m_kpar[f][k] - m_kperp[f][k]) * b_unit[i][k] *
-                           b_unit[j][k];
-
-                    if (i == j)
-                    {
-                        d[k] += m_kperp[f][k];
-                    }
+                    d[k] += m_kperp[k];
                 }
-
-                m_D[f][vc[i][j]] = d;
             }
+            m_D[vc[i][j]] = d;
         }
     }
 }
@@ -286,6 +346,8 @@ void DoubleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
     Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time)
 {
+    m_varConv->GetElectronDensity(in_arr, m_fields[0]->UpdatePhys());
+
     if (m_explicitDiffusion || m_projectionType == MR::eDiscontinuous)
     {
         int nPts          = GetNpoints();
@@ -327,7 +389,6 @@ void DoubleDiffusiveField::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
     const Array<OneD, Array<OneD, NekDouble>> &pBwd)
 {
-    CalcDiffTensor();
 
     size_t nvariables = inarray.size();
     size_t npointsIn  = GetNpoints();
@@ -353,10 +414,22 @@ void DoubleDiffusiveField::DoDiffusion(
         inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
         inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
     }
-    Vmath::Vcopy(npointsIn, inarray[0], 1, inarrayDiff[0], 1);
 
     // Extract temperature
-    m_varConv->GetElectronTemperature(inarray, inarrayDiff[1]);
+    m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
+
+    int s = 0;
+    double mass;
+
+    for (const auto &[k, v] : this->neso_config->get_species())
+    {
+        Vmath::Vcopy(npointsIn, inarray[ni_idx[s]], 1, inarrayDiff[ni_idx[s]],
+                     1);
+        this->neso_config->load_species_parameter(k, "Mass", mass);
+        m_varConv->GetIonTemperature(s, mass, inarray, inarrayDiff[pi_idx[s]]);
+
+        s++;
+    }
 
     // Repeat calculation for trace space
     if (pFwd == NullNekDoubleArrayOfArray || pBwd == NullNekDoubleArrayOfArray)
@@ -366,11 +439,20 @@ void DoubleDiffusiveField::DoDiffusion(
     }
     else
     {
-        Vmath::Vcopy(npointsIn, pFwd[0], 1, inFwd[0], 1);
-        Vmath::Vcopy(npointsIn, pBwd[0], 1, inBwd[0], 1);
+        m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
+        m_varConv->GetElectronTemperature(pBwd, inBwd[pe_idx]);
+        s = 0;
+        for (const auto &[k, v] : this->neso_config->get_species())
+        {
+            this->neso_config->load_species_parameter(k, "Mass", mass);
+            Vmath::Vcopy(npointsIn, pFwd[ni_idx[s]], 1, inFwd[ni_idx[s]], 1);
+            Vmath::Vcopy(npointsIn, pBwd[ni_idx[s]], 1, inBwd[ni_idx[s]], 1);
 
-        m_varConv->GetElectronTemperature(pFwd, inFwd[1]);
-        m_varConv->GetElectronTemperature(pBwd, inBwd[1]);
+            m_varConv->GetIonTemperature(s, mass, pFwd, inFwd[pi_idx[s]]);
+            m_varConv->GetIonTemperature(s, mass, pBwd, inBwd[pi_idx[s]]);
+
+            s++;
+        }
     }
 
     m_diffusion->Diffuse(nvariables, m_fields, inarrayDiff, outarrayDiff, inFwd,
@@ -395,18 +477,54 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
     unsigned int nDim = qfield.size();
     unsigned int nFld = qfield[0].size();
     unsigned int nPts = qfield[0][0].size();
-    for (int f = 0; f < nFld; ++f)
+    int s             = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
+        CalcKPar(in_arr, k);
+        CalcKPerp(in_arr, k);
+        CalcDiffTensor();
+
         for (unsigned int j = 0; j < nDim; ++j)
         {
             // Calc diffusion of n with D tensor and n field
-            Vmath::Vmul(nPts, m_D[f][vc[j][0]].GetValue(), 1, qfield[0][f], 1,
-                        fluxes[j][f], 1);
+            Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][ni_idx[s]],
+                        1, fluxes[j][ni_idx[s]], 1);
             for (unsigned int k = 1; k < nDim; ++k)
             {
-                Vmath::Vvtvp(nPts, m_D[f][vc[j][k]].GetValue(), 1, qfield[k][f],
-                             1, fluxes[j][f], 1, fluxes[j][f], 1);
+                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1,
+                             qfield[k][ni_idx[s]], 1, fluxes[j][ni_idx[s]], 1,
+                             fluxes[j][ni_idx[s]], 1);
             }
+        }
+
+        CalcKappaPar(in_arr, k);
+        CalcKappaPerp(in_arr, k);
+        CalcDiffTensor();
+        for (unsigned int j = 0; j < nDim; ++j)
+        {
+            // Calc diffusion of n with D tensor and n field
+            Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][pi_idx[s]],
+                        1, fluxes[j][pi_idx[s]], 1);
+            for (unsigned int k = 1; k < nDim; ++k)
+            {
+                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1,
+                             qfield[k][pi_idx[s]], 1, fluxes[j][pi_idx[s]], 1,
+                             fluxes[j][pi_idx[s]], 1);
+            }
+        }
+    }
+
+    CalcKappaPar(in_arr);
+    CalcKappaPerp(in_arr);
+    CalcDiffTensor();
+    for (unsigned int j = 0; j < nDim; ++j)
+    {
+        Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][pe_idx], 1,
+                    fluxes[j][pe_idx], 1);
+        for (unsigned int k = 1; k < nDim; ++k)
+        {
+            Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1, qfield[k][pe_idx],
+                         1, fluxes[j][pe_idx], 1, fluxes[j][pe_idx], 1);
         }
     }
 }
@@ -414,11 +532,35 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
 void DoubleDiffusiveField::load_params()
 {
     TokamakSystem::load_params();
-    // Adiabatic gamma
+    NekDouble epsilon_0, m_e, c, lambda, T_bg;
 
-    m_session->LoadParameter("k_B", this->m_k_B);
-    m_session->LoadParameter("k_par", this->k_par, 100.0);
-    m_session->LoadParameter("k_perp", this->k_perp, 1.0);
+    m_session->LoadParameter("epsilon_0", epsilon_0);
+    m_session->LoadParameter("m_e", m_e);
+    m_session->LoadParameter("c", c);
+    m_session->LoadParameter("k_ci", this->k_ci, 3.9);
+    m_session->LoadParameter("k_ce", this->k_ce, 3.16);
+    m_session->LoadParameter("lambda", lambda);
+    m_session->LoadParameter("T_bg", T_bg);
+
+    k_par = 6.0 * (sqrt(2.0 * pow(M_PI, 3)) / lambda) * epsilon_0 * epsilon_0 *
+            c * pow(this->Tnorm, 2.5) / sqrt(m_e);
+    // Correct for microns in epsilon_0 and density scale
+    k_par *= 1e12 / this->Nnorm;
+    // Convert to solver length and time scale
+    k_par /= (this->omega_c * this->mesh_length * this->mesh_length);
+    // multiply k_par by Z^-2 n^-1 T^2.5 in solver
+    std::cout << "k_par = " << k_par << "\n";
+
+    NekDouble m_p;
+    m_session->LoadParameter("m_p", m_p);
+    NekDouble e = 1.602176634e-19;
+    m_session->LoadParameter("epsilon_0_si", epsilon_0);
+    k_perp = lambda / (6.0 * sqrt(this->Tnorm * pow(M_PI, 3.0))) *
+             (sqrt(m_p) / c) * pow((e / epsilon_0), 2);
+    k_perp *= this->Nnorm;
+    k_perp /= (this->omega_c * this->mesh_length * this->mesh_length);
+    // multiply k_perp by A^0.5 Z^2 n B^-1 T^-0.5 in solver
+    std::cout << "k_perp = " << k_perp << "\n";
 }
 
 void DoubleDiffusiveField::v_ExtraFldOutput(
