@@ -43,8 +43,6 @@
             <P> k_B            = 1.3807e-23         </P>
             <P> theta          = 2.0                </P>
             <P> T_bnd          = 1                  </P>
-            <!-- <P> k_par          = 19.2 * sqrt(2.0 * PI^3.0) * (1.0/sqrt(m_e)) * (epsilon_0^2.0 / e^4.0) * (((k_B * T_e)^(5.0/2.0))/((Z^2.0) * lambda)) </P> -->
-            <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
 
             <!-- Anisotropic diffusion coefficients in m^2/s -->
             <P> k_par           = 2  </P>
@@ -64,13 +62,7 @@
             <P> NewtonRelativeIteTol      = 1.0E-4  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-4  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
-            <!-- Particle system params -->
-            <!-- Total number of particles - set = 0 to turn particles off -->
-            <P> num_particles_total = 0 </P>
-            <!-- Mass of each particle -->
-            <P> particle_mass = 0.5 </P>
-            <!-- Charge of each particle -->
-            <P> particle_charge = 0.2 </P>
+
             <P> particle_output_freq = 1              </P>
         </PARAMETERS>
 

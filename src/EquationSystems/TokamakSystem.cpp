@@ -241,9 +241,9 @@ void TokamakSystem::load_params()
     m_session->LoadParameter("Tnorm", this->Tnorm, 100.);
     m_session->LoadParameter("Bnorm", this->Bnorm, 1.);
     this->me        = 1. / 1836;
-    NekDouble qeomp = 1.602176634e-19 / 1.6726219259552e-27;
-    this->cs = std::sqrt(qeomp * this->Tnorm); // Reference sound speed [m/s]
-    this->omega_c = qeomp * this->Bnorm;       // Ion cyclotron frequency [1/s]
+    
+    this->cs = std::sqrt(constants::qeomp * this->Tnorm); // Reference sound speed [m/s]
+    this->omega_c = constants::qeomp * this->Bnorm;       // Ion cyclotron frequency [1/s]
     this->rho_s = this->cs / this->omega_c; // Length scale [m]
 
     std::string transient_field_str;

@@ -10,6 +10,7 @@
 #include <nektar_interface/solver_base/partsys_base.hpp>
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
+#include "../Misc/Constants.hpp"
 
 // namespace LU = Nektar::LibUtilities;
 // namespace NP = NESO::Particles;

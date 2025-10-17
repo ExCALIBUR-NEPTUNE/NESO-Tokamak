@@ -1,9 +1,6 @@
 #ifndef TOKAMAKSYSTEM_HPP
 #define TOKAMAKSYSTEM_HPP
 
-#include "../BoundaryConditions/TokamakBndConds.hpp"
-#include "../ParticleSystems/ParticleSystem.hpp"
-
 #include "../../NESO/include/nektar_interface/solver_base/neso_session_function.hpp"
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
@@ -14,7 +11,11 @@
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
 
+#include "../BoundaryConditions/TokamakBndConds.hpp"
+#include "../ParticleSystems/ParticleSystem.hpp"
 #include "ImplicitHelper.hpp"
+#include "../Misc/Constants.hpp"
+
 #include <solvers/solver_callback_handler.hpp>
 
 using namespace Nektar;

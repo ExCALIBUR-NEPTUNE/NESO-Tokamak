@@ -30,13 +30,6 @@
             <P> particle_output_freq = 1          </P>
 
             <P> epsilon         = 1.0   </P>
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 1e-6   </P>
-            <P> TCore           = 300.0 </P>
-            <P> T_bnd            = 1.0 </P>
-            <P> k_B             = 1.0 </P>
-            <P> m_i             = 1.0 </P>
 
             <!-- Scaling factor for ICs -->
             <P> rc = 2 </P>
@@ -52,8 +45,6 @@
             <P> NewtonRelativeIteTol      = 1.0E-10  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
-
-            <P> num_particles_total = 1 </P>
         </PARAMETERS>
 
         <VARIABLES>

@@ -1,12 +1,13 @@
 #ifndef AMJUEL_HPP
 #define AMJUEL_HPP
 
-#include "reactions.hpp"
 #include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
+#include "reactions.hpp"
+#include "../Misc/Constants.hpp"
 
 namespace NESO::Solvers::tokamak
 {
@@ -15,17 +16,13 @@ struct norm
 {
     static constexpr double time        = 1.0E-4;
     static constexpr double length      = -1;
-    static constexpr double mass        = 1.66053904e-27;
-    static constexpr double charge      = 1.602176634e-19;
     static constexpr double temp        = 1.0;
-    static constexpr double temp_SI     = 11604.51812;
     static constexpr double dens        = 1e18;
     static constexpr double mass_amu    = 1.0;
-    static constexpr double mass_amu_SI = mass * mass_amu;
-    static constexpr double kB          = 1.380649e-23;
-    static inline const double vel      = std::sqrt((2 * charge) / mass);
+    static constexpr double mass_amu_SI = constants::m_p_si * mass_amu;
+    static inline const double vel      = std::sqrt((2 * constants::e) / constants::m_p_si);
     static inline const double potential_energy =
-        13.6 * 1.60217663e-19 / (mass_amu_SI * vel * vel);
+        13.6 * constants::e / (mass_amu_SI * vel * vel);
 };
 
 class AMJUEL

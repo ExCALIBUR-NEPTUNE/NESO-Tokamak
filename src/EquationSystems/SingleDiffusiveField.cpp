@@ -269,34 +269,25 @@ void SingleDiffusiveField::GetFluxVectorDiff(
 void SingleDiffusiveField::load_params()
 {
     TokamakSystem::load_params();
-    NekDouble epsilon_0, m_e, c, k_c, lambda, T_bg;
+    NekDouble k_c, lambda, T_bg;
 
-    m_session->LoadParameter("epsilon_0", epsilon_0);
-    m_session->LoadParameter("m_e", m_e);
-    m_session->LoadParameter("c", c);
     m_session->LoadParameter("k_c", k_c);
     m_session->LoadParameter("lambda", lambda);
     m_session->LoadParameter("T_bg", T_bg);
 
-    k_par = 6.0 * k_c * (sqrt(2.0 * pow(M_PI, 3)) / lambda) * epsilon_0 *
-            epsilon_0 * c * pow(this->Tnorm * T_bg, 2.5) / sqrt(m_e);
+    k_par = 6.0 * k_c * (sqrt(2.0 * pow(M_PI, 3)) / lambda) * constants::epsilon_0 *
+            constants::epsilon_0 * constants::c * pow(this->Tnorm * T_bg, 2.5) / sqrt(constants::m_e);
     // Correct for microns in epsilon_0 and density scale
     k_par *= 1e12 / this->Nnorm;
     // Convert to solver length and time scale
     k_par /= (this->omega_c * this->mesh_length * this->mesh_length);
     // multiply k_par by Z^-2 n^-1 in solver
-    std::cout << "k_par = " << k_par << "\n";
 
-    NekDouble m_p;
-    m_session->LoadParameter("m_p", m_p);
-    NekDouble e = 1.602176634e-19;
-    m_session->LoadParameter("epsilon_0_si", epsilon_0);
     k_perp = lambda / (6.0 * sqrt(this->Tnorm * T_bg * pow(M_PI, 3.0))) *
-             (sqrt(m_p) / c) * pow((e / epsilon_0), 2);
+             (sqrt(constants::m_p) / constants::c) * pow((constants::e / constants::epsilon_0_si), 2);
     k_perp *= this->Nnorm;
     k_perp /= (this->omega_c * this->mesh_length * this->mesh_length);
     // multiply k_perp by A^0.5 Z^2 n B^-1 in solver
-    std::cout << "k_perp = " << k_perp << "\n";
 }
 
 void SingleDiffusiveField::v_ExtraFldOutput(
