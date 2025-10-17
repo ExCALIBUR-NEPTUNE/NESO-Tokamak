@@ -102,22 +102,22 @@ public:
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
                 {
-                    auto ionise_data        = AMJUEL::ionise_data;
-                    auto ionise_energy_data = AMJUEL::ionise_energy_data;
+                    auto ionise_rate_data        = AMJUEL::ionise_rate_data();
+                    auto ionise_energy_data = AMJUEL::ionise_energy_data();
 
                     if (this->ndim == 2)
                     {
                         reaction = std::make_shared<ElectronImpactIonisation<
-                            decltype(ionise_data), decltype(ionise_energy_data),
-                            2>>(this->particle_group->sycl_target, ionise_data,
+                            decltype(ionise_rate_data), decltype(ionise_energy_data),
+                            2>>(this->particle_group->sycl_target, ionise_rate_data,
                                 ionise_energy_data, target_species,
                                 electron_species);
                     }
                     else if (this->ndim == 3)
                     {
                         reaction = std::make_shared<ElectronImpactIonisation<
-                            decltype(ionise_data), decltype(ionise_energy_data),
-                            3>>(this->particle_group->sycl_target, ionise_data,
+                            decltype(ionise_rate_data), decltype(ionise_energy_data),
+                            3>>(this->particle_group->sycl_target, ionise_rate_data,
                                 ionise_energy_data, target_species,
                                 electron_species);
                     }
@@ -181,8 +181,8 @@ public:
                 }
                 else if (std::get<2>(v).first == "AMJUEL")
                 {
-                    auto recomb_data        = AMJUEL::recomb_data;
-                    auto recomb_energy_data = AMJUEL::recomb_energy_data;
+                    auto recomb_rate_data        = AMJUEL::recomb_rate_data();
+                    auto recomb_energy_data = AMJUEL::recomb_energy_data();
 
                     auto constant_rate_cross_section =
                         ConstantRateCrossSection(1.0);
@@ -203,14 +203,14 @@ public:
                             marker_species, electron_species,
                             norm::potential_energy);
                         reaction = std::make_shared<
-                            LinearReactionBase<1, decltype(recomb_data),
+                            LinearReactionBase<1, decltype(recomb_rate_data),
                                                decltype(recomb_reaction_kernel),
                                                decltype(data_calculator)>>(
                             this->particle_group->sycl_target,
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel,
+                            recomb_rate_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                     else if (this->ndim == 3)
@@ -219,14 +219,14 @@ public:
                             marker_species, electron_species,
                             norm::potential_energy);
                         reaction = std::make_shared<
-                            LinearReactionBase<1, decltype(recomb_data),
+                            LinearReactionBase<1, decltype(recomb_rate_data),
                                                decltype(recomb_reaction_kernel),
                                                decltype(data_calculator)>>(
                             this->particle_group->sycl_target,
                             marker_species.get_id(),
                             std::array<int, 1>{
                                 static_cast<int>(neutral_species.get_id())},
-                            recomb_data, recomb_reaction_kernel,
+                            recomb_rate_data, recomb_reaction_kernel,
                             data_calculator);
                     }
                 }

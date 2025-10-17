@@ -125,10 +125,6 @@ public:
         double charge;
 
         std::shared_ptr<ParticleSubGroup> sub_group;
-
-        /// Reflective Boundary Conditions
-        // std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
-        // std::vector<int> reflection_composites;
     };
     virtual std::map<int, SpeciesInfo> &get_species()
     {
