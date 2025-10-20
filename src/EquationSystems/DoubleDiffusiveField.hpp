@@ -44,11 +44,11 @@ protected:
 
     void CalcKPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
     void CalcKPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
-    void CalcKappaPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
-    void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
-                       int f);
-    void CalcKappaPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
-    void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    // void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
+    //                    int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
+    //void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -86,12 +86,20 @@ private:
 
     NekDouble k_par;
     NekDouble k_perp;
+    NekDouble k_cross;
+    NekDouble kappa_i_par;
+    NekDouble kappa_i_perp;
+    NekDouble kappa_i_cross;
+    NekDouble kappa_e_par;
+    NekDouble kappa_e_perp;
+    NekDouble kappa_e_cross;
     NekDouble k_ci;
     NekDouble k_ce;
 
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
     StdRegions::VarCoeffMap m_D;
+    Array<OneD, NekDouble> m_kcross;
 
     VariableConverterSharedPtr m_varConv;
 };
