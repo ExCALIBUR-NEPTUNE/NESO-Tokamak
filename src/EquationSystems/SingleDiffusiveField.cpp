@@ -29,7 +29,6 @@ SingleDiffusiveField::SingleDiffusiveField(
 {
     this->n_indep_fields       = 0;
     this->n_fields_per_species = 1;
-    this->required_fld_names   = {"n"};
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)

@@ -42,13 +42,9 @@ protected:
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
 
-    void CalcKPar(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
-    void CalcKPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
     void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
-    // void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
-    //                    int f);
     void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
-    //void CalcKappaPerp(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -102,6 +98,9 @@ private:
     Array<OneD, NekDouble> m_kcross;
 
     VariableConverterSharedPtr m_varConv;
+    // For Diffusion
+    // workaround for bug in DiffusionLDG
+    Array<OneD, MR::ExpListSharedPtr> m_difffields;
 };
 
 } // namespace NESO::Solvers::tokamak

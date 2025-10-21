@@ -57,8 +57,6 @@
             <P> lambda    = 13          </P>
             <P> k_ce       = 3.16        </P>
             <P> k_ci       = 3.9        </P>
-            <!-- Background temperature in Tnorm eV -->
-            <P> T_bg      = 10         </P>
 
             <!-- Scaling factor for ICs -->
             <P> rc = 2 </P>
@@ -103,7 +101,7 @@
         <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="By" VALUE="-(x-rc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
-            <E VAR="Bz" VALUE="0" />
+            <E VAR="Bz" VALUE="10" />
         </FUNCTION>
     </CONDITIONS>
 
