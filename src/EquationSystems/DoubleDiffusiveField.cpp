@@ -509,6 +509,7 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
                              fluxes[j][pi_idx[s]], 1);
             }
         }
+        s++;
     }
 
     if (nDim == 3)
