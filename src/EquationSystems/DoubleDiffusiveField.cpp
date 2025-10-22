@@ -528,7 +528,7 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
         Vmath::Vmul(nPts, b_unit[2], 1, qfield[0][pe_idx], 1, fluxes[1][pe_idx],
                     1);
     }
-    
+
     CalcKappa(in_arr);
     CalcDiffTensor();
     for (unsigned int j = 0; j < nDim; ++j)
@@ -598,6 +598,16 @@ void DoubleDiffusiveField::load_params()
 
     kappa_e_cross = 3.75 * this->Tnorm * this->Nnorm * t_const / this->Bnorm;
     kappa_e_cross /= scaling_constant;
+}
+
+bool DoubleDiffusiveField::v_PostIntegrate(int step)
+{
+    m_fields[0]->FwdTrans(m_fields[0]->GetPhys(), m_fields[0]->UpdateCoeffs());
+    m_fields[1]->FwdTrans(m_fields[1]->GetPhys(), m_fields[1]->UpdateCoeffs());
+
+    // Writes a step of the particle trajectory.
+
+    return TokamakSystem::v_PostIntegrate(step);
 }
 
 void DoubleDiffusiveField::v_ExtraFldOutput(

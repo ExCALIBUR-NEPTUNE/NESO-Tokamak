@@ -68,12 +68,10 @@ protected:
                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
                      const Array<OneD, Array<OneD, NekDouble>> &pBwd);
 
-    void CalcKPar();
-    void CalcKPerp();
+    void CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
-    void CalcKappaPar();
-    void CalcKappaPerp();
-    void CalcKappaTensor();
     // Diffusive Flux vector
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -145,13 +143,23 @@ private:
     //
     StdRegions::ConstFactorMap m_factors;
 
-    Array<OneD, NekDouble> m_kperp;
-    Array<OneD, NekDouble> m_kpar;
-    StdRegions::VarCoeffMap m_D;
+    NekDouble k_par;
+    NekDouble k_perp;
+    NekDouble k_cross;
+    NekDouble kappa_i_par;
+    NekDouble kappa_i_perp;
+    NekDouble kappa_i_cross;
+    NekDouble kappa_e_par;
+    NekDouble kappa_e_perp;
+    NekDouble kappa_e_cross;
+    NekDouble k_ci;
+    NekDouble k_ce;
 
-    Array<OneD, NekDouble> m_kappaperp;
-    Array<OneD, NekDouble> m_kappapar;
-    StdRegions::VarCoeffMap m_kappa;
+    Array<OneD, NekDouble> m_kpar;
+    Array<OneD, NekDouble> m_kperp;
+    Array<OneD, NekDouble> m_kcross;
+
+    StdRegions::VarCoeffMap m_D;
 
     VariableConverterSharedPtr m_varConv;
 };
