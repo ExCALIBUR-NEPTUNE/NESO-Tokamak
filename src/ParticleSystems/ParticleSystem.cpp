@@ -277,7 +277,7 @@ void ParticleSystem::add_sources(double time, double dt)
                             double phi = 2 * M_PI * u(this->rng_phasespace);
                             velocities[1][p] = speed * sintheta * cos(phi);
                             velocities[0][p] =
-                                speed * sqrt(1 - sintheta * sintheta);
+                                -speed * sqrt(1 - sintheta * sintheta);
                         }
                     }
 
