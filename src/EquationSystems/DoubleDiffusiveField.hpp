@@ -32,7 +32,7 @@ protected:
     DoubleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
 
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
@@ -51,12 +51,20 @@ protected:
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
                      Array<OneD, Array<OneD, NekDouble>> &outarray,
                      const Array<OneD, Array<OneD, NekDouble>> &pFwd,
-                     const Array<OneD, Array<OneD, NekDouble>> &pBwd);
+                     const Array<OneD, Array<OneD, NekDouble>> &pBwd,
+                     const NekDouble time);
     // Diffusive Flux vector
     void GetFluxVectorDiff(
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+
+    void Calcbn();
+    Array<OneD, NekDouble> &Getbn();
+    void GetFluxVector(
+        const Array<OneD, Array<OneD, NekDouble>> &field_vals,
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+    Array<OneD, Array<OneD, NekDouble>> &GetZetaNorm();
 
     void load_params() override;
 
@@ -103,6 +111,18 @@ private:
     // For Diffusion
     // workaround for bug in DiffusionLDG
     Array<OneD, MR::ExpListSharedPtr> m_difffields;
+
+    Array<OneD, Array<OneD, NekDouble>> trace_zeta_norm;
+
+    std::string adv_type;
+
+    Array<OneD, NekDouble> trace_b_norm;
+    /// Riemann solver type (used for all advection terms)
+    std::string riemann_solver_type;
+    /// Riemann solver object used in electron advection
+    SU::RiemannSolverSharedPtr riemann_solver;
+    /// Advection object used in the electron density equation
+    SU::AdvectionSharedPtr m_advection;
 };
 
 } // namespace NESO::Solvers::tokamak

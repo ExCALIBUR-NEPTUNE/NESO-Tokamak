@@ -77,6 +77,25 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     m_varConv->pi_idx = pi_idx;
     m_varConv->pe_idx = pe_idx;
 
+    if (m_indfields[0]->GetTrace())
+    {
+        auto nTrace = GetTraceNpoints();
+        this->m_bn  = Array<OneD, NekDouble>(nTrace, 0.0);
+    }
+
+    this->riemann_solver =
+        SU::GetRiemannSolverFactory().CreateInstance("Upwind", m_session);
+
+    this->riemann_solver->SetScalar("Vn", &DoubleDiffusiveField::Getbn, this);
+
+    // Setup advection object
+    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+    m_advection = SU::GetAdvectionFactory().CreateInstance(this->adv_type,
+                                                           this->adv_type);
+    m_advection->SetFluxVector(&DoubleDiffusiveField::GetFluxVector, this);
+    m_advection->SetRiemannSolver(this->riemann_solver);
+    m_advection->InitObject(m_session, m_indfields);
+
     m_ode.DefineOdeRhs(&DoubleDiffusiveField::DoOdeRhs, this);
 
     if (this->particles_enabled)
@@ -344,7 +363,7 @@ void DoubleDiffusiveField::DoOdeRhs(
         m_indfields[i]->GetFwdBwdTracePhys(inarray[i], Fwd[i], Bwd[i]);
     }
 
-    DoDiffusion(inarray, outarray, Fwd, Bwd);
+    DoDiffusion(inarray, outarray, Fwd, Bwd, time);
 
     if (this->particles_enabled)
     {
@@ -366,7 +385,7 @@ void DoubleDiffusiveField::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,
     const Array<OneD, Array<OneD, NekDouble>> &pFwd,
-    const Array<OneD, Array<OneD, NekDouble>> &pBwd)
+    const Array<OneD, Array<OneD, NekDouble>> &pBwd, const NekDouble time)
 {
     int nvariables = inarray.size();
     int npointsIn  = GetNpoints();
@@ -432,11 +451,30 @@ void DoubleDiffusiveField::DoDiffusion(
     m_diffusion->Diffuse(nvariables, m_difffields, inarrayDiff, outarrayDiff,
                          inFwd, inBwd);
 
+    Array<OneD, Array<OneD, NekDouble>> inarrayAdv(nvariables);
+
     for (int i = 0; i < nvariables; ++i)
     {
-        Vmath::Vadd(npointsOut, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
-                    1);
+        inarrayAdv[i] = Array<OneD, NekDouble>(npointsIn, 0.0);
+        inFwd[i]      = Array<OneD, NekDouble>(nTracePts, 0.0);
+        inBwd[i]      = Array<OneD, NekDouble>(nTracePts, 0.0);
     }
+
+    Array<OneD, NekDouble> tmp(npointsIn, 0.0);
+
+    for (int i = 0; i < m_indfields.size(); ++i)
+    {
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            m_indfields[i]->PhysDeriv(d, inarrayDiff[i], tmp);
+            Vmath::Vvtvp(npointsIn, tmp, 1, b_unit[d], 1, inarrayAdv[i], 1,
+                         inarrayAdv[i], 1);
+        }
+        m_indfields[0]->GetFwdBwdTracePhys(inarrayAdv[i], inFwd[i], inBwd[i]);
+    }
+
+    m_advection->Advect(nvariables, m_indfields, this->b_unit, inarrayAdv,
+                        outarray, time, inFwd, inBwd);
 
     for (size_t i = 0; i < nvariables; ++i)
     {
@@ -509,6 +547,7 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
                              fluxes[j][pi_idx[s]], 1);
             }
         }
+        s++;
     }
 
     if (nDim == 3)
@@ -541,6 +580,48 @@ void DoubleDiffusiveField::GetFluxVectorDiff(
                          1, fluxes[j][pe_idx], 1, fluxes[j][pe_idx], 1);
         }
     }
+}
+
+void DoubleDiffusiveField::GetFluxVector(
+    const Array<OneD, Array<OneD, NekDouble>> &field_vals,
+    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes)
+{
+    int npts       = field_vals[0].size();
+    int nVariables = field_vals.size();
+
+    for (int i = 0; i < field_vals.size(); ++i)
+    {
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vmul(npts, field_vals[i], 1, b_unit[d], 1,
+                        fluxes[i][d], 1);
+        }
+    }
+}
+
+void DoubleDiffusiveField::Calcbn()
+{
+    // Number of trace (interface) points
+    int nTracePts = GetTraceNpoints();
+
+    // Auxiliary variable to compute the normal velocity
+    Array<OneD, NekDouble> tmp(nTracePts);
+
+    // Reset the normal velocity
+    Vmath::Zero(nTracePts, m_bn, 1);
+
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        m_indfields[0]->ExtractTracePhys(this->b_unit[d], tmp);
+        Vmath::Vvtvp(nTracePts, m_traceNormals[d], 1, tmp, 1, this->m_bn, 1,
+                     this->m_bn, 1);
+    }
+}
+
+Array<OneD, NekDouble> &DoubleDiffusiveField::Getbn()
+{
+    Calcbn();
+    return this->m_bn;
 }
 
 void DoubleDiffusiveField::load_params()

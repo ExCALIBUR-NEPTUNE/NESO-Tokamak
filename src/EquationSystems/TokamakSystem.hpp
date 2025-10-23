@@ -79,8 +79,8 @@ protected:
 
     /// Squared Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
-    /// Trace of magnetic field
-    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
+    /// b.n on trace normals
+    Array<OneD, NekDouble> m_bn;
 
     /// Electric Field
     Array<OneD, MR::DisContFieldSharedPtr> E;

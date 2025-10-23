@@ -32,7 +32,11 @@
             <P> IO_InfoSteps   = 10                </P>
             <P> epsilon        = 1.0               </P>
 
-
+                        <!-- Coulomb logarithm -->
+            <P> lambda    = 13          </P>
+            <P> k_c       = 3.19        </P>
+            <!-- Background temperature in Tnorm eV -->
+            <P> T_bg      = 10         </P>
             <P> m_e            = 9.1096e-31         </P>
             <P> m_p            = 1.6726e-27         </P>
             <P> A              = 1.0                </P>
