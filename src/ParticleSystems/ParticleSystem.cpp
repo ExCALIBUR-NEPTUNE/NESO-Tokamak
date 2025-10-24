@@ -21,15 +21,8 @@ void ParticleSystem::set_up_species()
 
     this->config->load_parameter("particle_position_seed", seed, std::rand());
     this->rng_phasespace = std::mt19937(seed + this->rank);
-    double particle_B_scaling;
-    this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
 
     double particle_thermal_velocity;
-    this->config->load_parameter("particle_thermal_velocity",
-                                 particle_thermal_velocity, 0.0);
-    double particle_velocity_B_scaling;
-    this->config->load_parameter("particle_velocity_B_scaling",
-                                 particle_velocity_B_scaling, 0.0);
 
     for (const auto &[k, v] : this->config->get_particle_species())
     {
@@ -44,8 +37,8 @@ void ParticleSystem::set_up_species()
         {
             std::vector<std::vector<double>> positions, velocities;
             std::vector<int> cells;
-            auto initial = this->config->get_particle_species_initial(k);
-            if (auto v = initial.find(std::pair("n", 0)); v != initial.end())
+            auto vmap = this->config->get_particle_species_initial(k);
+            if (auto v = vmap.find(std::pair("n", 0)); v != vmap.end())
             {
                 rng_phasespace = dist_within_extents(
                     this->graph, v->second.m_expression, 0, particle_number,
@@ -58,11 +51,9 @@ void ParticleSystem::set_up_species()
                               &rend);
                 const long local_particle_number = rend - rstart;
 
-                double x =
-                    initial.at(std::pair("X", 0)).m_expression->Evaluate();
+                double x = vmap.at(std::pair("X", 0)).m_expression->Evaluate();
 
-                double y =
-                    initial.at(std::pair("Y", 0)).m_expression->Evaluate();
+                double y = vmap.at(std::pair("Y", 0)).m_expression->Evaluate();
 
                 positions.emplace_back(
                     std::vector<double>(local_particle_number, x));
@@ -74,7 +65,7 @@ void ParticleSystem::set_up_species()
                 if (ndim == 3)
                 {
                     double z =
-                        initial.at(std::pair("Z", 0)).m_expression->Evaluate();
+                        vmap.at(std::pair("Z", 0)).m_expression->Evaluate();
                     positions.emplace_back(
                         std::vector<double>(local_particle_number, z));
                 }
@@ -87,9 +78,83 @@ void ParticleSystem::set_up_species()
             if (N > 0)
             {
 
-                velocities = NESO::Particles::normal_distribution(
-                    N, this->ndim, 0.0, particle_thermal_velocity,
-                    this->rng_phasespace);
+                if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
+                {
+                    double T   = v->second.m_expression->Evaluate();
+                    velocities = NESO::Particles::normal_distribution(
+                        N, ndim, 0.0, std::sqrt(T / particle_mass),
+                        this->rng_phasespace);
+                }
+
+                else if (auto v = vmap.find(std::pair("Tin", 0));
+                         v != vmap.end()) // Specific to EIRENE example
+                {
+                    double T = v->second.m_expression->Evaluate();
+
+                    std::uniform_real_distribution u(0.0, 1.0);
+                    std::gamma_distribution mb(1.5, T);
+
+                    for (int p = 0; p < N; ++p)
+                    {
+                        double energy = mb(this->rng_phasespace);
+                        double speed  = std::sqrt(2 * energy / particle_mass);
+                        // inverse transform sampling
+                        double sintheta  = sqrt(u(this->rng_phasespace));
+                        double phi       = 2 * M_PI * u(this->rng_phasespace);
+                        velocities[1][p] = speed * sintheta * cos(phi);
+                        velocities[0][p] =
+                            -speed * sqrt(1 - sintheta * sintheta);
+                    }
+                }
+
+                else // Explicit velocities
+                {
+                    if (auto v = vmap.find(std::pair("V", 0)); v != vmap.end())
+                    {
+                        particle_thermal_velocity =
+                            v->second.m_expression->Evaluate();
+                    }
+                    if (auto v = vmap.find(std::pair("VX", 0)); v != vmap.end())
+                    {
+                        double vx = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vx));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                this->rng_phasespace)[0]);
+                    }
+                    if (auto v = vmap.find(std::pair("VY", 0)); v != vmap.end())
+                    {
+                        double vy = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vy));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                this->rng_phasespace)[0]);
+                    }
+                    if (this->ndim == 3)
+                    {
+                        if (auto v = vmap.find(std::pair("VZ", 0));
+                            v != vmap.end())
+                        {
+                            double vz = v->second.m_expression->Evaluate();
+                            velocities.emplace_back(std::vector<double>(N, vz));
+                        }
+                        else
+                        {
+                            velocities.emplace_back(
+                                NESO::Particles::normal_distribution(
+                                    N, 1, 0.0, particle_thermal_velocity,
+                                    this->rng_phasespace)[0]);
+                        }
+                    }
+                }
                 ParticleSet initial_distribution(
                     N, this->particle_group->get_particle_spec());
 
@@ -116,7 +181,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = 1;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -165,15 +230,7 @@ inline std::vector<double> gamma_distribution(const int N, const double alpha,
 
 void ParticleSystem::add_sources(double time, double dt)
 {
-    double particle_B_scaling;
-    this->config->load_parameter("particle_B_scaling", particle_B_scaling, 1.0);
-
     double particle_thermal_velocity;
-    this->config->load_parameter("particle_thermal_velocity",
-                                 particle_thermal_velocity, 0.0);
-    double particle_velocity_B_scaling;
-    this->config->load_parameter("particle_velocity_B_scaling",
-                                 particle_velocity_B_scaling, 0.0);
     const long rank = this->sycl_target->comm_pair.rank_parent;
 
     for (const auto &[k, v] : this->config->get_particle_species())
@@ -240,25 +297,14 @@ void ParticleSystem::add_sources(double time, double dt)
                                   this->sycl_target->comm));
                 if (N > 0)
                 {
-                    for (int d = 0; d < ndim; ++d)
-                    {
-                        velocities.emplace_back(std::vector<double>(N));
-                    }
                     if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                     {
-                        double T = v->second.m_expression->Evaluate();
-
-                        std::normal_distribution normal(
-                            0., std::sqrt(T / particle_mass));
-
-                        for (int d = 0; d < ndim; ++d)
-                        {
-                            for (int p = 0; p < N; ++p)
-                            {
-                                velocities[d][p] = normal(this->rng_phasespace);
-                            }
-                        }
+                        double T   = v->second.m_expression->Evaluate();
+                        velocities = NESO::Particles::normal_distribution(
+                            N, ndim, 0.0, std::sqrt(T / particle_mass),
+                            this->rng_phasespace);
                     }
+
                     else if (auto v = vmap.find(std::pair("Tin", 0));
                              v != vmap.end()) // Specific to EIRENE example
                     {
@@ -283,6 +329,12 @@ void ParticleSystem::add_sources(double time, double dt)
 
                     else // Explicit velocities
                     {
+                        if (auto v = vmap.find(std::pair("V", 0));
+                            v != vmap.end())
+                        {
+                            particle_thermal_velocity =
+                                v->second.m_expression->Evaluate();
+                        }
                         if (auto v = vmap.find(std::pair("VX", 0));
                             v != vmap.end())
                         {
@@ -353,7 +405,7 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
                         src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = 1;
+                        src_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                         src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
