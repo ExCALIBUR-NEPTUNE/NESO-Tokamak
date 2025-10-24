@@ -264,7 +264,7 @@ void ParticleSystem::add_sources(double time, double dt)
                     {
                         double T = v->second.m_expression->Evaluate();
 
-                        std::uniform_real_distribution u(-1.0, 1.0);
+                        std::uniform_real_distribution u(0.0, 1.0);
                         std::gamma_distribution mb(1.5, T);
 
                         for (int p = 0; p < N; ++p)
@@ -273,12 +273,11 @@ void ParticleSystem::add_sources(double time, double dt)
                             double speed =
                                 std::sqrt(2 * energy / particle_mass);
                             // inverse transform sampling
-                            velocities[1][p] =
-                                speed * 2 * std::asin(u(this->rng_phasespace)) /
-                                M_PI;
+                            double sintheta = sqrt(u(this->rng_phasespace));
+                            double phi = 2 * M_PI * u(this->rng_phasespace);
+                            velocities[1][p] = speed * sintheta * cos(phi);
                             velocities[0][p] =
-                                -std::sqrt(speed * speed -
-                                           velocities[1][p] * velocities[1][p]);
+                                -speed * sqrt(1 - sintheta * sintheta);
                         }
                     }
 
