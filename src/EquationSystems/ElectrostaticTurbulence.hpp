@@ -38,7 +38,7 @@ protected:
     // void v_SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>>
     // &physarray,
     //                              NekDouble time) override;
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   Array<OneD, Array<OneD, NekDouble>> &outarray,
                   const NekDouble time);

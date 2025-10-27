@@ -10,14 +10,15 @@ std::string SheathBC::className =
         "Sheath", SheathBC::create, "Sheath boundary condition.");
 
 SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
+                   const std::weak_ptr<TokamakSystem> &pSystem,
                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
                    const Array<OneD, MR::DisContFieldSharedPtr> &pB,
                    const Array<OneD, MR::DisContFieldSharedPtr> &pE,
                    Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
                    Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                    const int pSpaceDim, const int bcRegion)
-    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
-                         bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
     className = "Sheath";
     for (size_t i = 0; i < m_spacedim; ++i)
@@ -39,7 +40,8 @@ SheathBC::SheathBC(const LU::SessionReaderSharedPtr &pSession,
     this->mag_B = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
 }
 
-void SheathBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+void SheathBC::v_Apply(
+    const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
     const Array<OneD, const Array<OneD, NekDouble>> &physarray,
     [[maybe_unused]] const NekDouble &time)
 {

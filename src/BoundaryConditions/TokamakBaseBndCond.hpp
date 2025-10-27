@@ -16,6 +16,7 @@ namespace SD = Nektar::SpatialDomains;
 
 namespace NESO::Solvers::tokamak
 {
+class TokamakSystem;
 class TokamakBaseBndCond;
 
 /// A shared pointer to a boundary condition object
@@ -24,6 +25,7 @@ typedef std::shared_ptr<TokamakBaseBndCond> TokamakBaseBndCondSharedPtr;
 /// Declaration of the boundary condition factory
 typedef LU::NekFactory<
     std::string, TokamakBaseBndCond, const LU::SessionReaderSharedPtr &,
+    const std::weak_ptr<TokamakSystem> &,
     const Array<OneD, MR::ExpListSharedPtr> &,
     const Array<OneD, MR::DisContFieldSharedPtr> &,
     const Array<OneD, MR::DisContFieldSharedPtr> &,
@@ -69,6 +71,8 @@ protected:
     /// Session reader
     LU::SessionReaderSharedPtr m_session;
 
+    const std::weak_ptr<TokamakSystem> m_system;
+
     std::map<int, SpatialDomains::BoundaryConditionShPtr> m_bndConds;
     std::map<int, MultiRegions::ExpListSharedPtr> m_bndExp;
     /// Expansion of boundary adjacent elements
@@ -106,6 +110,7 @@ protected:
 
     /// Constructor
     TokamakBaseBndCond(const LU::SessionReaderSharedPtr &pSession,
+                       const std::weak_ptr<TokamakSystem> &pSystem,
                        const Array<OneD, MR::ExpListSharedPtr> &pFields,
                        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
                        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -113,7 +118,8 @@ protected:
                        Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                        const int pSpaceDim, const int bcRegion);
 
-    virtual void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+    virtual void v_Apply(
+        const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
         const Array<OneD, const Array<OneD, NekDouble>> &physarray,
         const NekDouble &time) = 0;
 

@@ -12,14 +12,15 @@ std::string ReducedSheathBC::className =
 
 ReducedSheathBC::ReducedSheathBC(
     const LU::SessionReaderSharedPtr &pSession,
+    const std::weak_ptr<TokamakSystem> &pSystem,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
     const Array<OneD, MR::DisContFieldSharedPtr> &pB,
     const Array<OneD, MR::DisContFieldSharedPtr> &pE,
     Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
     Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
     const int bcRegion)
-    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
-                         bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
     className = "Sheath";
     for (size_t i = 0; i < m_spacedim; ++i)
@@ -50,17 +51,21 @@ void ReducedSheathBC::v_Apply(
     // Get ExB velocity on boundary
     // Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[1], 1, this->B_bnd[2], 1,
     //                this->E_bnd[2], 1, this->B_bnd[1], 1, this->v_ExB[0], 1);
-    // Vmath::Vdiv(m_nEdgePts, this->v_ExB[0], 1, this->mag_B, 1, this->v_ExB[0],
+    // Vmath::Vdiv(m_nEdgePts, this->v_ExB[0], 1, this->mag_B, 1,
+    // this->v_ExB[0],
     //             1);
-    // Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[2], 1, this->B_bnd[0], 1, E_bnd[0],
+    // Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[2], 1, this->B_bnd[0], 1,
+    // E_bnd[0],
     //                1, B_bnd[2], 1, this->v_ExB[1], 1);
-    // Vmath::Vdiv(m_nEdgePts, this->v_ExB[1], 1, this->mag_B, 1, this->v_ExB[1],
+    // Vmath::Vdiv(m_nEdgePts, this->v_ExB[1], 1, this->mag_B, 1,
+    // this->v_ExB[1],
     //             1);
 
     // if (m_spacedim == 3)
     // {
     //     Vmath::Vvtvvtm(m_nEdgePts, this->E_bnd[0], 1, this->B_bnd[1], 1,
-    //                    this->E_bnd[1], 1, this->B_bnd[0], 1, this->v_ExB[2], 1);
+    //                    this->E_bnd[1], 1, this->B_bnd[0], 1, this->v_ExB[2],
+    //                    1);
     //     Vmath::Vdiv(m_nEdgePts, this->v_ExB[2], 1, this->mag_B, 1,
     //                 this->v_ExB[2], 1);
     // }
@@ -112,8 +117,7 @@ void ReducedSheathBC::v_Apply(
             NekDouble v_sheath = std::max(v_trial, c_i * bn[p]);
 
             vi_bc[p] = bn[p] == 0 ? Fwd[vi_idx[s]][p]
-                                  : mass * Fwd[ni_idx[s]][p] *
-                                        v_sheath / bn[p];
+                                  : mass * Fwd[ni_idx[s]][p] * v_sheath / bn[p];
             pi_bc[p] =
                 ((2 / 3) * gamma_i * Fwd[pi_idx[s]][p] +
                  0.5 * vi_bc[p] * vi_bc[p] / (mass * Fwd[ni_idx[s]][p])) *

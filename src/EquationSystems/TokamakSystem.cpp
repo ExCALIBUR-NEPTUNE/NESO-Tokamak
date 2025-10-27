@@ -507,7 +507,9 @@ void TokamakSystem::v_InitObject(bool create_field)
                                   m_indfields.size());
 
     m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
-    m_bndConds->Initialize(m_session, m_indfields, B, E, m_spacedim);
+    m_bndConds->Initialize(
+        m_session, std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
+        m_indfields, B, E, m_spacedim);
 
     SetBoundaryConditionsBwdWeight();
 }

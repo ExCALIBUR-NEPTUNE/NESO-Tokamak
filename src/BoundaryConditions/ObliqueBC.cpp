@@ -10,14 +10,15 @@ std::string ObliqueBC::className =
         "Oblique", ObliqueBC::create, "Oblique boundary condition.");
 
 ObliqueBC::ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
+                     const std::weak_ptr<TokamakSystem> &pSystem,
                      const Array<OneD, MR::ExpListSharedPtr> &pFields,
                      const Array<OneD, MR::DisContFieldSharedPtr> &pB,
                      const Array<OneD, MR::DisContFieldSharedPtr> &pE,
                      Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
                      Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                      const int pSpaceDim, const int bcRegion)
-    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
-                         bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
 }
 

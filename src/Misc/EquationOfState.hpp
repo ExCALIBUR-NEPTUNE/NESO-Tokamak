@@ -1,9 +1,9 @@
 #ifndef EQUATIONOFSTATE_HPP
 #define EQUATIONOFSTATE_HPP
 
+#include <LibUtilities/BasicConst/NektarUnivTypeDefs.hpp>
 #include <LibUtilities/BasicUtils/NekFactory.hpp>
-#include <LibUtilities/BasicUtils/SessionReader.h>
-
+#include <LibUtilities/Memory/NekMemoryManager.hpp>
 #include <LibUtilities/SimdLib/tinysimd.hpp>
 
 using namespace Nektar;
@@ -18,9 +18,7 @@ class EquationOfState;
 typedef std::shared_ptr<EquationOfState> EquationOfStateSharedPtr;
 
 /// Declaration of the equation of state factory
-typedef LU::NekFactory<std::string, EquationOfState,
-                                 const LU::SessionReaderSharedPtr &>
-    EquationOfStateFactory;
+typedef LU::NekFactory<std::string, EquationOfState> EquationOfStateFactory;
 
 /// Declaration of the equation of state factory singleton
 EquationOfStateFactory &GetEquationOfStateFactory();
@@ -102,7 +100,7 @@ protected:
     NekDouble m_gammaMoneOgasConst;
 
     /// Constructor
-    EquationOfState(const LU::SessionReaderSharedPtr &pSession);
+    EquationOfState();
 
     /// Programmatic Constructor
     EquationOfState(const NekDouble &gamma, const NekDouble &gasConstant);

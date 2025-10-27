@@ -16,11 +16,10 @@ public:
     friend class MemoryManager<IdealGasEoS>;
 
     /// Creates an instance of this class
-    static EquationOfStateSharedPtr create(
-        const LU::SessionReaderSharedPtr &pSession)
+    static EquationOfStateSharedPtr create()
     {
         EquationOfStateSharedPtr p =
-            MemoryManager<IdealGasEoS>::AllocateSharedPtr(pSession);
+            MemoryManager<IdealGasEoS>::AllocateSharedPtr();
         return p;
     }
 
@@ -49,7 +48,7 @@ protected:
     NekDouble v_GetRhoFromPT(const NekDouble &rho, const NekDouble &p) final;
 
 private:
-    IdealGasEoS(const LU::SessionReaderSharedPtr &pSession);
+    IdealGasEoS();
 
     ~IdealGasEoS(void) override = default;
 
@@ -57,7 +56,7 @@ private:
     template <class T, typename = typename std::enable_if<
                            std::is_floating_point<T>::value ||
                            tinysimd::is_vector_floating_point<T>::value>::type>
-    inline T GetTemperatureKernel(const T& rho, const T &e)
+    inline T GetTemperatureKernel(const T &rho, const T &e)
     {
         return (2.0 / 3.0) * e / rho;
     }

@@ -13,6 +13,7 @@ public:
 
     static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
+        const std::weak_ptr<TokamakSystem> &pSystem,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, MR::DisContFieldSharedPtr> &pB,
         const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -23,7 +24,8 @@ public:
     {
         TokamakBaseBndCondSharedPtr p =
             MemoryManager<ReducedSheathBC>::AllocateSharedPtr(
-                pSession, pFields, pB, pE, cond, exp, pSpaceDim, bcRegion);
+                pSession, pSystem, pFields, pB, pE, cond, exp, pSpaceDim,
+                bcRegion);
         return p;
     }
 
@@ -36,12 +38,13 @@ protected:
 
 private:
     ReducedSheathBC(const LU::SessionReaderSharedPtr &pSession,
-             const Array<OneD, MR::ExpListSharedPtr> &pFields,
-             const Array<OneD, MR::DisContFieldSharedPtr> &pB,
-             const Array<OneD, MR::DisContFieldSharedPtr> &pE,
-             Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
-             Array<OneD, MultiRegions::ExpListSharedPtr> exp,
-             const int pSpaceDim, const int bcRegion);
+                    const std::weak_ptr<TokamakSystem> &pSystem,
+                    const Array<OneD, MR::ExpListSharedPtr> &pFields,
+                    const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+                    const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+                    Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+                    Array<OneD, MultiRegions::ExpListSharedPtr> exp,
+                    const int pSpaceDim, const int bcRegion);
     ~ReducedSheathBC() override {};
 
     // Hardcoded for now
@@ -51,7 +54,7 @@ private:
     NekDouble Ge      = 1;
     NekDouble me      = 1 / 2000;
 
-    //Array<OneD, Array<OneD, NekDouble>> v_ExB;
+    // Array<OneD, Array<OneD, NekDouble>> v_ExB;
 };
 
 } // namespace NESO::Solvers::tokamak

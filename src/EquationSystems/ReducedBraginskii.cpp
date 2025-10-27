@@ -37,7 +37,8 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
     m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-        m_session, m_spacedim, m_graph);
+        std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
+        m_spacedim);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -183,7 +184,6 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
                 src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_MOMENTUM"));
                 src_components.push_back(d);
             }
-            s++;
         }
         this->src_fields.emplace_back(
             MemoryManager<MR::DisContField>::AllocateSharedPtr(

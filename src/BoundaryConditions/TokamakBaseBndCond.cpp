@@ -1,4 +1,5 @@
 #include "TokamakBaseBndCond.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -12,14 +13,15 @@ TokamakBaseBndCondFactory &GetTokamakBaseBndCondFactory()
 
 TokamakBaseBndCond::TokamakBaseBndCond(
     const LU::SessionReaderSharedPtr &pSession,
+    const std::weak_ptr<TokamakSystem> &pSystem,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
     const Array<OneD, MR::DisContFieldSharedPtr> &pB,
     const Array<OneD, MR::DisContFieldSharedPtr> &pE,
     Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
     Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
     const int bcRegion)
-    : m_session(pSession), m_fields(pFields), m_spacedim(pSpaceDim),
-      m_bcRegion(bcRegion), B(pB), E(pE)
+    : m_session(pSession), m_system(pSystem), m_fields(pFields),
+      m_spacedim(pSpaceDim), m_bcRegion(bcRegion), B(pB), E(pE)
 {
     for (int v = 0; v < m_fields.size(); ++v)
     {
@@ -39,7 +41,7 @@ TokamakBaseBndCond::TokamakBaseBndCond(
         B_bnd[d] = Array<OneD, NekDouble>(m_nEdgePts);
         E_bnd[d] = Array<OneD, NekDouble>(m_nEdgePts);
     }
-    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(m_session,
+    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(m_system,
                                                                     m_spacedim);
     m_diffusionAveWeight = 1.0;
 }

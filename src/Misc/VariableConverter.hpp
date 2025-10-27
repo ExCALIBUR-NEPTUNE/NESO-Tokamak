@@ -10,6 +10,7 @@ namespace SD = Nektar::SpatialDomains;
 namespace NESO::Solvers::tokamak
 {
 // Forward declarations
+class TokamakSystem;
 class VariableConverter;
 typedef std::shared_ptr<VariableConverter> VariableConverterSharedPtr;
 /**
@@ -18,9 +19,8 @@ typedef std::shared_ptr<VariableConverter> VariableConverterSharedPtr;
 class VariableConverter
 {
 public:
-    VariableConverter(const LU::SessionReaderSharedPtr &pSession,
-                      const int spaceDim,
-                      const SD::MeshGraphSharedPtr &pGraph = nullptr);
+    VariableConverter(const std::weak_ptr<TokamakSystem> &pSystem,
+                      const int spaceDim);
 
     ~VariableConverter() = default;
 
@@ -34,10 +34,9 @@ public:
         const Array<OneD, NekDouble> &density,
         Array<OneD, NekDouble> &velocity);
 
-    void GetElectronDynamicEnergy(
-        const Array<OneD, NekDouble> &velocity,
-        const Array<OneD, NekDouble>& density,
-        Array<OneD, NekDouble> &energy);
+    void GetElectronDynamicEnergy(const Array<OneD, NekDouble> &velocity,
+                                  const Array<OneD, NekDouble> &density,
+                                  Array<OneD, NekDouble> &energy);
 
     // Transformations depending on the equation of state
     void GetElectronTemperature(
@@ -127,7 +126,7 @@ public:
     std::vector<int> pi_idx;
 
 protected:
-    LU::SessionReaderSharedPtr m_session;
+    const std::weak_ptr<TokamakSystem> m_system;
     EquationOfStateSharedPtr m_eos;
     size_t m_spacedim;
 };

@@ -4,20 +4,16 @@
 #include "VariableConverter.hpp"
 #include <LibUtilities/BasicUtils/Smath.hpp>
 #include <LocalRegions/Expansion2D.h>
-#include <LocalRegions/Expansion3D.h>
+#include "../EquationSystems/TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-VariableConverter::VariableConverter(const LU::SessionReaderSharedPtr &pSession,
-                                     const int spaceDim,
-                                     const SD::MeshGraphSharedPtr &pGraph)
-    : m_session(pSession), m_spacedim(spaceDim)
+VariableConverter::VariableConverter(
+    const std::weak_ptr<TokamakSystem> &pSystem, const int spaceDim)
+    : m_system(pSystem), m_spacedim(spaceDim)
 {
-    // Create equation of state object
-    std::string eosType;
-    m_session->LoadSolverInfo("EquationOfState", eosType, "IdealGas");
-    m_eos = GetEquationOfStateFactory().CreateInstance(eosType, m_session);
+    m_eos = GetEquationOfStateFactory().CreateInstance("IdealGas");
 }
 
 void VariableConverter::GetElectronDensity(
@@ -26,7 +22,7 @@ void VariableConverter::GetElectronDensity(
 {
     size_t nPts = physfield[0].size();
     Vmath::Zero(nPts, density, 1);
-    for (const auto& [s, v] : GetIons())
+    for (const auto &[s, v] : m_system.lock()->GetIons())
     {
         Vmath::Svtvp(nPts, v.charge, physfield[ni_idx[s]], 1, density, 1,
                      density, 1);
@@ -40,7 +36,7 @@ void VariableConverter::GetElectronVelocity(
 {
     size_t nPts = physfield[0].size();
 
-    for (const auto& [s, v] : GetIons())
+    for (const auto &[s, v] : m_system.lock()->GetIons())
     {
         Vmath::Svtvp(nPts, v.charge, physfield[vi_idx[s]], 1, velocity, 1,
                      velocity, 1);
@@ -165,8 +161,8 @@ void VariableConverter::GetIonTemperature(
     {
         // temperature[p] =
         //     m_eos->GetTemperature(physfield[ni_idx[s]][p], energy[p]);
-        temperature[p] =
-            m_eos->GetTemperature(physfield[ni_idx[s]][p], physfield[pi_idx[s]][p]);
+        temperature[p] = m_eos->GetTemperature(physfield[ni_idx[s]][p],
+                                               physfield[pi_idx[s]][p]);
     }
 }
 
@@ -195,11 +191,11 @@ void VariableConverter::GetSystemSoundSpeed(
     Array<OneD, NekDouble> ne(nPts);
 
     GetElectronDensity(physfield, ne);
-    const auto& m = GetIons();
+    const auto &m = m_system.lock()->GetIons();
 
     for (int p = 0; p < nPts; ++p)
     {
-        for (const auto& [s, v] : m)
+        for (const auto &[s, v] : m)
         {
             tmp[p] += physfield[ni_idx[s]][p] *
                       m_eos->GetTemperature(ne[p], physfield[pe_idx][p]) /

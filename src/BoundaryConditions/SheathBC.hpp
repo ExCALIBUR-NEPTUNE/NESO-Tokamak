@@ -13,6 +13,7 @@ public:
 
     static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
+        const std::weak_ptr<TokamakSystem> &pSystem,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, MR::DisContFieldSharedPtr> &pB,
         const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -23,7 +24,8 @@ public:
     {
         TokamakBaseBndCondSharedPtr p =
             MemoryManager<SheathBC>::AllocateSharedPtr(
-                pSession, pFields, pB, pE, cond, exp, pSpaceDim, bcRegion);
+                pSession, pSystem, pFields, pB, pE, cond, exp, pSpaceDim,
+                bcRegion);
         return p;
     }
 
@@ -36,6 +38,7 @@ protected:
 
 private:
     SheathBC(const LU::SessionReaderSharedPtr &pSession,
+    const std::weak_ptr<TokamakSystem> &pSystem,
              const Array<OneD, MR::ExpListSharedPtr> &pFields,
              const Array<OneD, MR::DisContFieldSharedPtr> &pB,
              const Array<OneD, MR::DisContFieldSharedPtr> &pE,

@@ -10,14 +10,15 @@ std::string BohmBC::className =
         "Bohm", BohmBC::create, "Bohm boundary condition.");
 
 BohmBC::BohmBC(const LU::SessionReaderSharedPtr &pSession,
+               const std::weak_ptr<TokamakSystem> &pSystem,
                const Array<OneD, MR::ExpListSharedPtr> &pFields,
                const Array<OneD, MR::DisContFieldSharedPtr> &pB,
                const Array<OneD, MR::DisContFieldSharedPtr> &pE,
                Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
                Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                const int pSpaceDim, const int bcRegion)
-    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
-                         bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
     m_session->LoadParameter("Ge", Ge, 0.0);
     m_session->LoadParameter("lambda", lambda, 0.0);
