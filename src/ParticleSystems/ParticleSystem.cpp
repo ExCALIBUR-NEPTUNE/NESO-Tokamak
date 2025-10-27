@@ -70,14 +70,18 @@ void ParticleSystem::set_up_species()
                         std::vector<double>(local_particle_number, z));
                 }
             }
-            // auto veqn  = this->config->get_species_initial(k, "v");
+
             int N         = cells.size();
             int id_offset = 0;
             MPICHK(MPI_Exscan(&N, &id_offset, 1, MPI_INT, MPI_SUM,
                               this->sycl_target->comm));
             if (N > 0)
             {
-
+                double weight = 1.0;
+                if (auto v = vmap.find(std::pair("W", 0)); v != vmap.end())
+                {
+                    weight = v->second.m_expression->Evaluate();
+                }
                 if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                 {
                     double T   = v->second.m_expression->Evaluate();
@@ -181,7 +185,7 @@ void ParticleSystem::set_up_species()
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                    initial_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
+                    initial_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                     initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
@@ -246,6 +250,12 @@ void ParticleSystem::add_sources(double time, double dt)
             auto &vmap           = std::get<3>(source);
             if (particle_number > 0)
             {
+                double weight = 1.0;
+                if (auto v = vmap.find(std::pair("W", 0)); v != vmap.end())
+                {
+                    weight = v->second.m_expression->Evaluate();
+                }
+
                 std::vector<std::vector<double>> positions, velocities;
                 std::vector<int> cells;
                 if (std::get<1>(source) ==
@@ -405,7 +415,7 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
                         src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
-                        src_distribution[Sym<REAL>("WEIGHT")][px][0]        = 1;
+                        src_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                         src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
