@@ -76,8 +76,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
         this->adv_vel[pe_idx][d] = Array<OneD, NekDouble>(npts, 0.0);
     }
 
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : this->GetSpecies())
     {
         ni_idx.push_back(3 * s);
         vi_idx.push_back(1 + 3 * s);
@@ -90,13 +89,6 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
             this->adv_vel[vi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
             this->adv_vel[pi_idx[s]][d] = Array<OneD, NekDouble>(npts, 0.0);
         }
-
-        double charge, mass;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-        m_varConv->charge[s] = charge;
-        m_varConv->mass[s]   = mass;
-        s++;
     }
 
     m_varConv->ni_idx = ni_idx;
@@ -163,8 +155,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
         std::vector<Sym<REAL>> src_syms;
         std::vector<int> src_components;
 
-        s = 0;
-        for (const auto &[k, v] : this->particle_sys->get_species())
+        for (const auto &[s, v] : this->GetIons())
         {
             ni_src_idx.push_back(s * (2 + m_spacedim));
             pi_src_idx.push_back(1 + s * (2 + m_spacedim));
@@ -311,11 +302,8 @@ void ReducedBraginskii::DoParticles(
     Vmath::Vadd(npts, outarray[pe_idx], 1, this->src_fields[0]->GetPhys(), 1,
                 outarray[pe_idx], 1);
 
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : this->GetIons())
     {
-        double mass;
-        this->neso_config->load_species_parameter(k, "Mass", mass);
         //  Add contribution to ion density
         Vmath::Vadd(npts, outarray[ni_idx[s]], 1,
                     this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
@@ -327,7 +315,7 @@ void ReducedBraginskii::DoParticles(
                     outarray[pi_idx[s]], 1);
         // Add number density source contribution to ion energy
         Array<OneD, NekDouble> dynamic_energy(npts);
-        m_varConv->GetIonDynamicEnergy(s, mass, inarray, dynamic_energy);
+        m_varConv->GetIonDynamicEnergy(s, v.mass, inarray, dynamic_energy);
         Vmath::Vvtvp(npts, dynamic_energy, 1,
                      this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
                      outarray[pi_idx[s]], 1, outarray[pi_idx[s]], 1);
@@ -338,7 +326,6 @@ void ReducedBraginskii::DoParticles(
                          this->src_fields[vi_src_idx[s] + d]->GetPhys(), 1,
                          outarray[vi_idx[s]], 1, outarray[vi_idx[s]], 1);
         }
-        s++;
     }
 }
 
@@ -374,19 +361,13 @@ void ReducedBraginskii::CalcVelocities(
 
     // Zero Electron velocity
     Vmath::Zero(npts, m_fields[1]->UpdatePhys(), 1);
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : GetSpecies())
     {
-        double charge = 1;
-        double mass   = 1;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-
         // Calculate Ion parallel velocities
-        Vmath::Smul(npts, 1.0 / mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
+        Vmath::Smul(npts, 1.0 / v.mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
                     1);
-        Vmath::Svtvp(npts, charge, this->v_i_par[s], 1, m_fields[1]->GetPhys(),
-                     1, m_fields[1]->UpdatePhys(), 1);
+        Vmath::Svtvp(npts, v.charge, this->v_i_par[s], 1,
+                     m_fields[1]->GetPhys(), 1, m_fields[1]->UpdatePhys(), 1);
 
         Vmath::Vdiv(npts, this->v_i_par[s], 1, inarray[ni_idx[s]], 1,
                     this->v_i_par[s], 1);
@@ -400,7 +381,6 @@ void ReducedBraginskii::CalcVelocities(
             Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[pi_idx[s]][d],
                          1);
         }
-        s++;
     }
 
     Vmath::Vdiv(npts, m_fields[1]->GetPhys(), 1, ne, 1, this->v_e_par, 1);
@@ -469,16 +449,10 @@ void ReducedBraginskii::GetFluxVector(
                     fluxes[pe_idx][d], 1);
     }
 
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : this->GetSpecies())
     {
-        double charge, mass;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-
         for (int d = 0; d < m_spacedim; ++d)
         {
-
             // Ion Density Flux
             Vmath::Vmul(npts, field_vals[ni_idx[s]], 1,
                         this->adv_vel[ni_idx[s]][d], 1, fluxes[ni_idx[s]][d],
@@ -492,8 +466,6 @@ void ReducedBraginskii::GetFluxVector(
                         this->adv_vel[pi_idx[s]][d], 1, fluxes[pi_idx[s]][d],
                         1);
         }
-
-        s++;
     }
 }
 
@@ -529,16 +501,10 @@ void ReducedBraginskii::DoDiffusion(
     // Extract temperature
     m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
 
-    int s = 0;
-    double mass;
-
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : this->GetSpecies())
     {
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-        m_varConv->GetIonTemperature(s, mass, inarray,
-        inarrayDiff[pi_idx[s]]);
-
-        s++;
+        m_varConv->GetIonTemperature(s, v.mass, inarray,
+                                     inarrayDiff[pi_idx[s]]);
     }
 
     // Repeat calculation for trace space
@@ -551,15 +517,10 @@ void ReducedBraginskii::DoDiffusion(
     {
         m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
         m_varConv->GetElectronTemperature(pBwd, inBwd[pe_idx]);
-        s = 0;
-        for (const auto &[k, v] : this->neso_config->get_species())
+        for (const auto &[s, v] : this->GetSpecies())
         {
-            this->neso_config->load_species_parameter(k, "Mass", mass);
-
-            m_varConv->GetIonTemperature(s, mass, pFwd, inFwd[pi_idx[s]]);
-            m_varConv->GetIonTemperature(s, mass, pBwd, inBwd[pi_idx[s]]);
-
-            s++;
+            m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[pi_idx[s]]);
+            m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[pi_idx[s]]);
         }
     }
 
@@ -678,8 +639,7 @@ void ReducedBraginskii::GetFluxVectorDiff(
                          fluxes[j][pe_idx], 1);
         }
     }
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[s, v] : this->GetSpecies())
     {
         for (int j = 0; j < m_spacedim; ++j)
         {
@@ -692,7 +652,6 @@ void ReducedBraginskii::GetFluxVectorDiff(
                              fluxes[j][pi_idx[s]], 1);
             }
         }
-        s++;
     }
 }
 
@@ -832,12 +791,10 @@ void ReducedBraginskii::DoDiffusionCoeff(
 
     // Extract temperature
     m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
-    int s = 0;
-    for (const auto &[k, v] : this->particle_sys->get_species())
+    for (const auto &[s, v] : this->GetSpecies())
     {
         m_varConv->GetIonTemperature(s, v.mass, inarray,
                                      inarrayDiff[pi_idx[s]]);
-        s++;
     }
 
     // Repeat calculation for trace space
@@ -849,12 +806,10 @@ void ReducedBraginskii::DoDiffusionCoeff(
     else
     {
         m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
-        s = 0;
-        for (const auto &[k, v] : this->particle_sys->get_species())
+        for (const auto &[s, v] : this->GetSpecies())
         {
             m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[pi_idx[s]]);
             m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[pi_idx[s]]);
-            s++;
         }
     }
 
@@ -885,8 +840,7 @@ void ReducedBraginskii::DoParticlesCoeff(
     m_indfields[pe_idx]->FwdTrans(this->src_fields[0]->GetPhys(), tmp);
     Vmath::Vadd(npts, outarray[pe_idx], 1, tmp, 1, outarray[pe_idx], 1);
 
-    int s = 0;
-    for (const auto &[k, v] : this->particle_sys->get_species())
+    for (const auto &[s, v] : this->GetIons())
     {
         //  Add contribution to ion density
         m_indfields[ni_idx[s]]->FwdTrans(
@@ -906,7 +860,7 @@ void ReducedBraginskii::DoParticlesCoeff(
         Vmath::Vmul(npts, dynamic_energy, 1,
                     this->src_fields[ni_src_idx[s]]->GetPhys(), 1,
                     dynamic_energy, 1);
-        m_fields[pi_idx[s]]->FwdTrans(dynamic_energy, tmp);
+        m_indfields[pi_idx[s]]->FwdTrans(dynamic_energy, tmp);
         Vmath::Vadd(npts, outarray[pi_idx[s]], 1, tmp, 1, outarray[pi_idx[s]],
                     1);
 
@@ -917,10 +871,9 @@ void ReducedBraginskii::DoParticlesCoeff(
                          this->src_fields[vi_src_idx[s] + d]->GetPhys(), 1,
                          dynamic_energy, 1, dynamic_energy, 1);
         }
-        m_fields[vi_idx[s]]->FwdTrans(dynamic_energy, tmp);
+        m_indfields[vi_idx[s]]->FwdTrans(dynamic_energy, tmp);
         Vmath::Vadd(npts, outarray[vi_idx[s]], 1, tmp, 1, outarray[vi_idx[s]],
                     1);
-        s++;
     }
 }
 

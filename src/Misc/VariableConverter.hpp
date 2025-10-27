@@ -125,8 +125,6 @@ public:
     std::vector<int> ni_idx;
     std::vector<int> vi_idx;
     std::vector<int> pi_idx;
-    std::map<int, double> mass;
-    std::map<int, double> charge;
 
 protected:
     LU::SessionReaderSharedPtr m_session;

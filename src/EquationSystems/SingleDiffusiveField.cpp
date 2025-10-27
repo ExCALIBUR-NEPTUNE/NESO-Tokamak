@@ -283,7 +283,7 @@ void SingleDiffusiveField::v_ExtraFldOutput(
     if (this->particles_enabled)
     {
         int i = 0;
-        for (auto &[k, v] : this->particle_sys->get_species())
+        for (auto &[k, v] : this->GetSpecies())
         {
             variables.push_back(v.name + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd(nCoeffs);

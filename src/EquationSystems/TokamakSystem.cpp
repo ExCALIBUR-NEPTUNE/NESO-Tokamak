@@ -426,7 +426,27 @@ void TokamakSystem::v_InitObject(bool create_field)
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
     ReadMagneticField(0);
     this->n_species = this->neso_config->get_species().size();
-    m_allfields     = Array<OneD, MR::ExpListSharedPtr>(
+    int s           = 0;
+    for (auto [k, v] : this->neso_config->get_species())
+    {
+        double charge = 1;
+        double mass   = 1;
+        this->neso_config->load_species_parameter(k, "Charge", charge);
+        this->neso_config->load_species_parameter(k, "Mass", mass);
+        std::string name = std::get<0>(v);
+        Species spec{charge, mass, name};
+        if (charge == 0)
+        {
+            m_neutrals[s] = spec;
+        }
+        else
+        {
+            m_ions[s] = spec;
+        }
+        m_species[s++] = spec;
+    }
+
+    m_allfields = Array<OneD, MR::ExpListSharedPtr>(
         m_fields.size() + this->n_species * n_fields_per_species);
     m_indfields = Array<OneD, MR::ExpListSharedPtr>(
         n_indep_fields + this->n_species * n_fields_per_species);
@@ -436,9 +456,9 @@ void TokamakSystem::v_InitObject(bool create_field)
         m_allfields[i] = m_fields[i];
     }
 
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[k, v] : this->GetSpecies())
     {
-        std::string name = std::get<0>(v);
+        std::string name = v.name;
         for (int f = 0; f < this->n_fields_per_species; ++f)
         {
             if (m_projectionType == MR::eGalerkin ||
@@ -452,11 +472,6 @@ void TokamakSystem::v_InitObject(bool create_field)
             }
             else
             {
-                // m_indfields[k * n_fields_per_species + f] =
-                //     MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                //         *std::dynamic_pointer_cast<MR::DisContField>(
-                //             m_fields[0]),
-                //         m_graph, m_session->GetVariable(f));
                 m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
                         m_session, m_graph, m_session->GetVariable(f));
@@ -760,16 +775,6 @@ bool TokamakSystem::v_PreIntegrate(int step)
         ReadMagneticField(m_time);
     }
 
-    // Vmath::Zero(n_pts, m_fields[0]->UpdatePhys(), 1);
-    // for (const auto &[k, v] : this->neso_config->get_species())
-    // {
-    //     Vmath::Vadd(n_pts, m_fields[0]->GetPhys(), 1,
-    //                 m_indfields[k * n_fields_per_species]->GetPhys(), 1,
-    //                 m_fields[0]->UpdatePhys(), 1);
-    // }
-    // m_fields[0]->FwdTransLocalElmt(this->m_fields[0]->GetPhys(),
-    //                                m_fields[0]->UpdateCoeffs());
-
     if (this->Te)
     {
         Vmath::Vdiv(n_pts,
@@ -879,11 +884,12 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
             }
         }
     }
-    for (int s = 0; s < this->n_species; ++s)
+    int s = 0;
+    for (const auto &[k, v] : this->neso_config->get_species())
     {
-        if (this->neso_config->defines_species_function(s, "InitialConditions"))
+        if (this->neso_config->defines_species_function(k, "InitialConditions"))
         {
-            auto fn = this->get_species_function(s, "InitialConditions");
+            auto fn = this->get_species_function(k, "InitialConditions");
             for (int f = 0; f < n_fields_per_species; ++f)
             {
                 int fi = f + s * n_fields_per_species;
@@ -925,6 +931,7 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                             m_indfields[fi]->UpdateCoeffs(), 1);
             }
         }
+        s++;
     }
 
     if (dump_ICs && m_checksteps && m_nchk == 0 && !m_comm->IsParallelInTime())
@@ -944,7 +951,7 @@ void TokamakSystem::SetBoundaryConditions(NekDouble time)
 {
     EquationSystem::SetBoundaryConditions(time);
     std::string varName;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[k, v] : this->GetSpecies())
     {
         for (int f = 0; f < this->n_fields_per_species; ++f)
         {

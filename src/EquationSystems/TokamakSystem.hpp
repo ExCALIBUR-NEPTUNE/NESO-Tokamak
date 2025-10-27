@@ -57,6 +57,33 @@ public:
     /// Callback handler to call user-defined callbacks
     SolverCallbackHandler<TokamakSystem> solver_callback_handler;
 
+    struct Species
+    {
+        double charge;
+        double mass;
+        std::string name;
+    };
+    std::map<int, Species> m_species;
+
+    std::map<int, Species> &GetSpecies()
+    {
+        return m_species;
+    }
+
+    std::map<int, Species> m_ions;
+
+    std::map<int, Species> &GetIons()
+    {
+        return m_ions;
+    }
+
+    std::map<int, Species> m_neutrals;
+
+    std::map<int, Species> &GetNeutrals()
+    {
+        return m_neutrals;
+    }
+
 protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
                   const SD::MeshGraphSharedPtr &graph);

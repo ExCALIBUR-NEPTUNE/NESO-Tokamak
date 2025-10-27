@@ -26,9 +26,9 @@ void VariableConverter::GetElectronDensity(
 {
     size_t nPts = physfield[0].size();
     Vmath::Zero(nPts, density, 1);
-    for (int s = 0; s < ni_idx.size(); ++s)
+    for (const auto& [s, v] : GetIons())
     {
-        Vmath::Svtvp(nPts, charge[s], physfield[ni_idx[s]], 1, density, 1,
+        Vmath::Svtvp(nPts, v.charge, physfield[ni_idx[s]], 1, density, 1,
                      density, 1);
     }
 }
@@ -40,9 +40,9 @@ void VariableConverter::GetElectronVelocity(
 {
     size_t nPts = physfield[0].size();
 
-    for (int s = 0; s < ni_idx.size(); ++s)
+    for (const auto& [s, v] : GetIons())
     {
-        Vmath::Svtvp(nPts, charge[s], physfield[vi_idx[s]], 1, velocity, 1,
+        Vmath::Svtvp(nPts, v.charge, physfield[vi_idx[s]], 1, velocity, 1,
                      velocity, 1);
     }
     Vmath::Vsub(nPts, velocity, 1, current, 1, velocity, 1);
@@ -195,14 +195,15 @@ void VariableConverter::GetSystemSoundSpeed(
     Array<OneD, NekDouble> ne(nPts);
 
     GetElectronDensity(physfield, ne);
+    const auto& m = GetIons();
 
     for (int p = 0; p < nPts; ++p)
     {
-        for (int s = 0; s < ni_idx.size(); ++s)
+        for (const auto& [s, v] : m)
         {
             tmp[p] += physfield[ni_idx[s]][p] *
                       m_eos->GetTemperature(ne[p], physfield[pe_idx][p]) /
-                      (ne[p] * mass[s]);
+                      (ne[p] * v.mass);
         }
         soundspeed[p] = std::sqrt(tmp[p]);
     }
