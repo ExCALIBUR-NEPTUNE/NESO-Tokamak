@@ -64,25 +64,36 @@ public:
         std::string name;
     };
     std::map<int, Species> m_species;
-
     std::map<int, Species> &GetSpecies()
     {
         return m_species;
     }
 
-    std::map<int, Species> m_ions;
-
-    std::map<int, Species> &GetIons()
+    struct Ion
+    {
+        double charge;
+        double mass;
+        std::string name;
+    };
+    std::map<int, Ion> m_ions;
+    std::map<int, Ion> &GetIons()
     {
         return m_ions;
     }
 
-    std::map<int, Species> m_neutrals;
-
-    std::map<int, Species> &GetNeutrals()
+    struct Neutral
+    {
+        double mass;
+        std::string name;
+        int ion;
+    };
+    std::map<int, Neutral> m_neutrals;
+    std::map<int, Neutral> &GetNeutrals()
     {
         return m_neutrals;
     }
+
+    std::map<int, int> m_baseion;
 
 protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,

@@ -361,7 +361,7 @@ void ReducedBraginskii::CalcVelocities(
 
     // Zero Electron velocity
     Vmath::Zero(npts, m_fields[1]->UpdatePhys(), 1);
-    for (const auto &[s, v] : GetSpecies())
+    for (const auto &[s, v] : GetIons())
     {
         // Calculate Ion parallel velocities
         Vmath::Smul(npts, 1.0 / v.mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
@@ -382,13 +382,31 @@ void ReducedBraginskii::CalcVelocities(
                          1);
         }
     }
-
     Vmath::Vdiv(npts, m_fields[1]->GetPhys(), 1, ne, 1, this->v_e_par, 1);
 
     for (int d = 0; d < m_spacedim; ++d)
     {
         Vmath::Vmul(npts, this->b_unit[d], 1, this->v_e_par, 1,
                     adv_vel[pe_idx][d], 1);
+    }
+
+    for (const auto &[s, v] : GetNeutrals())
+    {
+        // Calculate Ion parallel velocities
+        Vmath::Smul(npts, 1.0 / v.mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
+                    1);
+        Vmath::Vdiv(npts, this->v_i_par[s], 1, inarray[ni_idx[s]], 1,
+                    this->v_i_par[s], 1);
+
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vmul(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
+                        adv_vel[ni_idx[s]][d], 1);
+            Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[vi_idx[s]][d],
+                         1);
+            Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[pi_idx[s]][d],
+                         1);
+        }
     }
 }
 
@@ -652,6 +670,46 @@ void ReducedBraginskii::GetFluxVectorDiff(
                              fluxes[j][pi_idx[s]], 1);
             }
         }
+    }
+}
+
+void ReducedBraginskii::AddNeutralSources(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    Array<OneD, Array<OneD, NekDouble>> &outarray)
+{
+    unsigned int nPts = inarray[0].size();
+    auto ne           = m_fields[0]->GetPhys();
+    Array<OneD, NekDouble> tmp(nPts, 0.0);
+    Array<OneD, NekDouble> tmp2(nPts, 0.0);
+    Array<OneD, NekDouble> SN(nPts, 0.0);
+    Array<OneD, NekDouble> SV(nPts, 0.0);
+    for (const auto &[s, v] : this->GetNeutrals())
+    {
+        // N source
+        Vmath::Vvtvvtm(nPts, inarray[ni_idx[v.ion]], 1, krec[s], 1,
+                       inarray[ni_idx[s]], 1, kIZ[s], 1, tmp, 1);
+        Vmath::Vmul(nPts, tmp, 1, ne, 1, SN, 1);
+        Vmath::Vadd(nPts, outarray[ni_idx[s]], 1, SN, 1, outarray[ni_idx[s]],
+                    1);
+        Vmath::Vsub(nPts, outarray[ni_idx[v.ion]], SN, 1, outarray[ni_idx[s]],
+                    1);
+        // V source
+        Vmath::Vvtvvtp(nPts, ne, 1, krec[s], 1, ni_idx[s], 1, kCX[s], 1, tmp,
+                       1);
+        Vmath::Vvtvvtp(nPts, ne, 1, kIZ[s], 1, ni_idx[v.ion], 1, kCX[s], 1,
+                       tmp2, 1);
+        Vmath::Vvtvvtm(nPts, tmp, 1, inarray[vi_idx[v.ion]], 1, tmp2, 1,
+                       inarray[vi_idx[s]], 1, SV, 1);
+
+        Vmath::Vadd(nPts, outarray[vi_idx[s]], 1, SV, 1, outarray[vi_idx[s]],
+                    1);
+        Vmath::Vsub(nPts, outarray[vi_idx[v.ion]], 1, SV, 1,
+                    outarray[vi_idx[v.ion]], 1);
+        Vmath::Vmul(nPts, SN, 1, inarray[vi_idx[v.ion]], 1, tmp, 1);
+        Vmath::Vsub(nPts, outarray[vi_idx[v.ion]], 1, tmp, 1,
+                    outarray[vi_idx[v.ion]], 1);
+
+        //  P source
     }
 }
 

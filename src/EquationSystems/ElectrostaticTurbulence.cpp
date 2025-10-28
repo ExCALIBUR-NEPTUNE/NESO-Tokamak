@@ -39,7 +39,8 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
     m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-        std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()), m_spacedim);
+        std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
+        m_spacedim);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -621,6 +622,24 @@ void ElectrostaticTurbulence::CalcVelocities(
         Vmath::Vvtvp(npts, this->b_unit[d], 1, this->v_e_par, 1, v_ExB[d], 1,
                      adv_vel[pe_idx][d], 1);
     }
+    for (const auto &[s, v] : GetNeutrals())
+    {
+        // Calculate Ion parallel velocities
+        Vmath::Smul(npts, 1.0 / v.mass, inarray[vi_idx[s]], 1, this->v_i_par[s],
+                    1);
+        Vmath::Vdiv(npts, this->v_i_par[s], 1, inarray[ni_idx[s]], 1,
+                    this->v_i_par[s], 1);
+
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            Vmath::Vmul(npts, this->b_unit[d], 1, this->v_i_par[s], 1,
+                        adv_vel[ni_idx[s]][d], 1);
+            Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[vi_idx[s]][d],
+                         1);
+            Vmath::Vcopy(npts, adv_vel[ni_idx[s]][d], 1, adv_vel[pi_idx[s]][d],
+                         1);
+        }
+    }
 }
 
 void ElectrostaticTurbulence::AddDriftVelocities(
@@ -1185,6 +1204,12 @@ void ElectrostaticTurbulence::GetFluxVectorDiff(
             }
         }
     }
+}
+
+void ElectrostaticTurbulence::AddNeutralSources(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr,
+    Array<OneD, Array<OneD, NekDouble>> &outarray)
+{
 }
 
 /**

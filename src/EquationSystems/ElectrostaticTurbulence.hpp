@@ -100,6 +100,9 @@ protected:
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
+    void AddNeutralSources(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
+                           Array<OneD, Array<OneD, NekDouble>> &outarray);
+
     // Functions for the Implicit Solve
     void DoOdeImplicitRhs(
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,

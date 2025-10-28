@@ -425,8 +425,7 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
     ReadMagneticField(0);
-    this->n_species = this->neso_config->get_species().size();
-    int s           = 0;
+    int s = 0;
     for (auto [k, v] : this->neso_config->get_species())
     {
         double charge = 1;
@@ -437,14 +436,17 @@ void TokamakSystem::v_InitObject(bool create_field)
         Species spec{charge, mass, name};
         if (charge == 0)
         {
-            m_neutrals[s] = spec;
+            Neutral neut{mass, name, s - 1};
+            m_neutrals[s] = neut;
         }
         else
         {
-            m_ions[s] = spec;
+            Ion ion{charge, mass, name};
+            m_ions[s] = ion;
         }
         m_species[s++] = spec;
     }
+    this->n_species = m_species.size();
 
     m_allfields = Array<OneD, MR::ExpListSharedPtr>(
         m_fields.size() + this->n_species * n_fields_per_species);
