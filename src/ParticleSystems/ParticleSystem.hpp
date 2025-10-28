@@ -3,6 +3,7 @@
 
 #include <array>
 
+#include "../Misc/Constants.hpp"
 #include <nektar_interface/function_evaluation.hpp>
 #include <nektar_interface/function_projection.hpp>
 #include <nektar_interface/particle_boundary_conditions.hpp>
@@ -161,8 +162,8 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(static_particle_sub_group(this->particle_group),
-                                 dt_inner);
+            this->apply_timestep(
+                static_particle_sub_group(this->particle_group), dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -191,6 +192,21 @@ public:
                     Sym<REAL>("VELOCITY"), Sym<REAL>("MAGNETIC_FIELD"),
                     Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
                     Sym<INT>("ID"), Sym<REAL>("TOT_REACTION_RATE"));
+    }
+    inline virtual void diag_setup(
+        const std::shared_ptr<DisContField> &diag_field)
+    {
+        this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
+            diag_field, this->particle_group,
+            this->cell_id_translation);
+    }
+
+    inline virtual void diag_project()
+    {
+        std::vector<Sym<REAL>> syms{Sym<REAL>("WEIGHT")};
+        std::vector<int> components{0};
+        this->diagnostic_project->project(this->particle_group, syms,
+                                          components);
     }
 
     void add_sources(double time, double dt);
@@ -429,6 +445,8 @@ protected:
     std::vector<int> src_components;
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
+
+    std::shared_ptr<FieldProject<DisContField>> diagnostic_project;
 
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;
