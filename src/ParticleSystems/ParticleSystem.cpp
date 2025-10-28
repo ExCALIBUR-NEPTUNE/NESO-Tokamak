@@ -93,6 +93,11 @@ void ParticleSystem::set_up_species()
                 else if (auto v = vmap.find(std::pair("Tin", 0));
                          v != vmap.end()) // Specific to EIRENE example
                 {
+                    for (int d = 0; d < ndim; ++d)
+                    {
+                        velocities.emplace_back(std::vector<double>(N));
+                    }
+
                     double T = v->second.m_expression->Evaluate();
 
                     std::uniform_real_distribution u(0.0, 1.0);
@@ -318,6 +323,10 @@ void ParticleSystem::add_sources(double time, double dt)
                     else if (auto v = vmap.find(std::pair("Tin", 0));
                              v != vmap.end()) // Specific to EIRENE example
                     {
+                        for (int d = 0; d < ndim; ++d)
+                        {
+                            velocities.emplace_back(std::vector<double>(N));
+                        }
                         double T = v->second.m_expression->Evaluate();
 
                         std::uniform_real_distribution u(0.0, 1.0);
