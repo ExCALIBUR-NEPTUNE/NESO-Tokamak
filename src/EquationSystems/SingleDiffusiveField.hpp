@@ -69,7 +69,7 @@ protected:
     Array<OneD, NekDouble> m_kpar;
     StdRegions::VarCoeffMap m_D;
 
-    std::shared_ptr<DisContField> diag_field;
+    std::shared_ptr<ContField> diag_field;
 };
 
 } // namespace NESO::Solvers::tokamak

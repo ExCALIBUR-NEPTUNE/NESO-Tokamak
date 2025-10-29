@@ -61,7 +61,7 @@ public:
     {
         this->particle_spec = {
             ParticleProp(Sym<REAL>("POSITION"), this->ndim, true),
-            ParticleProp(Sym<REAL>("VELOCITY"), this->ndim),
+            ParticleProp(Sym<REAL>("VELOCITY"), 3),
             ParticleProp(Sym<INT>("CELL_ID"), 1, true),
             ParticleProp(Sym<INT>("ID"), 1),
             ParticleProp(Sym<INT>("INTERNAL_STATE"), 1),
@@ -190,12 +190,10 @@ public:
                     Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
                     Sym<INT>("ID"), Sym<REAL>("TOT_REACTION_RATE"));
     }
-    inline virtual void diag_setup(
-        const std::shared_ptr<DisContField> &diag_field)
+    inline virtual void diag_setup(const std::shared_ptr<ContField> &diag_field)
     {
-        this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
-            diag_field, this->particle_group,
-            this->cell_id_translation);
+        this->diagnostic_project = std::make_shared<FieldProject<ContField>>(
+            diag_field, this->particle_group, this->cell_id_translation);
     }
 
     inline virtual void diag_project()
@@ -404,7 +402,29 @@ protected:
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
-        else if (ndim == 2)
+        // else if (ndim == 2)
+        // {
+        //     particle_loop(
+        //         "euler_advection", sg,
+        //         [=](auto V, auto P, auto TSP)
+        //         {
+        //             const REAL dt_left = k_dt - TSP.at(0);
+        //             if (dt_left > 0.0)
+        //             {
+
+        //                 P.at(0) += dt_left * V.at(0);
+        //                 P.at(1) += dt_left * V.at(1);
+
+        //                 TSP.at(0) = k_dt;
+        //                 TSP.at(1) = dt_left;
+        //             }
+        //         },
+        //         Access::read(Sym<REAL>("VELOCITY")),
+        //         Access::write(Sym<REAL>("POSITION")),
+        //         Access::write(Sym<REAL>("TSP")))
+        //         ->execute();
+        // }
+        else if (ndim==2)
         {
             particle_loop(
                 "euler_advection", sg,
@@ -413,15 +433,22 @@ protected:
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
+                        double dz  = sycl::fabs(dt_left * V.at(2));
+                        double phi = sycl::atan2(dz, P.at(0));
 
                         P.at(0) += dt_left * V.at(0);
                         P.at(1) += dt_left * V.at(1);
+
+                        V.at(0) =
+                            V.at(0) * sycl::cos(phi) + V.at(2) * sycl::sin(phi);
+                        V.at(2) =
+                            V.at(2) * sycl::cos(phi) - V.at(0) * sycl::sin(phi);
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
                     }
                 },
-                Access::read(Sym<REAL>("VELOCITY")),
+                Access::write(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("POSITION")),
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
@@ -443,7 +470,7 @@ protected:
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
-    std::shared_ptr<FieldProject<DisContField>> diagnostic_project;
+    std::shared_ptr<FieldProject<ContField>> diagnostic_project;
 
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;

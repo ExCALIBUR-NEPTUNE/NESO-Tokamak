@@ -96,8 +96,8 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
                                          
-        this->diag_field = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->diag_field = MemoryManager<MR::ContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::ContField>(m_fields[0]));
         this->particle_sys->diag_setup(this->diag_field);
     }
 }
