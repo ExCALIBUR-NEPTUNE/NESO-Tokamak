@@ -266,6 +266,7 @@ void ParticleSystem::add_sources(double time, double dt)
 
                         std::uniform_real_distribution u(0.0, 1.0);
                         std::gamma_distribution mb(1.5, T);
+                        velocities.emplace_back(std::vector<double>(N));
 
                         for (int p = 0; p < N; ++p)
                         {
@@ -276,6 +277,8 @@ void ParticleSystem::add_sources(double time, double dt)
                             double sintheta = sqrt(u(this->rng_phasespace));
                             double phi = 2 * M_PI * u(this->rng_phasespace);
                             velocities[1][p] = speed * sintheta * cos(phi);
+                            velocities[2][p] = speed * sintheta * sin(phi);
+
                             velocities[0][p] =
                                 -speed * sqrt(1 - sintheta * sintheta);
                         }
@@ -345,6 +348,8 @@ void ParticleSystem::add_sources(double time, double dt)
                             src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
                                             [dimx] = 0;
                         }
+                        src_distribution[Sym<REAL>("VELOCITY")][px][2] =
+                            velocities[2][px];
                         src_distribution[Sym<REAL>("Q")][px][0] =
                             particle_charge;
                         src_distribution[Sym<REAL>("M")][px][0] = particle_mass;

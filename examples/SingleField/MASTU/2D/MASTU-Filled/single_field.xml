@@ -17,7 +17,7 @@
 
         <PARAMETERS>
             <P> TimeStep       = 0.0001               </P>
-            <P> NumSteps      = 1000              </P>
+            <P> NumSteps      = 100              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
