@@ -95,6 +95,10 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
+                                         
+        this->diag_field = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->particle_sys->diag_setup(this->diag_field);
     }
 }
 
@@ -289,6 +293,17 @@ void SingleDiffusiveField::load_params()
     // multiply k_perp by A^0.5 Z^2 n B^-1 in solver
 }
 
+bool SingleDiffusiveField::v_PostIntegrate(int step)
+{
+    m_fields[0]->FwdTrans(m_fields[0]->GetPhys(), m_fields[0]->UpdateCoeffs());
+
+    if (this->particles_enabled)
+        this->particle_sys->diag_project();
+    // Writes a step of the particle trajectory.
+
+    return TokamakSystem::v_PostIntegrate(step);
+}
+
 void SingleDiffusiveField::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
@@ -308,6 +323,10 @@ void SingleDiffusiveField::v_ExtraFldOutput(
                                            SrcFwd);
             fieldcoeffs.push_back(SrcFwd);
         }
+        variables.push_back("DIAGNOSTIC");
+        Array<OneD, NekDouble> SrcFwd(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(this->diag_field->GetPhys(), SrcFwd);
+        fieldcoeffs.push_back(SrcFwd);
     }
 }
 } // namespace NESO::Solvers::tokamak

@@ -31,6 +31,7 @@ protected:
     SingleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
+    bool v_PostIntegrate(int step) override;
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
         Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,
@@ -67,6 +68,8 @@ protected:
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
     StdRegions::VarCoeffMap m_D;
+
+    std::shared_ptr<DisContField> diag_field;
 };
 
 } // namespace NESO::Solvers::tokamak
