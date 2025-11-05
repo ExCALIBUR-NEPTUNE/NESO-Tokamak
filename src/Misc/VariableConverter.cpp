@@ -155,8 +155,8 @@ void VariableConverter::GetIonTemperature(
     size_t nPts = physfield[0].size();
 
     Array<OneD, NekDouble> energy(nPts);
-    GetIonInternalEnergy(s, mass, physfield, energy);
 
+    //GetIonInternalEnergy(s, mass, physfield, energy);
     for (size_t p = 0; p < nPts; ++p)
     {
         // temperature[p] =

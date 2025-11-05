@@ -3,6 +3,7 @@
 
 #include <array>
 
+#include "../Misc/Constants.hpp"
 #include <nektar_interface/function_evaluation.hpp>
 #include <nektar_interface/function_projection.hpp>
 #include <nektar_interface/particle_boundary_conditions.hpp>
@@ -59,7 +60,7 @@ public:
     {
         this->particle_spec = {
             ParticleProp(Sym<REAL>("POSITION"), this->ndim, true),
-            ParticleProp(Sym<REAL>("VELOCITY"), this->ndim),
+            ParticleProp(Sym<REAL>("VELOCITY"), 3),
             ParticleProp(Sym<INT>("CELL_ID"), 1, true),
             ParticleProp(Sym<INT>("ID"), 1),
             ParticleProp(Sym<INT>("INTERNAL_STATE"), 1),
@@ -109,6 +110,13 @@ public:
     virtual void init_object() override
     {
         PartSysBase::init_object();
+        config->load_parameter("mesh_length", this->mesh_length, 1.);
+        config->load_parameter("Nnorm", this->Nnorm, 1e18);
+        config->load_parameter("Tnorm", this->Tnorm, 100.);
+        config->load_parameter("Bnorm", this->Bnorm, 1);
+
+        this->omega_c =
+            constants::qeomp * this->Bnorm; // Ion cyclotron frequency [1/s]
         this->particle_remover =
             std::make_shared<ParticleRemover>(this->sycl_target);
 
@@ -125,10 +133,6 @@ public:
         double charge;
 
         std::shared_ptr<ParticleSubGroup> sub_group;
-
-        /// Reflective Boundary Conditions
-        // std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
-        // std::vector<int> reflection_composites;
     };
     virtual std::map<int, SpeciesInfo> &get_species()
     {
@@ -161,8 +165,8 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(static_particle_sub_group(this->particle_group),
-                                 dt_inner);
+            this->apply_timestep(
+                static_particle_sub_group(this->particle_group), dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -191,6 +195,19 @@ public:
                     Sym<REAL>("VELOCITY"), Sym<REAL>("MAGNETIC_FIELD"),
                     Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
                     Sym<INT>("ID"), Sym<REAL>("TOT_REACTION_RATE"));
+    }
+    inline virtual void diag_setup(const std::shared_ptr<ContField> &diag_field)
+    {
+        this->diagnostic_project = std::make_shared<FieldProject<ContField>>(
+            diag_field, this->particle_group, this->cell_id_translation);
+    }
+
+    inline virtual void diag_project()
+    {
+        std::vector<Sym<REAL>> syms{Sym<REAL>("WEIGHT")};
+        std::vector<int> components{0};
+        this->diagnostic_project->project(this->particle_group, syms,
+                                          components);
     }
 
     void add_sources(double time, double dt);
@@ -391,6 +408,28 @@ protected:
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
+        // else if (ndim == 2)
+        // {
+        //     particle_loop(
+        //         "euler_advection", sg,
+        //         [=](auto V, auto P, auto TSP)
+        //         {
+        //             const REAL dt_left = k_dt - TSP.at(0);
+        //             if (dt_left > 0.0)
+        //             {
+
+        //                 P.at(0) += dt_left * V.at(0);
+        //                 P.at(1) += dt_left * V.at(1);
+
+        //                 TSP.at(0) = k_dt;
+        //                 TSP.at(1) = dt_left;
+        //             }
+        //         },
+        //         Access::read(Sym<REAL>("VELOCITY")),
+        //         Access::write(Sym<REAL>("POSITION")),
+        //         Access::write(Sym<REAL>("TSP")))
+        //         ->execute();
+        // }
         else if (ndim == 2)
         {
             particle_loop(
@@ -400,15 +439,31 @@ protected:
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
+                        double vx = V.at(0) + 0.5 * dt_left * V.at(2) * V.at(2) / P.at(0);
+                        double vz = V.at(2) - 0.5 * dt_left * V.at(0) * V.at(2) / P.at(0);
 
-                        P.at(0) += dt_left * V.at(0);
+                        P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
+
+                        V.at(0) = vx + 0.5 * dt_left * vz * vz / P.at(0);
+                        V.at(2) = vz - 0.5 * dt_left * vx * vz / P.at(0);
+
+                        // double dz  = sycl::fabs(dt_left * V.at(2));
+                        // double phi = sycl::atan2(dz, P.at(0));
+
+                        // P.at(0) += dt_left * V.at(0);
+                        // P.at(1) += dt_left * V.at(1);
+
+                        // V.at(0) =
+                        //     V.at(0) * sycl::cos(phi) + V.at(2) * sycl::sin(phi);
+                        // V.at(2) =
+                        //     V.at(2) * sycl::cos(phi) - V.at(0) * sycl::sin(phi);
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
                     }
                 },
-                Access::read(Sym<REAL>("VELOCITY")),
+                Access::write(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("POSITION")),
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
@@ -430,6 +485,8 @@ protected:
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
+    std::shared_ptr<FieldProject<ContField>> diagnostic_project;
+
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;
     std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>
@@ -445,6 +502,12 @@ protected:
 
     /// Simulation time
     double simulation_time;
+
+    double mesh_length; // mesh conversion to m
+    double Nnorm;       // Density normalisation to m^-3
+    double Tnorm;       // Temperature normalisation to eV
+    double Bnorm;       // B field normalisation to T
+    double omega_c;     // Reference ion gyrofrequency
 
     inline void apply_timestep_reset(ParticleSubGroupSharedPtr sg)
     {

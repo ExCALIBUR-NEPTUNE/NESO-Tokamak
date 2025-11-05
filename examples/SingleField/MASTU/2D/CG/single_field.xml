@@ -22,21 +22,22 @@
         </SOLVERINFO>
 
         <PARAMETERS>
-            <P> TimeStep       = 0.1               </P>
+            <!-- Conversion of mesh unit to m -->
+            <P> mesh_length = 1</P> 
+            <!-- Normalised temperature in eV -->
+            <P> Tnorm = 1</P>
+            <!-- Normalised density in m^-3 -->
+            <P> Nnorm = 1e18</P>
+            <!-- Normalised magnetic field in T -->
+            <P> Bnorm = 1.0</P>
+            <!-- Time step in cyclotron units -->
+            <P> TimeStep       = 50               </P>
             <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 1                </P>
             <P> IO_InfoSteps   = 1                </P>
             <P> epsilon        = 1.0               </P>
 
-            <P> m_e            = 9.1096e-31         </P>
-            <P> m_p            = 1.6726e-27         </P>
-            <P> A              = 1.0                </P>
-            <P> Z              = 1.0                </P>
-            <P> m_i            = A*m_p              </P>
-            <P> epsilon_0      = 8.8542e-12         </P>
-            <P> e              = 1.6022e-19         </P>
-            <P> k_B            = 1.3807e-23         </P>
             <P> theta          = 2.0                </P>
             <P> T_bnd          = 1                  </P>
             <!-- <P> k_par          = 19.2 * sqrt(2.0 * PI^3.0) * (1.0/sqrt(m_e)) * (epsilon_0^2.0 / e^4.0) * (((k_B * T_e)^(5.0/2.0))/((Z^2.0) * lambda)) </P> -->

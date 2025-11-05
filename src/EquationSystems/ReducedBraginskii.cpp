@@ -56,8 +56,12 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     m_diffusion->InitObject(m_session, m_difffields);
 
     // Create storage for velocities
-    int npts = GetNpoints();
-    pe_idx   = 3 * this->n_species;
+    int npts       = GetNpoints();
+    this->m_kpar   = Array<OneD, NekDouble>(npts, 0.0);
+    this->m_kcross = Array<OneD, NekDouble>(npts, 0.0);
+    this->m_kperp  = Array<OneD, NekDouble>(npts, 0.0);
+
+    pe_idx         = this->n_fields_per_species * this->n_species;
 
     // Parallel velocities
     this->v_e_par = Array<OneD, NekDouble>(npts, 0.0);
@@ -79,9 +83,9 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
 
     for (const auto &[s, v] : this->GetSpecies())
     {
-        ni_idx.push_back(3 * s);
-        vi_idx.push_back(1 + 3 * s);
-        pi_idx.push_back(2 + 3 * s);
+        ni_idx.push_back(this->n_fields_per_species * s);
+        vi_idx.push_back(this->n_fields_per_species * s + 1);
+        pi_idx.push_back(this->n_fields_per_species * s + 2);
 
         this->v_i_par[s] = Array<OneD, NekDouble>(npts, 0.0);
         for (int d = 0; d < m_graph->GetSpaceDimension(); ++d)
@@ -200,6 +204,7 @@ bool ReducedBraginskii::v_PostIntegrate(int step)
 {
     m_fields[0]->FwdTrans(m_fields[0]->GetPhys(), m_fields[0]->UpdateCoeffs());
     m_fields[1]->FwdTrans(m_fields[1]->GetPhys(), m_fields[1]->UpdateCoeffs());
+    m_fields[2]->FwdTrans(m_fields[2]->GetPhys(), m_fields[2]->UpdateCoeffs());
 
     // Writes a step of the particle trajectory.
 
@@ -255,8 +260,6 @@ void ReducedBraginskii::DoOdeRhs(
     {
         Vmath::Neg(npts, outarray[i], 1);
     }
-
-    CalcKappaTensor();
 
     // Perform Diffusion
     DoDiffusion(inarray, outarray, Fwd, Bwd);
@@ -552,29 +555,10 @@ void ReducedBraginskii::DoDiffusion(
     }
 }
 
-void ReducedBraginskii::CalcKPar()
-{
-    // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_par;
-    m_session->LoadParameter("k_par", k_par, 100.0);
-    m_kpar = Array<OneD, NekDouble>(npoints, k_par);
-}
-
-void ReducedBraginskii::CalcKPerp()
-{
-    // Change to fn of fields
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble k_perp;
-    m_session->LoadParameter("k_perp", k_perp, 1.0);
-    m_kperp = Array<OneD, NekDouble>(npoints, k_perp);
-}
-
 void ReducedBraginskii::CalcDiffTensor()
 {
     int npoints = m_fields[0]->GetNpoints();
-    CalcKPar();
-    CalcKPerp();
+
     for (int i = 0; i < 3; i++)
     {
         for (int j = 0; j < 3; j++)
@@ -593,45 +577,75 @@ void ReducedBraginskii::CalcDiffTensor()
     }
 }
 
-void ReducedBraginskii::CalcKappaPar()
+void ReducedBraginskii::CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
+                              int f)
 {
-    // Change to fn of T
     int npoints = m_fields[0]->GetNpoints();
-    NekDouble kappa_par;
-    m_session->LoadParameter("kappa_par", kappa_par, 100.0);
-    m_kappapar = Array<OneD, NekDouble>(npoints, kappa_par);
-}
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+    auto ne = this->m_fields[0]->GetPhys();
 
-void ReducedBraginskii::CalcKappaPerp()
-{
-    // Change to fn of T
-    int npoints = m_fields[0]->GetNpoints();
-    NekDouble kappa_perp;
-    m_session->LoadParameter("kappa_perp", kappa_perp, 1.0);
-    m_kappaperp = Array<OneD, NekDouble>(npoints, kappa_perp);
-}
-
-void ReducedBraginskii::CalcKappaTensor()
-{
-    int npoints = m_fields[0]->GetNpoints();
-    CalcKappaPar();
-    CalcKappaPerp();
-    for (int i = 0; i < 3; i++)
+    for (int p = 0; p < npoints; ++p)
     {
-        for (int j = 0; j < 3; j++)
+        m_kpar[p] = this->k_ci * this->k_par * pow(in_arr[pe_idx][p], 2.5) /
+                    (Z * Z * in_arr[ni_idx[f]][p]);
+        m_kperp[p] = this->k_perp * Z * Z * std::sqrt(A) *
+                     in_arr[ni_idx[f]][p] /
+                     (sqrt(in_arr[pe_idx][p]) * this->mag_B[p]);
+        m_kcross[p] =
+            this->k_cross * ne[p] * in_arr[pe_idx][p] / (sqrt(this->mag_B[p]));
+    }
+}
+
+// Ion thermal conductivity
+void ReducedBraginskii::CalcKappa(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    double Z, A;
+    this->neso_config->load_species_parameter(f, "Charge", Z);
+    this->neso_config->load_species_parameter(f, "Mass", A);
+
+    Array<OneD, NekDouble> tmp(npoints, 0.0);
+    int s2 = 0;
+    for (const auto &[k2, v2] : this->neso_config->get_species())
+    {
+        double Z2, A2;
+        this->neso_config->load_species_parameter(s2, "Charge", Z2);
+        this->neso_config->load_species_parameter(s2, "Mass", A2);
+        for (int p = 0; p < npoints; ++p)
         {
-            Array<OneD, NekDouble> kappa(npoints, 0.0);
-            for (int k = 0; k < npoints; k++)
-            {
-                kappa[k] = (m_kappapar[k] - m_kappaperp[k]) * b_unit[i][k] *
-                           b_unit[j][k];
-                if (i == j)
-                {
-                    kappa[k] += m_kappaperp[k];
-                }
-            }
-            m_kappa[vc[i][j]] = kappa;
+            tmp[p] += Z2 * Z2 * sqrt(A2 / (A + A2)) * in_arr[ni_idx[s2]][p];
         }
+        s2++;
+    }
+    for (int p = 0; p < npoints; ++p)
+    {
+        this->m_kpar[p] = this->kappa_i_par * in_arr[ni_idx[f]][p] *
+                          (in_arr[pi_idx[f]][p], 2.5) /
+                          (sqrt(A) * Z * Z * tmp[p]);
+        this->m_kperp[p] = this->kappa_i_perp * sqrt(A) * tmp[p] *
+                           in_arr[ni_idx[f]][p] /
+                           (this->mag_B[p] * sqrt(in_arr[pi_idx[f]][p]));
+        this->m_kcross[p] = this->kappa_i_cross * in_arr[ni_idx[f]][p] *
+                            in_arr[pi_idx[f]][p] / (Z * sqrt(this->mag_B[p]));
+    }
+}
+
+// Electron thermal conductivity
+void ReducedBraginskii::CalcKappa(
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr)
+{
+    int npoints = m_fields[0]->GetNpoints();
+    auto ne     = this->m_fields[0]->GetPhys();
+    for (int p = 0; p < npoints; ++p)
+    {
+        this->m_kpar[p]  = this->kappa_e_par * pow(in_arr[pe_idx][p], 2.5);
+        this->m_kperp[p] = this->kappa_e_perp * ne[p] * ne[p] /
+                           (this->mag_B[p] * sqrt(in_arr[pe_idx][p]));
+        this->m_kcross[p] = this->kappa_e_cross * ne[p] * in_arr[pe_idx][p] /
+                            (sqrt(this->mag_B[p]));
     }
 }
 
@@ -639,33 +653,62 @@ void ReducedBraginskii::CalcKappaTensor()
  * @brief Construct the flux vector for the anisotropic diffusion problem.
  */
 void ReducedBraginskii::GetFluxVectorDiff(
-    const Array<OneD, Array<OneD, NekDouble>> &inarray,
+    const Array<OneD, Array<OneD, NekDouble>> &in_arr,
     const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &qfield,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes)
 {
-    unsigned int nPts = inarray[0].size();
+    unsigned int nDim = qfield.size();
+    unsigned int nFld = qfield[0].size();
+    unsigned int nPts = qfield[0][0].size();
 
-    for (int j = 0; j < m_spacedim; ++j)
-    {
-        // Calc diffusion of n with D tensor
-        Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1, qfield[0][pe_idx], 1,
-                    fluxes[j][pe_idx], 1);
-        for (int k = 1; k < m_spacedim; ++k)
-        {
-            Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1,
-                         qfield[k][pe_idx], 1, fluxes[j][pe_idx], 1,
-                         fluxes[j][pe_idx], 1);
-        }
-    }
     for (const auto &[s, v] : this->GetSpecies())
     {
-        for (int j = 0; j < m_spacedim; ++j)
+        CalcK(in_arr, s);
+        CalcDiffTensor();
+
+        for (unsigned int j = 0; j < nDim; ++j)
         {
-            Vmath::Vmul(nPts, m_kappa[vc[j][0]].GetValue(), 1,
-                        qfield[0][pi_idx[s]], 1, fluxes[j][pi_idx[s]], 1);
-            for (int k = 1; k < m_spacedim; ++k)
+            Vmath::Vmul(nPts, m_D[vc[j][0]].GetValue(), 1, qfield[0][ni_idx[s]],
+                        1, fluxes[j][ni_idx[s]], 1);
+            for (unsigned int k = 1; k < nDim; ++k)
             {
-                Vmath::Vvtvp(nPts, m_kappa[vc[j][k]].GetValue(), 1,
+                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1,
+                             qfield[k][ni_idx[s]], 1, fluxes[j][ni_idx[s]], 1,
+                             fluxes[j][ni_idx[s]], 1);
+            }
+        }
+
+        if (nDim == 3)
+        {
+            Vmath::Vvtvvtm(nPts, b_unit[1], 1, qfield[2][pi_idx[s]], 1,
+                           b_unit[2], 1, qfield[1][pi_idx[s]], 1,
+                           fluxes[0][pi_idx[s]], 1);
+            Vmath::Vvtvvtm(nPts, b_unit[2], 1, qfield[0][pi_idx[s]], 1,
+                           b_unit[0], 1, qfield[2][pi_idx[s]], 1,
+                           fluxes[1][pi_idx[s]], 1);
+            Vmath::Vvtvvtm(nPts, b_unit[0], 1, qfield[1][pi_idx[s]], 1,
+                           b_unit[1], 1, qfield[0][pi_idx[s]], 1,
+                           fluxes[2][pi_idx[s]], 1);
+        }
+        else
+        {
+            Vmath::Vmul(nPts, b_unit[2], 1, qfield[1][pi_idx[s]], 1,
+                        fluxes[0][pi_idx[s]], 1);
+            Vmath::Neg(nPts, fluxes[0][pi_idx[s]], 1);
+            Vmath::Vmul(nPts, b_unit[2], 1, qfield[0][pi_idx[s]], 1,
+                        fluxes[1][pi_idx[s]], 1);
+        }
+
+        CalcKappa(in_arr, s);
+        CalcDiffTensor();
+        for (unsigned int j = 0; j < nDim; ++j)
+        {
+            Vmath::Vmul(nPts, m_kcross, 1, fluxes[j][pi_idx[s]], 1,
+                        fluxes[j][pi_idx[s]], 1);
+            // Calc diffusion of n with D tensor and n field
+            for (unsigned int k = 0; k < nDim; ++k)
+            {
+                Vmath::Vvtvp(nPts, m_D[vc[j][k]].GetValue(), 1,
                              qfield[k][pi_idx[s]], 1, fluxes[j][pi_idx[s]], 1,
                              fluxes[j][pi_idx[s]], 1);
             }
@@ -961,25 +1004,67 @@ void ReducedBraginskii::v_SetInitialConditions(NekDouble init_time,
     Checkpoint_Output(0);
 }
 
-// void ReducedBraginskii::v_SetBoundaryConditions(
-//     Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time)
-// {
-//     size_t nTracePts  = GetTraceTotPoints();
-//     size_t nvariables = physarray.size() - 1;
-//     Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
-//     for (size_t i = 0; i < nvariables; ++i)
-//     {
-//         Fwd[i] = Array<OneD, NekDouble>(nTracePts);
-//         int p  = i < n_species * n_fields_per_species
-//                      ? i % n_fields_per_species
-//                      : i - n_species * n_fields_per_species;
-//         m_fields[p]->ExtractTracePhys(physarray[i], Fwd[i]);
-//     }
-//     for (auto &bc : m_bndConds)
-//     {
-//         bc->Apply(Fwd, physarray, time);
-//     }
-// }
+void ReducedBraginskii::load_params()
+{
+    TokamakSystem::load_params();
+    // Type of advection to use. Default is DG.
+    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+    // Type of Riemann solver to use. Default = "Upwind"
+    m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
+                              "MultiFieldUpwind");
+    NekDouble lambda;
+
+    m_session->LoadParameter("k_ci", this->k_ci, 3.9);
+    m_session->LoadParameter("k_ce", this->k_ce, 3.16);
+    m_session->LoadParameter("lambda", lambda);
+
+    double scaling_constant =
+        this->omega_c * this->mesh_length * this->mesh_length;
+
+    double tau_const = 6.0 * (sqrt(2.0 * pow(M_PI, 3)) / lambda) *
+                       constants::epsilon_0 * constants::epsilon_0 * 1e12 *
+                       pow(this->Tnorm, 1.5) / (constants::c * this->Nnorm);
+    // multiply by sqrt(m in eV) * (T in eV)^1.5 * (n in Nnorm)^-1 for collision
+    // time in s
+
+    double t_const = 1.0 / (constants::c * constants::c);
+    // multiply by (m in eV)/(B in T)  for gyrotime in s
+
+    k_par = this->k_ce * 1.5 * this->Tnorm * this->Nnorm * tau_const /
+            sqrt(constants::m_e);
+    // Convert to solver length and time scale
+    k_par /= scaling_constant;
+    // multiply k_par by Z^-2 n^-1 T^2.5 in solver
+
+    k_perp = 1.5 * this->Tnorm * this->Nnorm * t_const * t_const / tau_const;
+    k_perp /= scaling_constant;
+    // multiply k_perp by A^0.5 Z^2 n B^-2 T^-0.5 in solver
+
+    k_cross = 3.75 * this->Tnorm * this->Nnorm * t_const / this->Bnorm;
+    k_cross /= scaling_constant;
+
+    kappa_i_par = this->k_ci * 1.5 * this->Tnorm * this->Nnorm * tau_const /
+                  sqrt(constants::m_p);
+    kappa_i_par /= scaling_constant;
+
+    kappa_i_perp = 2 * 1.5 * this->Tnorm * this->Nnorm * t_const * t_const *
+                   sqrt(constants::m_p) / tau_const;
+    kappa_i_perp /= scaling_constant;
+
+    kappa_i_cross = 3.75 * this->Tnorm * this->Nnorm * t_const / this->Bnorm;
+    kappa_i_cross /= scaling_constant;
+
+    kappa_e_par = this->k_ce * 1.5 * this->Tnorm * this->Nnorm * tau_const /
+                  sqrt(constants::m_e);
+    kappa_e_par /= scaling_constant;
+
+    kappa_e_perp = (sqrt(2.0) + 3.25) * 1.5 * this->Tnorm * this->Nnorm *
+                   t_const * t_const * sqrt(constants::m_e) / tau_const;
+    kappa_e_perp /= scaling_constant;
+
+    kappa_e_cross = 3.75 * this->Tnorm * this->Nnorm * t_const / this->Bnorm;
+    kappa_e_cross /= scaling_constant;
+}
 
 void ReducedBraginskii::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,

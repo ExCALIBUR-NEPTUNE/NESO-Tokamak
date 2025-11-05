@@ -236,18 +236,20 @@ void TokamakSystem::load_params()
 {
     TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::load_params();
 
-    // Type of advection to use -- in theory we also support flux reconstruction
-    // for quad-based meshes, or you can use a standard convective term if you
-    // were fully continuous in space. Default is DG.
-    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+    m_session->LoadParameter("mesh_length", this->mesh_length, 1.);
+    m_session->LoadParameter("Nnorm", this->Nnorm, 1e18);
+    m_session->LoadParameter("Tnorm", this->Tnorm, 100.);
+    m_session->LoadParameter("Bnorm", this->Bnorm, 1.);
+    this->me        = 1. / 1836;
+    
+    this->cs = std::sqrt(constants::qeomp * this->Tnorm); // Reference sound speed [m/s]
+    this->omega_c = constants::qeomp * this->Bnorm;       // Ion cyclotron frequency [1/s]
+    this->rho_s = this->cs / this->omega_c; // Length scale [m]
+
     std::string transient_field_str;
     m_session->LoadSolverInfo("MagneticFieldEvolution", transient_field_str,
                               "Static");
     this->transient_field = (transient_field_str == "Transient");
-
-    // Type of Riemann solver to use. Default = "Upwind"
-    m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
-                              "MultiFieldUpwind");
 
     // Particle-related parameters
     m_session->LoadParameter("particle_output_freq", particle_output_freq, 0);
@@ -398,12 +400,6 @@ void TokamakSystem::v_ExtraFldOutput(
     }
 }
 
-void TokamakSystem::v_GenerateSummary(SU::SummaryList &s)
-{
-    TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>::v_GenerateSummary(s);
-    SU::AddSummaryItem(s, "Riemann solver", this->riemann_solver_type);
-}
-
 /**
  * @brief Post-construction class initialisation.
  *
@@ -476,7 +472,9 @@ void TokamakSystem::v_InitObject(bool create_field)
             {
                 m_indfields[k * n_fields_per_species + f] =
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                        m_session, m_graph, m_session->GetVariable(f));
+                        *std::dynamic_pointer_cast<MR::DisContField>(
+                            m_fields[0]),
+                        m_graph, m_session->GetVariable(f));
             }
         }
     }
@@ -512,8 +510,6 @@ void TokamakSystem::v_InitObject(bool create_field)
     m_bndConds->Initialize(
         m_session, std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
         m_indfields, B, E, m_spacedim);
-
-    SetBoundaryConditionsBwdWeight();
 }
 
 /**
@@ -964,15 +960,6 @@ void TokamakSystem::SetBoundaryConditions(NekDouble time)
             m_indfields[fi]->EvaluateBoundaryConditions(time, varName);
         }
     }
-}
-
-void TokamakSystem::SetBoundaryConditionsBwdWeight()
-{
-    // Loop over user-defined boundary conditions
-    // for (auto &bc : m_bndConds)
-    // {
-    //     bc->ApplyBwdWeight();
-    // }
 }
 
 } // namespace NESO::Solvers::tokamak
