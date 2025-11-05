@@ -25,8 +25,8 @@
             <!-- Normalised magnetic field in T -->
             <P> Bnorm = 1.0</P>
             <!-- Time step in cyclotron units -->
-            <P> TimeStep       = 1               </P>
-            <P> NumSteps      = 100              </P>
+            <P> TimeStep       = 957.883316               </P>
+            <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -101,6 +101,14 @@
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
+                <!-- Conversion of mesh unit to m -->
+                <P> mesh_length = 0.01</P> 
+                <!-- Normalised temperature in eV -->
+                <P> Tnorm = 1</P>
+                <!-- Normalised density in m^-3 -->
+                <P> Nnorm = 1e18</P>
+                <!-- Normalised magnetic field in T -->
+                <P> Bnorm = 1.0</P>
             </PARAMETERS>   
 
             <SPECIES>
@@ -112,10 +120,10 @@
                         <E VAR="Y" VALUE="0"/>
                     </INITIAL>
                     <SOURCES>
-                        <P N="100">
+                        <P N="100" W="0.005">
                             <E VAR="X" VALUE="199"/>
                             <E VAR="Y" VALUE="0"/>
-                            <E VAR="Tin" VALUE="10000000"/>
+                            <E VAR="Tin" VALUE="0.02585"/>
                         </P>
                     </SOURCES>
                     <BOUNDARYINTERACTION>

@@ -85,9 +85,12 @@ void ParticleSystem::set_up_species()
                 if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                 {
                     double T   = v->second.m_expression->Evaluate();
+                    double vth = constants::c *
+                                 std::sqrt(Tnorm * T /
+                                           (particle_mass * constants::m_p)) /
+                                 (mesh_length * omega_c);
                     velocities = NESO::Particles::normal_distribution(
-                        N, ndim, 0.0, std::sqrt(T / particle_mass),
-                        this->rng_phasespace);
+                        N, ndim, 0.0, vth, this->rng_phasespace);
                 }
 
                 else if (auto v = vmap.find(std::pair("Tin", 0));
@@ -102,17 +105,21 @@ void ParticleSystem::set_up_species()
 
                     std::uniform_real_distribution u(0.0, 1.0);
                     std::gamma_distribution mb(1.5, T);
+                    double vth = constants::c *
+                                 std::sqrt(Tnorm / constants::m_p) /
+                                 (mesh_length * omega_c);
 
                     for (int p = 0; p < N; ++p)
                     {
                         double energy = mb(this->rng_phasespace);
-                        double speed  = std::sqrt(2 * energy / particle_mass);
+                        double speed =
+                            vth * std::sqrt(2 * energy / particle_mass);
                         // inverse transform sampling
-                        double sintheta  = sqrt(u(this->rng_phasespace));
+                        double sintheta  = std::sqrt(u(this->rng_phasespace));
                         double phi       = 2 * M_PI * u(this->rng_phasespace);
                         velocities[1][p] = speed * sintheta * cos(phi);
                         velocities[0][p] =
-                            -speed * sqrt(1 - sintheta * sintheta);
+                            -speed * std::sqrt(1 - sintheta * sintheta);
                     }
                 }
 
@@ -314,16 +321,20 @@ void ParticleSystem::add_sources(double time, double dt)
                 {
                     if (auto v = vmap.find(std::pair("T", 0)); v != vmap.end())
                     {
-                        double T   = v->second.m_expression->Evaluate();
+                        double T = v->second.m_expression->Evaluate();
+                        double vth =
+                            constants::c *
+                            std::sqrt(Tnorm * T /
+                                      (particle_mass * constants::m_p)) /
+                            (mesh_length * omega_c);
                         velocities = NESO::Particles::normal_distribution(
-                            N, ndim, 0.0, std::sqrt(T / particle_mass),
-                            this->rng_phasespace);
+                            N, ndim, 0.0, vth, this->rng_phasespace);
                     }
 
                     else if (auto v = vmap.find(std::pair("Tin", 0));
                              v != vmap.end()) // Specific to EIRENE example
                     {
-                        for (int d = 0; d < ndim; ++d)
+                        for (int d = 0; d < 3; ++d)
                         {
                             velocities.emplace_back(std::vector<double>(N));
                         }
@@ -331,21 +342,24 @@ void ParticleSystem::add_sources(double time, double dt)
 
                         std::uniform_real_distribution u(0.0, 1.0);
                         std::gamma_distribution mb(1.5, T);
-                        velocities.emplace_back(std::vector<double>(N));
+                        double vth = constants::c *
+                                     std::sqrt(Tnorm / constants::m_p) /
+                                     (mesh_length * omega_c);
 
                         for (int p = 0; p < N; ++p)
                         {
                             double energy = mb(this->rng_phasespace);
                             double speed =
-                                std::sqrt(2 * energy / particle_mass);
+                                vth * std::sqrt(2 * energy / particle_mass);
                             // inverse transform sampling
-                            double sintheta = sqrt(u(this->rng_phasespace));
+                            double sintheta =
+                                std::sqrt(u(this->rng_phasespace));
                             double phi = 2 * M_PI * u(this->rng_phasespace);
                             velocities[1][p] = speed * sintheta * cos(phi);
                             velocities[2][p] = speed * sintheta * sin(phi);
 
                             velocities[0][p] =
-                                -speed * sqrt(1 - sintheta * sintheta);
+                                -speed * std::sqrt(1 - sintheta * sintheta);
                         }
                     }
 
