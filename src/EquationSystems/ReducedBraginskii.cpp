@@ -673,6 +673,21 @@ void ReducedBraginskii::GetFluxVectorDiff(
     }
 }
 
+void ReducedBraginskii::CalcNeutralRates(
+    int s, int ion, const Array<OneD, Array<OneD, NekDouble>> &inarray)
+{
+    unsigned int nPts = inarray[0].size();
+
+    for (int p = 0; p < nPts; ++p)
+    {
+        double exponent = 13.6 / inarray[pe_idx][p];
+        krec[p]         = 0.7e-19 * std::sqrt(exponent);
+        kIZ[p] = (2e-13 / (6 + 1.0 / exponent)) * std::sqrt(1.0 / exponent) *
+                 std::exp(-exponent);
+        kCX[p] = 3.2e-15 * std::sqrt(inarray[pi_idx[ion]][p] / 0.026);
+    }
+}
+
 void ReducedBraginskii::AddNeutralSources(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray)
@@ -685,18 +700,19 @@ void ReducedBraginskii::AddNeutralSources(
     Array<OneD, NekDouble> SV(nPts, 0.0);
     for (const auto &[s, v] : this->GetNeutrals())
     {
+        CalcNeutralRates(s, v.ion, inarray);
         // N source
-        Vmath::Vvtvvtm(nPts, inarray[ni_idx[v.ion]], 1, krec[s], 1,
-                       inarray[ni_idx[s]], 1, kIZ[s], 1, tmp, 1);
+        Vmath::Vvtvvtm(nPts, inarray[ni_idx[v.ion]], 1, krec, 1,
+                       inarray[ni_idx[s]], 1, kIZ, 1, tmp, 1);
         Vmath::Vmul(nPts, tmp, 1, ne, 1, SN, 1);
         Vmath::Vadd(nPts, outarray[ni_idx[s]], 1, SN, 1, outarray[ni_idx[s]],
                     1);
-        Vmath::Vsub(nPts, outarray[ni_idx[v.ion]], SN, 1, outarray[ni_idx[s]],
-                    1);
+        Vmath::Vsub(nPts, outarray[ni_idx[v.ion]], 1, SN, 1,
+                    outarray[ni_idx[s]], 1);
         // V source
-        Vmath::Vvtvvtp(nPts, ne, 1, krec[s], 1, ni_idx[s], 1, kCX[s], 1, tmp,
+        Vmath::Vvtvvtp(nPts, ne, 1, krec, 1, inarray[ni_idx[s]], 1, kCX, 1, tmp,
                        1);
-        Vmath::Vvtvvtp(nPts, ne, 1, kIZ[s], 1, ni_idx[v.ion], 1, kCX[s], 1,
+        Vmath::Vvtvvtp(nPts, ne, 1, kIZ, 1, inarray[ni_idx[v.ion]], 1, kCX, 1,
                        tmp2, 1);
         Vmath::Vvtvvtm(nPts, tmp, 1, inarray[vi_idx[v.ion]], 1, tmp2, 1,
                        inarray[vi_idx[s]], 1, SV, 1);

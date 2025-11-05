@@ -80,7 +80,11 @@ protected:
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
 
+    void CalcNeutralRates(int s, int ion,
+                          const Array<OneD, Array<OneD, NekDouble>> &inarray);
 
+    void AddNeutralSources(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                           Array<OneD, Array<OneD, NekDouble>> &outarray);
 
     // Functions for the Implicit Solve
     void DoOdeImplicitRhs(
@@ -147,6 +151,9 @@ private:
     StdRegions::VarCoeffMap m_kappa;
 
     VariableConverterSharedPtr m_varConv;
+    Array<OneD, NekDouble> kIZ;
+    Array<OneD, NekDouble> kCX;
+    Array<OneD, NekDouble> krec;
 };
 
 } // namespace NESO::Solvers::tokamak
