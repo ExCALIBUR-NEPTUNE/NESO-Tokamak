@@ -440,8 +440,10 @@ protected:
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
-                        double c = sycl::cos(0.5 * dt_left * V.at(2) / P.at(0));
-                        double s = sycl::sin(0.5 * dt_left * V.at(2) / P.at(0));
+                        double o = 0.5 * dt_left * V.at(2);
+                        double c =
+                            P.at(0) / sycl::sqrt(P.at(0) * P.at(0) + o * o);
+                        double s = o / sycl::sqrt(P.at(0) * P.at(0) + o * o);
 
                         double vx = V.at(0) * c + V.at(2) * s;
                         double vz = V.at(2) * c - V.at(0) * s;
@@ -449,8 +451,10 @@ protected:
                         P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
 
-                        c       = sycl::cos(0.5 * dt_left * vz / P.at(0));
-                        s       = sycl::sin(0.5 * dt_left * vz / P.at(0));
+                        o = 0.5 * dt_left * vz;
+                        c = P.at(0) / sycl::sqrt(P.at(0) * P.at(0) + o * o);
+                        s = o / sycl::sqrt(P.at(0) * P.at(0) + o * o);
+
                         V.at(0) = vx * c + vz * s;
                         V.at(2) = vz * c - vx * s;
 

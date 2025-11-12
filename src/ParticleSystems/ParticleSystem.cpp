@@ -180,8 +180,7 @@ void ParticleSystem::set_up_species()
                             positions[dimx][px];
                         initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                             velocities[dimx][px];
-                        initial_distribution[Sym<REAL>("ACCELERATION")][px]
-                                            [dimx]                 = 0.0;
+
                         initial_distribution[Sym<REAL>(
                             "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                         initial_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
@@ -427,8 +426,7 @@ void ParticleSystem::add_sources(double time, double dt)
                                 positions[dimx][px];
                             src_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                                 velocities[dimx][px];
-                            src_distribution[Sym<REAL>("ACCELERATION")][px]
-                                            [dimx]                     = 0.0;
+
                             src_distribution[Sym<REAL>(
                                 "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                             src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
