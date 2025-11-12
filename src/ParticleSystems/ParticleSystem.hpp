@@ -196,9 +196,10 @@ public:
                     Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
                     Sym<INT>("ID"), Sym<REAL>("TOT_REACTION_RATE"));
     }
-    inline virtual void diag_setup(const std::shared_ptr<ContField> &diag_field)
+    inline virtual void diag_setup(
+        const std::shared_ptr<DisContField> &diag_field)
     {
-        this->diagnostic_project = std::make_shared<FieldProject<ContField>>(
+        this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
             diag_field, this->particle_group, this->cell_id_translation);
     }
 
@@ -439,25 +440,19 @@ protected:
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
-                        double vx = V.at(0) + 0.5 * dt_left * V.at(2) * V.at(2) / P.at(0);
-                        double vz = V.at(2) - 0.5 * dt_left * V.at(0) * V.at(2) / P.at(0);
+                        double c = sycl::cos(0.5 * dt_left * V.at(2) / P.at(0));
+                        double s = sycl::sin(0.5 * dt_left * V.at(2) / P.at(0));
+
+                        double vx = V.at(0) * c + V.at(2) * s;
+                        double vz = V.at(2) * c - V.at(0) * s;
 
                         P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
 
-                        V.at(0) = vx + 0.5 * dt_left * vz * vz / P.at(0);
-                        V.at(2) = vz - 0.5 * dt_left * vx * vz / P.at(0);
-
-                        // double dz  = sycl::fabs(dt_left * V.at(2));
-                        // double phi = sycl::atan2(dz, P.at(0));
-
-                        // P.at(0) += dt_left * V.at(0);
-                        // P.at(1) += dt_left * V.at(1);
-
-                        // V.at(0) =
-                        //     V.at(0) * sycl::cos(phi) + V.at(2) * sycl::sin(phi);
-                        // V.at(2) =
-                        //     V.at(2) * sycl::cos(phi) - V.at(0) * sycl::sin(phi);
+                        c       = sycl::cos(0.5 * dt_left * vz / P.at(0));
+                        s       = sycl::sin(0.5 * dt_left * vz / P.at(0));
+                        V.at(0) = vx * c + vz * s;
+                        V.at(2) = vz * c - vx * s;
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
@@ -485,7 +480,7 @@ protected:
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
-    std::shared_ptr<FieldProject<ContField>> diagnostic_project;
+    std::shared_ptr<FieldProject<DisContField>> diagnostic_project;
 
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;

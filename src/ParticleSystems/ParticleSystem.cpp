@@ -154,21 +154,18 @@ void ParticleSystem::set_up_species()
                                 N, 1, 0.0, particle_thermal_velocity,
                                 this->rng_phasespace)[0]);
                     }
-                    if (this->ndim == 3)
+
+                    if (auto v = vmap.find(std::pair("VZ", 0)); v != vmap.end())
                     {
-                        if (auto v = vmap.find(std::pair("VZ", 0));
-                            v != vmap.end())
-                        {
-                            double vz = v->second.m_expression->Evaluate();
-                            velocities.emplace_back(std::vector<double>(N, vz));
-                        }
-                        else
-                        {
-                            velocities.emplace_back(
-                                NESO::Particles::normal_distribution(
-                                    N, 1, 0.0, particle_thermal_velocity,
-                                    this->rng_phasespace)[0]);
-                        }
+                        double vz = v->second.m_expression->Evaluate();
+                        velocities.emplace_back(std::vector<double>(N, vz));
+                    }
+                    else
+                    {
+                        velocities.emplace_back(
+                            NESO::Particles::normal_distribution(
+                                N, 1, 0.0, particle_thermal_velocity,
+                                this->rng_phasespace)[0]);
                     }
                 }
                 ParticleSet initial_distribution(
@@ -183,12 +180,15 @@ void ParticleSystem::set_up_species()
                             positions[dimx][px];
                         initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                             velocities[dimx][px];
-
+                        initial_distribution[Sym<REAL>("ACCELERATION")][px]
+                                            [dimx]                 = 0.0;
                         initial_distribution[Sym<REAL>(
                             "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                         initial_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
                                             [dimx] = 0;
                     }
+                    initial_distribution[Sym<REAL>("VELOCITY")][px][2] =
+                        velocities[2][px];
                     initial_distribution[Sym<REAL>("Q")][px][0] =
                         particle_charge;
                     initial_distribution[Sym<REAL>("M")][px][0] = particle_mass;
@@ -427,7 +427,8 @@ void ParticleSystem::add_sources(double time, double dt)
                                 positions[dimx][px];
                             src_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                                 velocities[dimx][px];
-
+                            src_distribution[Sym<REAL>("ACCELERATION")][px]
+                                            [dimx]                     = 0.0;
                             src_distribution[Sym<REAL>(
                                 "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
                             src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
