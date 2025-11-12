@@ -15,30 +15,29 @@
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
 
-        <PARAMETERS>
-            <P> TimeStep       = 0.0001               </P>
-            <P> NumSteps      = 100              </P>
+        <PARAMETERS>        
+            <!-- Conversion of mesh unit to m -->
+            <P> mesh_length = 0.01</P> 
+            <!-- Normalised temperature in eV -->
+            <P> Tnorm = 1</P>
+            <!-- Normalised density in m^-3 -->
+            <P> Nnorm = 1e18</P>
+            <!-- Normalised magnetic field in T -->
+            <P> Bnorm = 1.0</P>
+            <!-- Time step in cyclotron units -->
+            <P> TimeStep       = 957.883316               </P>
+            <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
             <P> epsilon        = 1.0               </P>
 
-            <P> m_e            = 9.1096e-31         </P>
-            <P> m_p            = 1.6726e-27         </P>
-            <P> A              = 1.0                </P>
-            <P> Z              = 1.0                </P>
-            <P> m_i            = A*m_p              </P>
-            <P> epsilon_0      = 8.8542e-12         </P>
-            <P> e              = 1.6022e-19         </P>
-            <P> k_B            = 1.3807e-23         </P>
-            <P> theta          = 2.0                </P>
-            <P> T_bnd          = 1                  </P>
-            <!-- <P> k_par          = 19.2 * sqrt(2.0 * PI^3.0) * (1.0/sqrt(m_e)) * (epsilon_0^2.0 / e^4.0) * (((k_B * T_e)^(5.0/2.0))/((Z^2.0) * lambda)) </P> -->
-            <!-- <P> k_perp         = 1.0/(6.0*sqrt(PI^3.0))*1.0/m_i*(n*Z*e/(B*epsilon_0))^2.0*((m_p*A)^1.5*lambda)/sqrt(k_B*T_i) </P> -->
+            <!-- Coulomb logarithm -->
+            <P> lambda    = 13          </P>
+            <P> k_c       = 3.19        </P>
+            <!-- Background temperature in Tnorm eV -->
+            <P> T_bg      = 10         </P>
 
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1  </P>
-            <P> k_perp          = 0.000001   </P>
             <!-- Scaling factor for ICs -->
             <P> sx        = 0.3 </P>
             <P> sy        = 0.6 </P>
@@ -54,13 +53,7 @@
             <P> NewtonRelativeIteTol      = 1.0E-4  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-4  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
-            <!-- Particle system params -->
-            <!-- Total number of particles - set = 0 to turn particles off -->
-            <P> num_particles_total = 0 </P>
-            <!-- Mass of each particle -->
-            <P> particle_mass = 0.5 </P>
-            <!-- Charge of each particle -->
-            <P> particle_charge = 0.2 </P>
+
             <P> particle_output_freq = 1              </P>
         </PARAMETERS>
 
@@ -104,10 +97,18 @@
                 <I PROPERTY="PARTTYPE" VALUE="ReactionSystem"/>
             </INFO>
             <PARAMETERS>
-                <P> particle_output_freq = 1          </P>
+                <P> particle_output_freq = 10          </P>
                 <P> particle_v_drift_scaling = 1.0 </P>
                 <P> particle_B_scaling = 1.0 </P>
                 <P> particle_velocity_B_scaling = 0.0 </P>
+                <!-- Conversion of mesh unit to m -->
+                <P> mesh_length = 0.01</P> 
+                <!-- Normalised temperature in eV -->
+                <P> Tnorm = 1</P>
+                <!-- Normalised density in m^-3 -->
+                <P> Nnorm = 1e18</P>
+                <!-- Normalised magnetic field in T -->
+                <P> Bnorm = 1.0</P>
             </PARAMETERS>   
 
             <SPECIES>
@@ -115,21 +116,21 @@
                     <P> Mass = 2.0 </P>
                     <P> Charge = 1.0 </P>
                     <INITIAL N="1">
-                        <E VAR="X" VALUE="199"/>
-                        <E VAR="Y" VALUE="0"/>
+                        <E VAR="W" VALUE="0.0000005"/>
+                        <E VAR="X" VALUE="199.9999"/>
+                        <E VAR="Y" VALUE="4.377308645701408"/>
+                        <E VAR="VX" VALUE="-0.001820325651"/>
+                        <E VAR="VY" VALUE="-0.000713628137"/>
+                        <E VAR="VZ"  VALUE="-0.00235492694"/>
                     </INITIAL>
                     <SOURCES>
-                        <P N="100">
-                            <E VAR="X" VALUE="199"/>
+                        <!-- <P N="10000">
+                            <E VAR="W" VALUE="0.0000005"/>
+                            <E VAR="X" VALUE="199.9999"/>
                             <E VAR="Y" VALUE="0"/>
-                            <E VAR="Tin" VALUE="10000000"/>
-                        </P>
+                            <E VAR="Tin" VALUE="0.02585"/>
+                        </P> -->
                     </SOURCES>
-                    <BOUNDARYINTERACTION>
-                        <REGION REF="3">
-                            <C VALUE="0.0" />
-                        </REGION>
-                    </BOUNDARYINTERACTION> 
                 </S>
             </SPECIES>  
 

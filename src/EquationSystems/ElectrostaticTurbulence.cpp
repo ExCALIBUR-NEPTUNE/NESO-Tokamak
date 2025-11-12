@@ -59,9 +59,9 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     // Create storage for velocities
     int npts  = GetNpoints();
-    pe_idx    = 3 * this->n_species;
-    omega_idx = 3 * this->n_species + 1;
-    phi_idx   = 3 * this->n_species + 2;
+    pe_idx    = this->n_fields_per_species * this->n_species;
+    omega_idx = this->n_fields_per_species * this->n_species + 1;
+    phi_idx   = this->n_fields_per_species * this->n_species + 2;
 
     // ExB velocity
     this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -96,9 +96,9 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     int s = 0;
     for (const auto &[k, v] : this->neso_config->get_species())
     {
-        ni_idx.push_back(3 * s);
-        vi_idx.push_back(1 + 3 * s);
-        pi_idx.push_back(2 + 3 * s);
+        ni_idx.push_back(this->n_fields_per_species * s);
+        vi_idx.push_back(this->n_fields_per_species * s + 1);
+        pi_idx.push_back(this->n_fields_per_species * s + 2);
 
         this->v_i_par[s] = Array<OneD, NekDouble>(npts, 0.0);
         this->v_di[s]    = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -1516,6 +1516,11 @@ void ElectrostaticTurbulence::v_SetInitialConditions(NekDouble init_time,
 void ElectrostaticTurbulence::load_params()
 {
     TokamakSystem::load_params();
+    // Type of advection to use. Default is DG.
+    m_session->LoadSolverInfo("AdvectionType", this->adv_type, "WeakDG");
+    // Type of Riemann solver to use. Default = "Upwind"
+    m_session->LoadSolverInfo("UpwindType", this->riemann_solver_type,
+                              "MultiFieldUpwind");
     std::string boussinesq_str;
     m_session->LoadSolverInfo("Boussinesq Approximation", boussinesq_str, "On");
     this->m_boussinesq = (boussinesq_str == "On");
@@ -1529,7 +1534,7 @@ void ElectrostaticTurbulence::v_ExtraFldOutput(
     const int nPhys   = m_fields[0]->GetNpoints();
     const int nCoeffs = m_fields[0]->GetNcoeffs();
 
-    m_fields[0]->FwdTransLocalElmt(this->phi->GetPhys(), fieldcoeffs[4]);
+    // m_fields[0]->FwdTransLocalElmt(this->phi->GetPhys(), fieldcoeffs[4]);
 
     if (this->particles_enabled)
     {

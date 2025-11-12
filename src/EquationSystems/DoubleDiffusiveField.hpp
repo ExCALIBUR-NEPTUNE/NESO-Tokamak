@@ -32,6 +32,7 @@ protected:
     DoubleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
+    bool v_PostIntegrate(int step);
 
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
@@ -42,8 +43,9 @@ protected:
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
 
-    void CalcKPar(int f);
-    void CalcKPerp(int f);
+    void CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -61,6 +63,15 @@ protected:
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
+private:
+    std::vector<int> ni_idx;
+    std::vector<int> pi_idx;
+
+    int pe_idx;
+
+    std::vector<int> ni_src_idx;
+    std::vector<int> pi_src_idx;
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
     NekDouble m_epsilon;
@@ -72,14 +83,26 @@ protected:
 
     NekDouble k_par;
     NekDouble k_perp;
+    NekDouble k_cross;
+    NekDouble kappa_i_par;
+    NekDouble kappa_i_perp;
+    NekDouble kappa_i_cross;
+    NekDouble kappa_e_par;
+    NekDouble kappa_e_perp;
+    NekDouble kappa_e_cross;
+    NekDouble k_ci;
+    NekDouble k_ce;
 
-    std::vector<Array<OneD, NekDouble>> m_kperp;
-    std::vector<Array<OneD, NekDouble>> m_kpar;
-    // StdRegions::VarCoeffMap m_D;
-    std::vector<StdRegions::VarCoeffMap> m_D;
+    Array<OneD, NekDouble> m_kpar;
+    Array<OneD, NekDouble> m_kperp;
+    Array<OneD, NekDouble> m_kcross;
 
-    NekDouble m_k_B;
+    StdRegions::VarCoeffMap m_D;
+
     VariableConverterSharedPtr m_varConv;
+    // For Diffusion
+    // workaround for bug in DiffusionLDG
+    Array<OneD, MR::ExpListSharedPtr> m_difffields;
 };
 
 } // namespace NESO::Solvers::tokamak

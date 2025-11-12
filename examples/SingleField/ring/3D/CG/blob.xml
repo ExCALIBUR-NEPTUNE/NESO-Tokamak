@@ -29,13 +29,6 @@
             <P> IO_CheckSteps = 1     </P>
 
             <P> epsilon         = 1.0   </P>
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 1e-6   </P>
-            <P> TCore           = 300.0 </P>
-            <P> T_bnd            = 1.0 </P>
-            <P> k_B             = 1.0 </P>
-            <P> m_i             = 1.0 </P>
 
             <!-- Scaling factor for ICs -->
             <P> xc = 1 </P>

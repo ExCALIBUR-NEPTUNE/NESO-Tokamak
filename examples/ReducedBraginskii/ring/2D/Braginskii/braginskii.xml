@@ -32,26 +32,27 @@
         </GLOBALSYSSOLNINFO>
 
         <PARAMETERS>
-            <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.0005            </P>
-            <P> NumSteps      = 200              </P>
+            <!-- Conversion of mesh unit to m -->
+            <P> mesh_length = 1 </P> 
+            <!-- Normalised temperature in eV -->
+            <P> Tnorm = 1 </P>
+            <!-- Normalised density in m^-3 -->
+            <P> Nnorm = 1e18 </P>
+            <!-- Normalised magnetic field in T -->
+            <P> Bnorm = 1.0 </P>
+            <!-- Time step in gyro times -->
+            <P> TimeStep = 1 </P>
+            <P> NumSteps = 100 </P>
             <P> TFinal        = NumSteps*TimeStep </P>
-            <P> IO_InfoSteps  = 1     </P>
-            <P> IO_CheckSteps = 1     </P>
+            <P> IO_CheckSteps  = 1                </P>
+            <P> IO_InfoSteps   = 1                </P>
+
             <P> particle_output_freq = 1          </P>
-            <P> NekNonlinSysMaxIterations = 30       </P>
 
-
-            <P> epsilon         = 1.0   </P>
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 0.1   </P>
-            <P> kappa_par           = 1   </P>
-            <P> kappa_perp          = 0.1   </P>
-            <P> TCore           = 300.0 </P>
-            <P> T_bnd            = 1.0 </P>
-            <P> k_B             = 1.0 </P>
-            <P> m_i             = 1.0 </P>
+            <!-- Coulomb logarithm -->
+            <P> lambda    = 13          </P>
+            <P> k_ce       = 3.16        </P>
+            <P> k_ci       = 3.9        </P>
 
             <!-- Scaling factor for ICs -->
             <P> rc = 2 </P>

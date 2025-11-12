@@ -38,7 +38,7 @@ protected:
     // void v_SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>>
     // &physarray,
     //                              NekDouble time) override;
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   Array<OneD, Array<OneD, NekDouble>> &outarray,
                   const NekDouble time);
@@ -174,6 +174,14 @@ private:
 
     /// Whether the Boussinesq approximation is used for the vorticity
     bool m_boussinesq;
+    /// Riemann solver type (used for all advection terms)
+    std::string riemann_solver_type;
+    /// Riemann solver object used in electron advection
+    SU::RiemannSolverSharedPtr riemann_solver;
+    /// Advection object used in the electron density equation
+    SU::AdvectionSharedPtr m_advection;
+    /// Advection type
+    std::string adv_type;
 
     // For Diffusion
     // workaround for bug in DiffusionLDG
