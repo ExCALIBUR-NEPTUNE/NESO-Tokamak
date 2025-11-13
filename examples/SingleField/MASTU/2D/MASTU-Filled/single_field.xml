@@ -75,10 +75,13 @@
             <E VAR="n"  DOMAIN="0" VALUE="2" />
         </FUNCTION>
         
-        <FUNCTION NAME="MagneticField">
+        <!-- <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="0" />
             <E VAR="By" VALUE="0" />
             <E VAR="Bz" VALUE="0" />
+        </FUNCTION> -->
+        <FUNCTION NAME="MagneticField">
+            <F VAR="Bx,By,Bz"  FILE="B.pts"  />
         </FUNCTION>
 
     </CONDITIONS>

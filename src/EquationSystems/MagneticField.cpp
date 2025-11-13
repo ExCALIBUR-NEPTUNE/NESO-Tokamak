@@ -11,15 +11,15 @@ MagneticField::MagneticField(const LU::SessionReaderSharedPtr &session,
                              const int dim)
     : B(pB), ndim(dim), ptsIO(session->GetComm())
 {
-    npoints     = eqn_sys.lock()->GetNpoints();
-    this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
+    npoints      = eqn_sys.lock()->GetNpoints();
+    this->mag_B  = Array<OneD, NekDouble>(npoints, 0.0);
     this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
     this->B_in   = Array<OneD, Array<OneD, NekDouble>>(3);
 
     for (int d = 0; d < 3; ++d)
     {
         this->b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
-        B_in[d]         = this->B[d]->UpdatePhys();
+        B_in[d]         = Array<OneD, NekDouble>(npoints, 0.0);
     }
 
     if (session->DefinesFunction("MagneticMeanField"))
@@ -167,9 +167,10 @@ void MagneticField::ReadMagneticField(NekDouble time)
 
     for (d = 0; d < 3; ++d)
     {
-        this->B[d]->FwdTrans(this->B_in[d], this->B[d]->UpdateCoeffs());
-        Vmath::Vvtvp(npoints, this->B_in[d], 1, this->B_in[d], 1, this->mag_B,
-                     1, this->mag_B, 1);
+        this->B[d]->UpdatePhys() = B_in[d];
+        this->B[d]->FwdTrans(this->B[d]->GetPhys(), this->B[d]->UpdateCoeffs());
+        Vmath::Vvtvp(npoints, this->B[d]->GetPhys(), 1, this->B[d]->GetPhys(),
+                     1, this->mag_B, 1, this->mag_B, 1);
     }
 
     for (d = 0; d < 3; d++)
