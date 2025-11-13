@@ -12,9 +12,10 @@
 #include <SolverUtils/Forcing/Forcing.h>
 
 #include "../BoundaryConditions/TokamakBndConds.hpp"
+#include "../Misc/Constants.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
 #include "ImplicitHelper.hpp"
-#include "../Misc/Constants.hpp"
+#include "MagneticField.hpp"
 
 #include <solvers/solver_callback_handler.hpp>
 
@@ -72,6 +73,8 @@ protected:
     NekDouble me;          // Electron mass
 
     bool transient_field;
+
+    std::shared_ptr<MagneticField> mag_field;
     /// Magnetic field vector
     Array<OneD, MR::DisContFieldSharedPtr> B;
     /// Normalised magnetic field vector
@@ -79,8 +82,6 @@ protected:
 
     /// Squared Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
-    /// Trace of magnetic field
-    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
     /// Electric Field
     Array<OneD, MR::DisContFieldSharedPtr> E;
@@ -134,7 +135,7 @@ protected:
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    void ReadMagneticField(NekDouble time = 0);
+    // void ReadMagneticField(NekDouble time = 0);
 
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
