@@ -24,8 +24,9 @@ public:
                   const std::weak_ptr<TokamakSystem> &eq_sys,
                   Array<OneD, MR::DisContFieldSharedPtr> &B, const int dim);
 
-    void ReadMagneticField(NekDouble time = 0);
-    void SolveMagneticField(Array<OneD, Array<OneD, NekDouble>> &J);
+    void Read(NekDouble time = 0);
+    void Solve(Array<OneD, Array<OneD, NekDouble>> &J = NullNekDoubleArrayOfArray);
+    void Update(NekDouble time = 0);
 
 private:
     static const inline std::vector<std::string> Bstring = {"Bx", "By", "Bz"};
@@ -36,20 +37,23 @@ private:
     {
         mean_file,
         mean_exp,
-        func
+        func,
+        solve
     } type;
 
     SU::SessionFunctionSharedPtr m_function;
+
+    // For mean_exp
     LibUtilities::EquationSharedPtr Bxfunc;
     LibUtilities::EquationSharedPtr Byfunc;
     LibUtilities::EquationSharedPtr Bzfunc;
-
     Array<OneD, NekDouble> r;
     Array<OneD, NekDouble> phi;
     Array<OneD, NekDouble> x1;
     Array<OneD, NekDouble> Br;
     Array<OneD, NekDouble> Bphi;
 
+    //for mean file
     FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>> interp;
     LU::PtsIO ptsIO;
     std::string filename;
@@ -72,6 +76,8 @@ private:
 
     /// Squared Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
+
+    std::weak_ptr<TokamakSystem> m_sys;
 };
 } // namespace NESO::Solvers::tokamak
 

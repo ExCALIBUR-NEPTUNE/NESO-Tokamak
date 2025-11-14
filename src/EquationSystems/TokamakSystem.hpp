@@ -35,6 +35,8 @@ namespace NESO::Solvers::tokamak
 class TokamakSystem
     : public TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>
 {
+    friend class MagneticField;
+
 public:
     friend class MemoryManager<TokamakSystem>;
 

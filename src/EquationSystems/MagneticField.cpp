@@ -9,7 +9,7 @@ MagneticField::MagneticField(const LU::SessionReaderSharedPtr &session,
                              const std::weak_ptr<TokamakSystem> &eqn_sys,
                              Array<OneD, MR::DisContFieldSharedPtr> &pB,
                              const int dim)
-    : B(pB), ndim(dim), ptsIO(session->GetComm())
+    : B(pB), ndim(dim), ptsIO(session->GetComm()), m_sys(eqn_sys)
 {
     npoints      = eqn_sys.lock()->GetNpoints();
     this->mag_B  = Array<OneD, NekDouble>(npoints, 0.0);
@@ -112,11 +112,16 @@ MagneticField::MagneticField(const LU::SessionReaderSharedPtr &session,
         this->type = field_type::func;
         m_function = eqn_sys.lock()->GetFunction("MagneticField");
     }
+    else if (session->DefinesFunction("CurrentDensity"))
+    {
+        this->type = field_type::solve;
+        m_function = eqn_sys.lock()->GetFunction("CurrentDensity");
+    }
 }
 /**
  * @brief Read the magnetic field from file.
  */
-void MagneticField::ReadMagneticField(NekDouble time)
+void MagneticField::Read(NekDouble time)
 {
     int d;
 
@@ -168,12 +173,68 @@ void MagneticField::ReadMagneticField(NekDouble time)
     for (d = 0; d < 3; ++d)
     {
         this->B[d]->UpdatePhys() = B_in[d];
+    }
+}
+
+void MagneticField::Solve(Array<OneD, Array<OneD, NekDouble>> &J)
+{
+    m_function->Evaluate("Bz", B_in[2]);
+    Array<OneD, NekDouble> A[3];
+    Array<OneD, NekDouble> Acoeff[3];
+    int ncoeffs = m_sys.lock()->GetNcoeffs();
+
+    StdRegions::ConstFactorMap factors;
+    factors[StdRegions::eFactorLambda] = 0.0;
+    factors[StdRegions::eFactorTau]    = 1.0;
+
+    for (int d = 0; d < 3; ++d)
+    {
+        Acoeff[d] = Array<OneD, NekDouble>(ncoeffs, 0.0);
+        A[d]      = Array<OneD, NekDouble>(npoints, 0.0);
+        B[d]->HelmSolve(B_in[d], Acoeff[d], factors);
+        B[d]->BwdTrans(Acoeff[d], A[d]);
+    }
+
+    if (ndim == 3)
+    {
+        Array<OneD, NekDouble> tmp1(npoints, 0.0);
+        Array<OneD, NekDouble> tmp2(npoints, 0.0);
+        B[0]->PhysDeriv(1, A[2], tmp1);
+        B[0]->PhysDeriv(2, A[1], tmp2);
+        Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[0]->UpdatePhys(), 1);
+        B[1]->PhysDeriv(2, A[0], tmp1);
+        B[1]->PhysDeriv(0, A[2], tmp2);
+        Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[1]->UpdatePhys(), 1);
+        B[2]->PhysDeriv(0, A[1], tmp1);
+        B[2]->PhysDeriv(1, A[0], tmp2);
+        Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[2]->UpdatePhys(), 1);
+    }
+    else if (ndim == 2)
+    {
+        B[0]->PhysDeriv(1, A[2], B[0]->UpdatePhys());
+        B[1]->PhysDeriv(0, A[2], B[1]->UpdatePhys());
+        Vmath::Neg(npoints, B[1]->UpdatePhys(), 1);
+    }
+}
+
+void MagneticField::Update(NekDouble time)
+{
+    if (this->type == field_type::solve)
+    {
+        Solve();
+    }
+    else
+    {
+        Read(time);
+    }
+    for (int d = 0; d < 3; ++d)
+    {
         this->B[d]->FwdTrans(this->B[d]->GetPhys(), this->B[d]->UpdateCoeffs());
         Vmath::Vvtvp(npoints, this->B[d]->GetPhys(), 1, this->B[d]->GetPhys(),
                      1, this->mag_B, 1, this->mag_B, 1);
     }
 
-    for (d = 0; d < 3; d++)
+    for (int d = 0; d < 3; d++)
     {
         for (int k = 0; k < npoints; ++k)
         {
@@ -183,32 +244,6 @@ void MagneticField::ReadMagneticField(NekDouble time)
                     : 0.0;
         }
     }
-}
-
-void MagneticField::SolveMagneticField(Array<OneD, Array<OneD, NekDouble>> &J)
-{
-    Array<OneD, NekDouble> A[3];
-
-    StdRegions::ConstFactorMap factors;
-    factors[StdRegions::eFactorTau]    = 1.0;
-    factors[StdRegions::eFactorLambda] = 0.0;
-    for (int d = 0; d < 3; ++d)
-    {
-        A[d] = Array<OneD, NekDouble>(npoints, 0.0);
-        B[d]->HelmSolve(J[d], A[d], factors);
-    }
-
-    Array<OneD, NekDouble> tmp1(npoints, 0.0);
-    Array<OneD, NekDouble> tmp2(npoints, 0.0);
-    B[0]->PhysDeriv(1, A[2], tmp1);
-    B[0]->PhysDeriv(2, A[1], tmp2);
-    Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[0]->UpdatePhys(), 1);
-    B[1]->PhysDeriv(2, A[0], tmp1);
-    B[1]->PhysDeriv(0, A[2], tmp2);
-    Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[1]->UpdatePhys(), 1);
-    B[2]->PhysDeriv(0, A[1], tmp1);
-    B[2]->PhysDeriv(1, A[0], tmp2);
-    Vmath::Vsub(npoints, tmp1, 1, tmp2, 1, B[2]->UpdatePhys(), 1);
 }
 
 } // namespace NESO::Solvers::tokamak

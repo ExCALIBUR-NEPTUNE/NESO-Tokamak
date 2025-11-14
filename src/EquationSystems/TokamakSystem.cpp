@@ -232,17 +232,15 @@ void TokamakSystem::v_InitObject(bool create_field)
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
         this->B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->B[d]->GetTrace();
     }
-
     this->mag_field = std::make_shared<MagneticField>(
-        m_session, std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
-        this->B, m_spacedim);
+        m_session, as<TokamakSystem>(), this->B, m_spacedim);
     this->b_unit = this->mag_field->b_unit;
     this->mag_B  = this->mag_field->mag_B;
-    this->mag_field->ReadMagneticField(0);
-    //ReadMagneticField(0);
+    this->mag_field->Update(0);
 
-    this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    this->ve        = Array<OneD, MR::DisContFieldSharedPtr>(3);
     this->n_species = this->neso_config->get_species().size();
     m_allfields     = Array<OneD, MR::ExpListSharedPtr>(
         m_fields.size() + this->n_species * n_fields_per_species);
@@ -570,7 +568,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
 
     if (this->transient_field)
     {
-        this->mag_field->ReadMagneticField(m_time);
+        this->mag_field->Update(m_time);
     }
 
     if (this->Te)
