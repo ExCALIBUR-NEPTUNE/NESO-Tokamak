@@ -939,12 +939,6 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
         Checkpoint_Output(m_nchk);
     }
     ++m_nchk;
-
-    if (this->particle_sys)
-    {
-        this->particle_sys->initialise_particles_from_fields(
-            this->E, this->B, this->ne, this->Te, this->ve);
-    }
 }
 
 void TokamakSystem::SetBoundaryConditions(NekDouble time)

@@ -196,9 +196,10 @@ public:
                     Sym<REAL>("ELECTRON_DENSITY"), this->src_syms,
                     Sym<INT>("ID"), Sym<REAL>("TOT_REACTION_RATE"));
     }
-    inline virtual void diag_setup(const std::shared_ptr<ContField> &diag_field)
+    inline virtual void diag_setup(
+        const std::shared_ptr<DisContField> &diag_field)
     {
-        this->diagnostic_project = std::make_shared<FieldProject<ContField>>(
+        this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
             diag_field, this->particle_group, this->cell_id_translation);
     }
 
@@ -288,7 +289,7 @@ public:
                        "FieldEvaluate not setup.");
             this->field_evaluate_B[d]->evaluate(this->particle_group,
                                                 Sym<REAL>("MAGNETIC_FIELD"), d,
-                                                E[d]->GetCoeffs());
+                                                B[d]->GetCoeffs());
         }
 
         NESOASSERT(this->field_evaluate_ne != nullptr,
@@ -320,81 +321,27 @@ public:
                                        this->particle_remove_key);
     }
 
-    /**
-     * Adds a velocity drift of \alpha * V_drift where V_drift = E X B
-     * evaluation to the velocity of each particle. The coefficient \alpha is
-     * the read from the session file key `particle_v_drift_scaling`.
-     */
-    inline void initialise_particles_from_fields(
-        Array<OneD, std::shared_ptr<DisContField>> &E,
-        Array<OneD, std::shared_ptr<DisContField>> &B,
-        std::shared_ptr<DisContField> ne, std::shared_ptr<DisContField> Te,
-        Array<OneD, std::shared_ptr<DisContField>> &ve)
-    {
-        double h_alpha;
-        this->config->load_parameter("particle_v_drift_scaling", h_alpha, 1.0);
-        const double k_alpha = h_alpha;
-
-        this->evaluate_fields(E, B, ne, Te, ve);
-        if (this->ndim == 3)
-        {
-            particle_loop(
-                "ParticleSystem:initialise_particles_from_fields",
-                this->particle_group,
-                [=](auto VELOCITY, auto Ek, auto Bk)
-                {
-                    // Ei contains d(phi)/dx_i.
-                    const auto mE0 = Ek.at(0);
-                    const auto mE1 = Ek.at(1);
-                    const auto mE2 = Ek.at(2);
-                    REAL exb0, exb1, exb2;
-                    MAPPING_CROSS_PRODUCT_3D(mE0, mE1, mE2, Bk.at(0), Bk.at(1),
-                                             Bk.at(2), exb0, exb1, exb2);
-                    VELOCITY.at(0) += k_alpha * exb0;
-                    VELOCITY.at(1) += k_alpha * exb1;
-                    VELOCITY.at(2) += k_alpha * exb2;
-                },
-                Access::write(Sym<REAL>("VELOCITY")),
-                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
-                Access::read(Sym<REAL>("MAGNETIC_FIELD")))
-                ->execute();
-        }
-        else if (this->ndim == 2)
-        {
-            particle_loop(
-                "ParticleSystem:initialise_particles_from_fields",
-                this->particle_group,
-                [=](auto VELOCITY, auto Ek, auto Bk)
-                {
-                    // Ei contains d(phi)/dx_i.
-                    const auto mE0 = Ek.at(0);
-                    const auto mE1 = Ek.at(1);
-
-                    VELOCITY.at(0) += k_alpha * mE0;
-                    VELOCITY.at(1) += k_alpha * mE1;
-                },
-                Access::write(Sym<REAL>("VELOCITY")),
-                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
-                Access::read(Sym<REAL>("MAGNETIC_FIELD")))
-                ->execute();
-        }
-    }
-
 protected:
     virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg,
                                         const double dt_inner)
     {
-        const auto k_dt = dt_inner;
+        const auto k_dt                = dt_inner;
+        ParticleSubGroupSharedPtr ions = std::make_shared<ParticleSubGroup>(
+            sg, [](auto Q) { return Q.at(0) != 0; },
+            Access::read(Sym<REAL>("Q")));
+        ParticleSubGroupSharedPtr neutrals = std::make_shared<ParticleSubGroup>(
+            sg, [](auto Q) { return Q.at(0) == 0; },
+            Access::read(Sym<REAL>("Q")));
+
         if (this->ndim == 3)
         {
             particle_loop(
-                "euler_advection", sg,
+                "ParticleSystem:neutrals_3D", neutrals,
                 [=](auto V, auto P, auto TSP)
                 {
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
-
                         P.at(0) += dt_left * V.at(0);
                         P.at(1) += dt_left * V.at(1);
                         P.at(2) += dt_left * V.at(2);
@@ -407,57 +354,101 @@ protected:
                 Access::write(Sym<REAL>("POSITION")),
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
+
+            particle_loop(
+                "ParticleSystem:ions_3D", ions,
+                [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
+                {
+                    const REAL dt_left  = k_dt - TSP.at(0);
+                    const REAL hdt_left = dt_left * 0.5;
+                    if (dt_left > 0.0)
+                    {
+                        const REAL QoM = Q.at(0) / M.at(0);
+
+                        const REAL scaling_t = QoM * hdt_left;
+                        const REAL t_0       = B.at(0) * scaling_t;
+                        const REAL t_1       = B.at(1) * scaling_t;
+                        const REAL t_2       = B.at(2) * scaling_t;
+
+                        const REAL tmagsq = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
+                        const REAL scaling_s = 2.0 / (1.0 + tmagsq);
+
+                        const REAL s_0 = scaling_s * t_0;
+                        const REAL s_1 = scaling_s * t_1;
+                        const REAL s_2 = scaling_s * t_2;
+
+                        const REAL V_0 = V.at(0);
+                        const REAL V_1 = V.at(1);
+                        const REAL V_2 = V.at(2);
+
+                        const REAL v_minus_0 = V_0 + (E.at(0)) * scaling_t;
+                        const REAL v_minus_1 = V_1 + (E.at(1)) * scaling_t;
+                        const REAL v_minus_2 = V_2 + (E.at(2)) * scaling_t;
+
+                        REAL v_prime_0, v_prime_1, v_prime_2;
+                        MAPPING_CROSS_PRODUCT_3D(
+                            v_minus_0, v_minus_1, v_minus_2, t_0, t_1, t_2,
+                            v_prime_0, v_prime_1, v_prime_2)
+
+                        v_prime_0 += v_minus_0;
+                        v_prime_1 += v_minus_1;
+                        v_prime_2 += v_minus_2;
+
+                        REAL v_plus_0, v_plus_1, v_plus_2;
+                        MAPPING_CROSS_PRODUCT_3D(v_prime_0, v_prime_1,
+                                                 v_prime_2, s_0, s_1, s_2,
+                                                 v_plus_0, v_plus_1, v_plus_2)
+
+                        v_plus_0 += v_minus_0;
+                        v_plus_1 += v_minus_1;
+                        v_plus_2 += v_minus_2;
+
+                        V.at(0) = v_plus_0 + scaling_t * (E.at(0));
+                        V.at(1) = v_plus_1 + scaling_t * (E.at(1));
+                        V.at(2) = v_plus_2 + scaling_t * (E.at(2));
+
+                        // update of position to next time step
+                        P.at(0) += dt_left * V.at(0);
+                        P.at(1) += dt_left * V.at(1);
+                        P.at(2) += dt_left * V.at(2);
+                        TSP.at(0) = k_dt;
+                        TSP.at(1) = dt_left;
+                    }
+                },
+                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
+                Access::read(Sym<REAL>("MAGNETIC_FIELD")),
+                Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
+                Access::write(Sym<REAL>("POSITION")),
+                Access::write(Sym<REAL>("VELOCITY")),
+                Access::write(Sym<REAL>("TSP")))
+                ->execute();
         }
-        // else if (ndim == 2)
-        // {
-        //     particle_loop(
-        //         "euler_advection", sg,
-        //         [=](auto V, auto P, auto TSP)
-        //         {
-        //             const REAL dt_left = k_dt - TSP.at(0);
-        //             if (dt_left > 0.0)
-        //             {
-
-        //                 P.at(0) += dt_left * V.at(0);
-        //                 P.at(1) += dt_left * V.at(1);
-
-        //                 TSP.at(0) = k_dt;
-        //                 TSP.at(1) = dt_left;
-        //             }
-        //         },
-        //         Access::read(Sym<REAL>("VELOCITY")),
-        //         Access::write(Sym<REAL>("POSITION")),
-        //         Access::write(Sym<REAL>("TSP")))
-        //         ->execute();
-        // }
         else if (ndim == 2)
         {
             particle_loop(
-                "euler_advection", sg,
+                "ParticleSystem:neutrals_2D", neutrals,
                 [=](auto V, auto P, auto TSP)
                 {
-                    const REAL dt_left = k_dt - TSP.at(0);
+                    const REAL dt_left  = k_dt - TSP.at(0);
+                    const REAL hdt_left = dt_left * 0.5;
+
                     if (dt_left > 0.0)
                     {
-                        double vx = V.at(0) + 0.5 * dt_left * V.at(2) * V.at(2) / P.at(0);
-                        double vz = V.at(2) - 0.5 * dt_left * V.at(0) * V.at(2) / P.at(0);
+                        REAL o = hdt_left * V.at(2);
+                        REAL h =
+                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        REAL vx = (V.at(0) + V.at(2) * o / P.at(0)) / h;
+                        REAL vz = (V.at(2) - V.at(0) * o / P.at(0)) / h;
 
                         P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
 
-                        V.at(0) = vx + 0.5 * dt_left * vz * vz / P.at(0);
-                        V.at(2) = vz - 0.5 * dt_left * vx * vz / P.at(0);
+                        o = hdt_left * vz;
+                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
 
-                        // double dz  = sycl::fabs(dt_left * V.at(2));
-                        // double phi = sycl::atan2(dz, P.at(0));
-
-                        // P.at(0) += dt_left * V.at(0);
-                        // P.at(1) += dt_left * V.at(1);
-
-                        // V.at(0) =
-                        //     V.at(0) * sycl::cos(phi) + V.at(2) * sycl::sin(phi);
-                        // V.at(2) =
-                        //     V.at(2) * sycl::cos(phi) - V.at(0) * sycl::sin(phi);
+                        V.at(0) = (vx + vz * o / P.at(0)) / h;
+                        V.at(2) = (vz - vx * o / P.at(0)) / h;
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
@@ -465,6 +456,84 @@ protected:
                 },
                 Access::write(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("POSITION")),
+                Access::write(Sym<REAL>("TSP")))
+                ->execute();
+            particle_loop(
+                "ParticleSystem:ions_2D", ions,
+                [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
+                {
+                    const REAL dt_left  = k_dt - TSP.at(0);
+                    const REAL hdt_left = dt_left * 0.5;
+                    if (dt_left > 0.0)
+                    {
+                        const REAL QoM = Q.at(0) / M.at(0);
+
+                        const REAL scaling_t = QoM * hdt_left;
+                        const REAL t_0       = B.at(0) * scaling_t;
+                        const REAL t_1       = B.at(1) * scaling_t;
+                        const REAL t_2       = B.at(2) * scaling_t;
+
+                        const REAL tmagsq = t_0 * t_0 + t_1 * t_1 + t_2 * t_2;
+                        const REAL scaling_s = 2.0 / (1.0 + tmagsq);
+
+                        const REAL s_0 = scaling_s * t_0;
+                        const REAL s_1 = scaling_s * t_1;
+                        const REAL s_2 = scaling_s * t_2;
+
+                        REAL o = hdt_left * V.at(2);
+                        REAL h =
+                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        REAL V_0 = (V.at(0) + V.at(2) * o / P.at(0)) / h;
+                        REAL V_1 = V.at(1);
+                        REAL V_2 = (V.at(2) - V.at(0) * o / P.at(0)) / h;
+
+                        const REAL v_minus_0 = V_0 + (E.at(0)) * scaling_t;
+                        const REAL v_minus_1 = V_1 + (E.at(1)) * scaling_t;
+                        const REAL v_minus_2 = V_2 + (E.at(2)) * scaling_t;
+
+                        REAL v_prime_0, v_prime_1, v_prime_2;
+                        MAPPING_CROSS_PRODUCT_3D(
+                            v_minus_0, v_minus_1, v_minus_2, t_0, t_1, t_2,
+                            v_prime_0, v_prime_1, v_prime_2)
+
+                        v_prime_0 += v_minus_0;
+                        v_prime_1 += v_minus_1;
+                        v_prime_2 += v_minus_2;
+
+                        REAL v_plus_0, v_plus_1, v_plus_2;
+                        MAPPING_CROSS_PRODUCT_3D(v_prime_0, v_prime_1,
+                                                 v_prime_2, s_0, s_1, s_2,
+                                                 v_plus_0, v_plus_1, v_plus_2)
+
+                        v_plus_0 += v_minus_0;
+                        v_plus_1 += v_minus_1;
+                        v_plus_2 += v_minus_2;
+
+                        V_0 = v_plus_0 + scaling_t * (E.at(0));
+                        V_1 = v_plus_1 + scaling_t * (E.at(1));
+                        V_2 = v_plus_2 + scaling_t * (E.at(2));
+
+                        // update of position to next time step
+                        P.at(0) += dt_left * V_0;
+                        P.at(1) += dt_left * V_1;
+
+                        o = hdt_left * V_2;
+                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        V.at(0) = (V_0 + V_2 * o / P.at(0)) / h;
+                        V.at(1) = V_1;
+                        V.at(2) = (V_2 - V_0 * o / P.at(0)) / h;
+
+                        TSP.at(0) = k_dt;
+                        TSP.at(1) = dt_left;
+                    }
+                },
+                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
+                Access::read(Sym<REAL>("MAGNETIC_FIELD")),
+                Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
+                Access::write(Sym<REAL>("POSITION")),
+                Access::write(Sym<REAL>("VELOCITY")),
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
@@ -485,7 +554,7 @@ protected:
 
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
-    std::shared_ptr<FieldProject<ContField>> diagnostic_project;
+    std::shared_ptr<FieldProject<DisContField>> diagnostic_project;
 
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;
