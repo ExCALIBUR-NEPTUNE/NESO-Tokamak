@@ -336,13 +336,12 @@ protected:
         if (this->ndim == 3)
         {
             particle_loop(
-                "euler_advection", neutrals,
+                "ParticleSystem:neutrals_3D", neutrals,
                 [=](auto V, auto P, auto TSP)
                 {
                     const REAL dt_left = k_dt - TSP.at(0);
                     if (dt_left > 0.0)
                     {
-
                         P.at(0) += dt_left * V.at(0);
                         P.at(1) += dt_left * V.at(1);
                         P.at(2) += dt_left * V.at(2);
@@ -357,7 +356,7 @@ protected:
                 ->execute();
 
             particle_loop(
-                "ParticleSystem:boris", ions,
+                "ParticleSystem:ions_3D", ions,
                 [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
                 {
                     const REAL dt_left  = k_dt - TSP.at(0);
@@ -426,7 +425,7 @@ protected:
         else if (ndim == 2)
         {
             particle_loop(
-                "euler_advection", neutrals,
+                "ParticleSystem:neutrals_2D", neutrals,
                 [=](auto V, auto P, auto TSP)
                 {
                     const REAL dt_left  = k_dt - TSP.at(0);
@@ -435,7 +434,8 @@ protected:
                     if (dt_left > 0.0)
                     {
                         REAL o = hdt_left * V.at(2);
-                        REAL h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+                        REAL h =
+                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
 
                         REAL vx = (V.at(0) + V.at(2) * o / P.at(0)) / h;
                         REAL vz = (V.at(2) - V.at(0) * o / P.at(0)) / h;
@@ -443,7 +443,7 @@ protected:
                         P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
 
-                        o      = hdt_left * vz;
+                        o = hdt_left * vz;
                         h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
 
                         V.at(0) = (vx + vz * o / P.at(0)) / h;
@@ -458,7 +458,7 @@ protected:
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
             particle_loop(
-                "ParticleSystem:boris", ions,
+                "ParticleSystem:ions_2D", ions,
                 [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
                 {
                     const REAL dt_left  = k_dt - TSP.at(0);
@@ -479,9 +479,13 @@ protected:
                         const REAL s_1 = scaling_s * t_1;
                         const REAL s_2 = scaling_s * t_2;
 
-                        const REAL V_0 = V.at(0);
-                        const REAL V_1 = V.at(1);
-                        const REAL V_2 = V.at(2);
+                        REAL o = hdt_left * V.at(2);
+                        REAL h =
+                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        REAL V_0 = (V.at(0) + V.at(2) * o / P.at(0)) / h;
+                        REAL V_1 = V.at(1);
+                        REAL V_2 = (V.at(2) - V.at(0) * o / P.at(0)) / h;
 
                         const REAL v_minus_0 = V_0 + (E.at(0)) * scaling_t;
                         const REAL v_minus_1 = V_1 + (E.at(1)) * scaling_t;
@@ -505,13 +509,20 @@ protected:
                         v_plus_1 += v_minus_1;
                         v_plus_2 += v_minus_2;
 
-                        V.at(0) = v_plus_0 + scaling_t * (E.at(0));
-                        V.at(1) = v_plus_1 + scaling_t * (E.at(1));
-                        V.at(2) = v_plus_2 + scaling_t * (E.at(2));
+                        V_0 = v_plus_0 + scaling_t * (E.at(0));
+                        V_1 = v_plus_1 + scaling_t * (E.at(1));
+                        V_2 = v_plus_2 + scaling_t * (E.at(2));
 
                         // update of position to next time step
-                        P.at(0) += dt_left * V.at(0);
-                        P.at(1) += dt_left * V.at(1);
+                        P.at(0) += dt_left * V_0;
+                        P.at(1) += dt_left * V_1;
+
+                        o = hdt_left * V_2;
+                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        V.at(0) = (V_0 + V_2 * o / P.at(0)) / h;
+                        V.at(1) = V_1;
+                        V.at(2) = (V_2 - V_0 * o / P.at(0)) / h;
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
