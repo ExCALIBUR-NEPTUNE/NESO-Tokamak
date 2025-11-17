@@ -75,10 +75,8 @@
             <E VAR="n"  DOMAIN="0" VALUE="2" />
         </FUNCTION>
         
-        <FUNCTION NAME="MagneticField">
-            <E VAR="Bx" VALUE="0" />
-            <E VAR="By" VALUE="0" />
-            <E VAR="Bz" VALUE="0" />
+        <FUNCTION NAME="MagneticMeanField">
+            <F VAR="Bx,By,Bz"  FILE="B.pts"  />
         </FUNCTION>
 
     </CONDITIONS>
@@ -86,9 +84,16 @@
         <SPECIES>
             <S ID="0" NAME="D">
                 <P> Mass = 2.0 </P>
-                <P> Charge = 1.0 </P>
+                <P> Charge = 0.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="2" />
+                </FUNCTION>
+            </S>
+            <S ID="1" NAME="W">
+                <P> Mass = 183.0 </P>
+                <P> Charge = 0.0 </P>
+                <FUNCTION NAME="InitialConditions">
+                    <E VAR="n"  DOMAIN="0" VALUE="1" />
                 </FUNCTION>
             </S>
         </SPECIES> 
@@ -114,7 +119,7 @@
             <SPECIES>
                 <S ID="0" NAME="D">
                     <P> Mass = 2.0 </P>
-                    <P> Charge = 1.0 </P>
+                    <P> Charge = 0.0 </P>
                     <INITIAL N="1">
                         <E VAR="W" VALUE="0.0000005"/>
                         <E VAR="X" VALUE="199.9999"/>
@@ -132,13 +137,27 @@
                         </P> -->
                     </SOURCES>
                 </S>
+                <S ID="1" NAME="W">
+                    <P> Mass = 183.0 </P>
+                    <P> Charge = 20.0 </P>
+                    <INITIAL N="1">
+                        <E VAR="W" VALUE="0.0000005"/>
+                        <E VAR="X" VALUE="120"/>
+                        <E VAR="Y" VALUE="0"/>
+                        <E VAR="VX" VALUE="-0.002"/>
+                        <E VAR="VY" VALUE="-0.0007"/>
+                        <E VAR="VZ"  VALUE="-0.002"/>
+                    </INITIAL>
+                    <SOURCES>
+                    </SOURCES>
+                </S>
             </SPECIES>  
 
             <REACTIONS>
-                <S ID="0" TYPE="Specular" SPECIES="0">
+                <S ID="0" TYPE="Specular" SPECIES="0,1">
                     <REGION REF="3"/>
                     <RATE TYPE="Constant" VALUE="1.0"/>
-                </S>              
+                </S>             
             </REACTIONS>    
 
         </PARTICLES>

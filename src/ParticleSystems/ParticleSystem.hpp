@@ -289,7 +289,7 @@ public:
                        "FieldEvaluate not setup.");
             this->field_evaluate_B[d]->evaluate(this->particle_group,
                                                 Sym<REAL>("MAGNETIC_FIELD"), d,
-                                                E[d]->GetCoeffs());
+                                                B[d]->GetCoeffs());
         }
 
         NESOASSERT(this->field_evaluate_ne != nullptr,
@@ -415,7 +415,8 @@ protected:
                         TSP.at(1) = dt_left;
                     }
                 },
-                Access::read(Sym<REAL>("E")), Access::read(Sym<REAL>("B")),
+                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
+                Access::read(Sym<REAL>("MAGNETIC_FIELD")),
                 Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
                 Access::write(Sym<REAL>("POSITION")),
                 Access::write(Sym<REAL>("VELOCITY")),
@@ -528,7 +529,8 @@ protected:
                         TSP.at(1) = dt_left;
                     }
                 },
-                Access::read(Sym<REAL>("E")), Access::read(Sym<REAL>("B")),
+                Access::read(Sym<REAL>("ELECTRIC_FIELD")),
+                Access::read(Sym<REAL>("MAGNETIC_FIELD")),
                 Access::read(Sym<REAL>("Q")), Access::read(Sym<REAL>("M")),
                 Access::write(Sym<REAL>("POSITION")),
                 Access::write(Sym<REAL>("VELOCITY")),
