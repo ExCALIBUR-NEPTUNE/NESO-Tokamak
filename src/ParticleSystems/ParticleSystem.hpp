@@ -423,54 +423,31 @@ protected:
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
-        // else if (ndim == 2)
-        // {
-        //     particle_loop(
-        //         "euler_advection", sg,
-        //         [=](auto V, auto P, auto TSP)
-        //         {
-        //             const REAL dt_left = k_dt - TSP.at(0);
-        //             if (dt_left > 0.0)
-        //             {
-
-        //                 P.at(0) += dt_left * V.at(0);
-        //                 P.at(1) += dt_left * V.at(1);
-
-        //                 TSP.at(0) = k_dt;
-        //                 TSP.at(1) = dt_left;
-        //             }
-        //         },
-        //         Access::read(Sym<REAL>("VELOCITY")),
-        //         Access::write(Sym<REAL>("POSITION")),
-        //         Access::write(Sym<REAL>("TSP")))
-        //         ->execute();
-        // }
         else if (ndim == 2)
         {
             particle_loop(
                 "euler_advection", neutrals,
                 [=](auto V, auto P, auto TSP)
                 {
-                    const REAL dt_left = k_dt - TSP.at(0);
+                    const REAL dt_left  = k_dt - TSP.at(0);
+                    const REAL hdt_left = dt_left * 0.5;
+
                     if (dt_left > 0.0)
                     {
-                        double o = 0.5 * dt_left * V.at(2);
-                        double c =
-                            P.at(0) / sycl::sqrt(P.at(0) * P.at(0) + o * o);
-                        double s = o / sycl::sqrt(P.at(0) * P.at(0) + o * o);
+                        REAL o = hdt_left * V.at(2);
+                        REAL h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
 
-                        double vx = V.at(0) * c + V.at(2) * s;
-                        double vz = V.at(2) * c - V.at(0) * s;
+                        REAL vx = (V.at(0) + V.at(2) * o / P.at(0)) / h;
+                        REAL vz = (V.at(2) - V.at(0) * o / P.at(0)) / h;
 
                         P.at(0) += dt_left * vx;
                         P.at(1) += dt_left * V.at(1);
 
-                        o = 0.5 * dt_left * vz;
-                        c = P.at(0) / sycl::sqrt(P.at(0) * P.at(0) + o * o);
-                        s = o / sycl::sqrt(P.at(0) * P.at(0) + o * o);
+                        o      = hdt_left * vz;
+                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
 
-                        V.at(0) = vx * c + vz * s;
-                        V.at(2) = vz * c - vx * s;
+                        V.at(0) = (vx + vz * o / P.at(0)) / h;
+                        V.at(2) = (vz - vx * o / P.at(0)) / h;
 
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
@@ -535,7 +512,7 @@ protected:
                         // update of position to next time step
                         P.at(0) += dt_left * V.at(0);
                         P.at(1) += dt_left * V.at(1);
-                        //P.at(2) += dt_left * V.at(2);
+
                         TSP.at(0) = k_dt;
                         TSP.at(1) = dt_left;
                     }
