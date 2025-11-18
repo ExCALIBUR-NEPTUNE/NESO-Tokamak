@@ -82,7 +82,7 @@
     </CONDITIONS>
     <NESO>
         <SPECIES>
-            <S ID="0" NAME="D">
+            <S ID="0" NAME="D+">
                 <P> Mass = 2.0 </P>
                 <P> Charge = 0.0 </P>
                 <FUNCTION NAME="InitialConditions">

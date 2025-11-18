@@ -37,8 +37,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
     m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-        std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
-        m_spacedim);
+        as<TokamakSystem>(), m_spacedim);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -61,7 +60,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     this->m_kcross = Array<OneD, NekDouble>(npts, 0.0);
     this->m_kperp  = Array<OneD, NekDouble>(npts, 0.0);
 
-    pe_idx         = this->n_fields_per_species * this->n_species;
+    pe_idx = this->n_fields_per_species * this->n_species;
 
     // Parallel velocities
     this->v_e_par = Array<OneD, NekDouble>(npts, 0.0);
@@ -608,8 +607,7 @@ void ReducedBraginskii::CalcKappa(
     this->neso_config->load_species_parameter(f, "Mass", A);
 
     Array<OneD, NekDouble> tmp(npoints, 0.0);
-    int s2 = 0;
-    for (const auto &[k2, v2] : this->neso_config->get_species())
+    for (const auto &[s2, v2] : this->GetSpecies())
     {
         double Z2, A2;
         this->neso_config->load_species_parameter(s2, "Charge", Z2);
@@ -618,7 +616,6 @@ void ReducedBraginskii::CalcKappa(
         {
             tmp[p] += Z2 * Z2 * sqrt(A2 / (A + A2)) * in_arr[ni_idx[s2]][p];
         }
-        s2++;
     }
     for (int p = 0; p < npoints; ++p)
     {
@@ -1077,7 +1074,7 @@ void ReducedBraginskii::v_ExtraFldOutput(
     if (this->particles_enabled)
     {
         int i = 0;
-        for (auto &[k, v] : this->particle_sys->get_species())
+        for (auto &[k, v] : this->GetSpecies())
         {
             variables.push_back(v.name + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd1(nCoeffs);
