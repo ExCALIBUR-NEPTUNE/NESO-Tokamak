@@ -39,8 +39,7 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
     m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-        std::dynamic_pointer_cast<TokamakSystem>(shared_from_this()),
-        m_spacedim);
+        as<TokamakSystem>(), m_spacedim);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");

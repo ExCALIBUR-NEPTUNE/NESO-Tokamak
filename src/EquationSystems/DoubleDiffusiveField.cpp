@@ -386,16 +386,12 @@ void DoubleDiffusiveField::DoDiffusion(
     // Extract temperature
     m_varConv->GetElectronTemperature(inarray, inarrayDiff[pe_idx]);
 
-    int s = 0;
-    double mass;
-
-    for (const auto &[k, v] : this->GetSpecies())
+    for (const auto &[s, v] : this->GetSpecies())
     {
         Vmath::Vcopy(npointsIn, inarray[ni_idx[s]], 1, inarrayDiff[ni_idx[s]],
                      1);
         m_varConv->GetIonTemperature(s, v.mass, inarray,
                                      inarrayDiff[pi_idx[s]]);
-        s++;
     }
 
     // Repeat calculation for trace space
@@ -408,16 +404,14 @@ void DoubleDiffusiveField::DoDiffusion(
     {
         m_varConv->GetElectronTemperature(pFwd, inFwd[pe_idx]);
         m_varConv->GetElectronTemperature(pBwd, inBwd[pe_idx]);
-        s = 0;
-        for (const auto &[k, v] : this->GetSpecies())
+
+        for (const auto &[s, v] : this->GetSpecies())
         {
             Vmath::Vcopy(nTracePts, pFwd[ni_idx[s]], 1, inFwd[ni_idx[s]], 1);
             Vmath::Vcopy(nTracePts, pBwd[ni_idx[s]], 1, inBwd[ni_idx[s]], 1);
 
             m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[pi_idx[s]]);
             m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[pi_idx[s]]);
-
-            s++;
         }
     }
 
@@ -425,12 +419,6 @@ void DoubleDiffusiveField::DoDiffusion(
                          inFwd, inBwd);
 
     for (int i = 0; i < nvariables; ++i)
-    {
-        Vmath::Vadd(npointsOut, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
-                    1);
-    }
-
-    for (size_t i = 0; i < nvariables; ++i)
     {
         Vmath::Vadd(npointsOut, outarrayDiff[i], 1, outarray[i], 1, outarray[i],
                     1);
