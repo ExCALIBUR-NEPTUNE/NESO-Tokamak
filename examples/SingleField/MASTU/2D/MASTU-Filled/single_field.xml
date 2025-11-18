@@ -84,7 +84,7 @@
         <SPECIES>
             <S ID="0" NAME="D+">
                 <P> Mass = 2.0 </P>
-                <P> Charge = 1.0 </P>
+                <P> Charge = 0.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="2" />
                 </FUNCTION>
