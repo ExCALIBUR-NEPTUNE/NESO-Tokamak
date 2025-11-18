@@ -7,6 +7,7 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
+       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="A" />
        <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
@@ -60,7 +61,8 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> n  </V>
+            <V ID="0"> A  </V>
+            <V ID="1"> n  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -70,19 +72,27 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
+                <D VAR="A"  VALUE="0.0" />
                 <N VAR="n"  VALUE="0.0" />
             </REGION>
             <REGION REF="2">
+                <D VAR="A"  VALUE="0.0" />
                 <N VAR="n"  VALUE="0.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
+            <E VAR="A"  DOMAIN="0" VALUE="0" />
             <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
         </FUNCTION>
-        <FUNCTION NAME="MagneticField">
+        <!-- <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="By" VALUE="-(x-rc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="Bz" VALUE="0" />
+        </FUNCTION> -->
+        <FUNCTION NAME="CurrentDensity">
+            <E VAR="Bx" VALUE="0" />
+            <E VAR="By" VALUE="0" />
+            <E VAR="Bz" VALUE="exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
         </FUNCTION>
     </CONDITIONS>
     <NESO>
@@ -91,6 +101,7 @@
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
+                    <E VAR="A"  DOMAIN="0" VALUE="0" />
                     <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
             </S>

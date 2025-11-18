@@ -1,5 +1,5 @@
 #include "TokamakSystem.hpp"
-#include <FieldUtils/Interpolator.h>
+
 #include <LibUtilities/BasicUtils/Vmath.hpp>
 
 #include <LibUtilities/TimeIntegration/TimeIntegrationScheme.h>
@@ -40,196 +40,6 @@ std::shared_ptr<ParticleSystem> TokamakSystem::GetParticleSystem()
 }
 
 /**
- * @brief Read the magnetic field from file.
- */
-void TokamakSystem::ReadMagneticField(NekDouble time)
-{
-    int d;
-    int npoints = m_fields[0]->GetNpoints();
-    Array<OneD, Array<OneD, NekDouble>> B_in(3);
-    for (d = 0; d < 3; ++d)
-    {
-        B_in[d] = Array<OneD, NekDouble>(npoints);
-    }
-
-    this->b_unit = Array<OneD, Array<OneD, NekDouble>>(3);
-    std::vector<std::string> Bstring;
-    Bstring.push_back("Bx");
-    Bstring.push_back("By");
-    Bstring.push_back("Bz");
-    Bstring.resize(3);
-
-    if (m_session->DefinesFunction("MagneticMeanField"))
-    {
-        if (this->m_graph->GetMeshDimension() == 2)
-        {
-            GetFunction("MagneticMeanField")->Evaluate(Bstring, B_in);
-        }
-        else if (this->m_graph->GetMeshDimension() == 3)
-        {
-            LU::FunctionType vType =
-                m_session->GetFunctionType("MagneticMeanField", "Bx");
-            if (vType == LU::eFunctionTypeFile)
-            {
-                LU::PtsIO ptsIO(m_session->GetComm());
-                std::string filename =
-                    m_session->GetFunctionFilename("MagneticMeanField", "Bx");
-                LU::PtsFieldSharedPtr inPts2D;
-                ptsIO.Import(filename, inPts2D);
-                // B2D is [x,y,Bx,By,Bz]
-                Array<OneD, Array<OneD, NekDouble>> B2D;
-                inPts2D->GetPts(B2D);
-                unsigned int npoints_2d = inPts2D->GetNpoints();
-                // B2D is [x,y,z,Bx,By,Bz]
-                Array<OneD, Array<OneD, NekDouble>> B3D(6);
-                unsigned int increments = 64;
-
-                for (d = 0; d < 6; ++d)
-                {
-                    B3D[d] =
-                        Array<OneD, NekDouble>(increments * npoints_2d, 0.0);
-                }
-                Array<OneD, NekDouble> Bx(npoints_2d);
-                Array<OneD, NekDouble> By(npoints_2d);
-                Array<OneD, NekDouble> Bz(npoints_2d);
-                Array<OneD, NekDouble> x(npoints_2d);
-                Array<OneD, NekDouble> y(npoints_2d);
-                Array<OneD, NekDouble> z(npoints_2d);
-                for (int i = 0; i < increments; ++i)
-                {
-                    NekDouble theta = i * 2 * M_PI / increments;
-                    for (int j = 0; j < npoints_2d; ++j)
-                    {
-                        x[j]  = cos(theta) * B2D[0][j];
-                        y[j]  = B2D[1][j];
-                        z[j]  = sin(theta) * B2D[0][j];
-                        Bx[j] = cos(theta) * B2D[2][j] - sin(theta) * B2D[4][j];
-                        By[j] = B2D[3][j];
-                        Bz[j] = cos(theta) * B2D[4][j] + sin(theta) * B2D[2][j];
-                    }
-
-                    Vmath::Vcopy(npoints_2d, &x[0], 1, &B3D[0][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &y[0], 1, &B3D[1][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &z[0], 1, &B3D[2][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &Bx[0], 1, &B3D[3][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &By[0], 1, &B3D[4][i * npoints_2d],
-                                 1);
-                    Vmath::Vcopy(npoints_2d, &Bz[0], 1, &B3D[5][i * npoints_2d],
-                                 1);
-                }
-                LU::PtsFieldSharedPtr inPts =
-                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, B3D);
-
-                Array<OneD, Array<OneD, NekDouble>> pts(6);
-                for (int i = 0; i < 6; ++i)
-                {
-                    pts[i] = Array<OneD, NekDouble>(npoints);
-                }
-                m_fields[0]->GetCoords(pts[0], pts[1], pts[2]);
-                LU::PtsFieldSharedPtr outPts =
-                    MemoryManager<LU::PtsField>::AllocateSharedPtr(3, Bstring,
-                                                                   pts);
-                FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>
-                    interp;
-
-                interp =
-                    FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
-                        LU::eShepard);
-                interp.CalcWeights(inPts, outPts);
-                if (m_session->GetComm()->GetRank() == 0)
-                {
-                    std::cout << std::endl;
-                    if (m_session->DefinesCmdLineArgument("verbose"))
-                    {
-                        interp.PrintStatistics();
-                    }
-                }
-
-                interp.Interpolate(inPts, outPts);
-                for (d = 0; d < 3; ++d)
-                {
-                    B_in[d] = outPts->GetPts(d + 3);
-                }
-            }
-            else if (vType == LU::eFunctionTypeExpression)
-            {
-                unsigned int nq = m_fields[0]->GetNpoints();
-
-                Array<OneD, NekDouble> x0(nq);
-                Array<OneD, NekDouble> x1(nq);
-                Array<OneD, NekDouble> x2(nq);
-
-                // Get the coordinates (assuming all fields have the same
-                // discretisation)
-                m_fields[0]->GetCoords(x0, x1, x2);
-
-                Array<OneD, NekDouble> r(nq);
-                Array<OneD, NekDouble> phi(nq);
-                for (int q = 0; q < nq; ++q)
-                {
-                    r[q]   = std::sqrt(x0[q] * x0[q] + x2[q] * x2[q]);
-                    phi[q] = std::atan2(x2[q], x0[q]);
-                }
-                LibUtilities::EquationSharedPtr Bxfunc =
-                    m_session->GetFunction("MagneticMeanField", "Bx");
-                LibUtilities::EquationSharedPtr Byfunc =
-                    m_session->GetFunction("MagneticMeanField", "By");
-                LibUtilities::EquationSharedPtr Bzfunc =
-                    m_session->GetFunction("MagneticMeanField", "Bz");
-                Array<OneD, NekDouble> Br(nq);
-                Array<OneD, NekDouble> Bphi(nq);
-
-                Bxfunc->Evaluate(r, x1, phi, time, Br);
-                Byfunc->Evaluate(r, x1, phi, time, B_in[1]);
-                Bzfunc->Evaluate(r, x1, phi, time, Bphi);
-
-                for (int q = 0; q < nq; ++q)
-                {
-                    B_in[0][q] = cos(phi[q]) * Br[q] - sin(phi[q]) * Bphi[q];
-                    B_in[2][q] = cos(phi[q]) * Bphi[q] + sin(phi[q]) * Br[q];
-                }
-            }
-        }
-    }
-    else if (m_session->DefinesFunction("MagneticField"))
-    {
-        GetFunction("MagneticField")->Evaluate(Bstring, B_in, time);
-    }
-
-    this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
-    for (d = 0; d < 3; ++d)
-    {
-        this->B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->B[d]->UpdatePhys() = B_in[d];
-        this->B[d]->FwdTrans(B[d]->GetPhys(), B[d]->UpdateCoeffs());
-    }
-
-    this->mag_B = Array<OneD, NekDouble>(npoints, 0.0);
-    for (d = 0; d < 3; ++d)
-    {
-        Vmath::Vvtvp(npoints, B[d]->GetPhys(), 1, B[d]->GetPhys(), 1, mag_B, 1,
-                     mag_B, 1);
-    }
-
-    for (d = 0; d < 3; d++)
-    {
-        this->b_unit[d] = Array<OneD, NekDouble>(npoints, 0.0);
-        for (int k = 0; k < npoints; ++k)
-        {
-            this->b_unit[d][k] =
-                (this->mag_B[k] > 0)
-                    ? B[d]->GetPhys()[k] / std::sqrt(this->mag_B[k])
-                    : 0.0;
-        }
-    }
-}
-
-/**
  * @brief Load all required session parameters into member variables.
  */
 void TokamakSystem::load_params()
@@ -240,10 +50,12 @@ void TokamakSystem::load_params()
     m_session->LoadParameter("Nnorm", this->Nnorm, 1e18);
     m_session->LoadParameter("Tnorm", this->Tnorm, 100.);
     m_session->LoadParameter("Bnorm", this->Bnorm, 1.);
-    this->me        = 1. / 1836;
-    
-    this->cs = std::sqrt(constants::qeomp * this->Tnorm); // Reference sound speed [m/s]
-    this->omega_c = constants::qeomp * this->Bnorm;       // Ion cyclotron frequency [1/s]
+    this->me = 1. / 1836;
+
+    this->cs = std::sqrt(constants::qeomp *
+                         this->Tnorm); // Reference sound speed [m/s]
+    this->omega_c =
+        constants::qeomp * this->Bnorm;     // Ion cyclotron frequency [1/s]
     this->rho_s = this->cs / this->omega_c; // Length scale [m]
 
     std::string transient_field_str;
@@ -413,14 +225,22 @@ void TokamakSystem::v_InitObject(bool create_field)
     // Store FieldSharedPtr casts of fields in a map, indexed by name
 
     this->E = Array<OneD, MR::DisContFieldSharedPtr>(3);
+    this->B = Array<OneD, MR::DisContFieldSharedPtr>(3);
     for (int d = 0; d < 3; ++d)
     {
         this->E[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
             *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->B[d] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
+        this->B[d]->GetTrace();
     }
+    this->mag_field = std::make_shared<MagneticField>(
+        m_session, as<TokamakSystem>(), this->B, m_spacedim);
+    this->b_unit = this->mag_field->b_unit;
+    this->mag_B  = this->mag_field->mag_B;
+    this->mag_field->Update(0);
 
-    this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
-    ReadMagneticField(0);
+    this->ve        = Array<OneD, MR::DisContFieldSharedPtr>(3);
     this->n_species = this->neso_config->get_species().size();
     m_allfields     = Array<OneD, MR::ExpListSharedPtr>(
         m_fields.size() + this->n_species * n_fields_per_species);
@@ -748,7 +568,7 @@ bool TokamakSystem::v_PreIntegrate(int step)
 
     if (this->transient_field)
     {
-        ReadMagneticField(m_time);
+        this->mag_field->Update(m_time);
     }
 
     if (this->Te)

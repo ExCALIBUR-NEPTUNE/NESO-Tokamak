@@ -20,6 +20,7 @@ find_package(NESO-RNG-Toolkit REQUIRED)
 # Identify source files
 set(SRC_FILES
 src/EquationSystems/TokamakSystem.cpp
+src/EquationSystems/MagneticField.cpp
 src/EquationSystems/SingleDiffusiveField.cpp
 src/EquationSystems/DoubleDiffusiveField.cpp
 src/EquationSystems/ReducedBraginskii.cpp
