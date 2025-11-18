@@ -78,6 +78,7 @@ MagneticField::MagneticField(const LU::SessionReaderSharedPtr &session,
                 interp =
                     FieldUtils::Interpolator<std::vector<MR::ExpListSharedPtr>>(
                         LU::eShepard);
+                interp.CalcWeights(inPts, outPts);
             }
             else if (vType == LU::eFunctionTypeExpression)
             {
@@ -145,7 +146,6 @@ void MagneticField::Read(NekDouble time)
             }
         }
 
-        interp.CalcWeights(inPts, outPts);
         interp.Interpolate(inPts, outPts);
     }
     else if (this->type == field_type::mean_exp)

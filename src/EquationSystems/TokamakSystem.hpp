@@ -137,8 +137,7 @@ protected:
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    // void ReadMagneticField(NekDouble time = 0);
-
+    
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
