@@ -12,9 +12,6 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
-// namespace LU = Nektar::LibUtilities;
-// namespace NP = NESO::Particles;
-
 namespace NESO::Solvers::tokamak
 {
 
@@ -77,13 +74,12 @@ public:
 
         for (auto &[k, v] : this->config->get_particle_species())
         {
-            std::string name = std::get<0>(v);
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_DENSITY"), 1));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_DENSITY"), 1));
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_ENERGY"), 1));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_ENERGY"), 1));
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_MOMENTUM"), this->ndim));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_MOMENTUM"), this->ndim));
         }
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
         this->particle_spec.push(

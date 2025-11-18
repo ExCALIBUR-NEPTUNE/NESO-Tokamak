@@ -63,9 +63,9 @@ public:
 
     struct Species
     {
-        double charge;
         double mass;
         std::string name;
+        std::vector<int> index;
     };
     std::map<int, Species> m_species;
     std::map<int, Species> &GetSpecies()
@@ -73,11 +73,9 @@ public:
         return m_species;
     }
 
-    struct Ion
+    struct Ion : public Species
     {
         double charge;
-        double mass;
-        std::string name;
     };
     std::map<int, Ion> m_ions;
     std::map<int, Ion> &GetIons()
@@ -85,10 +83,8 @@ public:
         return m_ions;
     }
 
-    struct Neutral
+    struct Neutral : public Species
     {
-        double mass;
-        std::string name;
         int ion;
     };
     std::map<int, Neutral> m_neutrals;
@@ -96,8 +92,6 @@ public:
     {
         return m_neutrals;
     }
-
-    std::map<int, int> m_baseion;
 
 protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
@@ -175,7 +169,7 @@ protected:
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    
+
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
@@ -198,10 +192,10 @@ protected:
                                         const int domain) override;
 
     NESOSessionFunctionSharedPtr get_species_function(
-        int s, std::string name,
+        const std::string &, std::string name,
         const MR::ExpListSharedPtr &field = MR::NullExpListSharedPtr,
         bool cache                        = false);
-    std::vector<std::map<std::string, NESOSessionFunctionSharedPtr>>
+    std::map<std::string, std::map<std::string, NESOSessionFunctionSharedPtr>>
         m_nesoSessionFunctions;
 };
 

@@ -581,8 +581,8 @@ void ReducedBraginskii::CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr,
 {
     int npoints = m_fields[0]->GetNpoints();
     double Z, A;
-    this->neso_config->load_species_parameter(f, "Charge", Z);
-    this->neso_config->load_species_parameter(f, "Mass", A);
+    // this->neso_config->load_species_parameter(f, "Charge", Z);
+    // this->neso_config->load_species_parameter(f, "Mass", A);
     auto ne = this->m_fields[0]->GetPhys();
 
     for (int p = 0; p < npoints; ++p)
@@ -603,15 +603,15 @@ void ReducedBraginskii::CalcKappa(
 {
     int npoints = m_fields[0]->GetNpoints();
     double Z, A;
-    this->neso_config->load_species_parameter(f, "Charge", Z);
-    this->neso_config->load_species_parameter(f, "Mass", A);
+    // this->neso_config->load_species_parameter(f, "Charge", Z);
+    // this->neso_config->load_species_parameter(f, "Mass", A);
 
     Array<OneD, NekDouble> tmp(npoints, 0.0);
     for (const auto &[s2, v2] : this->GetSpecies())
     {
         double Z2, A2;
-        this->neso_config->load_species_parameter(s2, "Charge", Z2);
-        this->neso_config->load_species_parameter(s2, "Mass", A2);
+        // this->neso_config->load_species_parameter(s2, "Charge", Z2);
+        // this->neso_config->load_species_parameter(s2, "Mass", A2);
         for (int p = 0; p < npoints; ++p)
         {
             tmp[p] += Z2 * Z2 * sqrt(A2 / (A + A2)) * in_arr[ni_idx[s2]][p];

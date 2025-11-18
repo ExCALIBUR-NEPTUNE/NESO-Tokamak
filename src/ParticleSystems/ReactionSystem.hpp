@@ -546,10 +546,9 @@ public:
 
         for (auto &[k, v] : this->config->get_particle_species())
         {
-            std::string name = std::get<0>(v);
-            src_names.push_back(name + "_SOURCE_DENSITY");
-            src_names.push_back(name + "_SOURCE_ENERGY");
-            src_names.push_back(name + "_SOURCE_MOMENTUM");
+            src_names.push_back(k + "_SOURCE_DENSITY");
+            src_names.push_back(k + "_SOURCE_ENERGY");
+            src_names.push_back(k + "_SOURCE_MOMENTUM");
         }
 
         auto zeroer_transform =

@@ -24,9 +24,9 @@ void ParticleSystem::set_up_species()
 
     double particle_thermal_velocity;
 
+    int state = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
-        std::string name = std::get<0>(v);
         double particle_mass, particle_charge;
         this->config->load_particle_species_parameter(k, "Mass", particle_mass);
         this->config->load_particle_species_parameter(k, "Charge",
@@ -195,7 +195,8 @@ void ParticleSystem::set_up_species()
                         px + id_offset + this->total_num_particles_added;
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
-                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] =
+                        state;
                     initial_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -218,13 +219,14 @@ void ParticleSystem::set_up_species()
             }
         }
 
-        int s = k;
+        int s = state;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[k] =
-            SpeciesInfo{name, particle_mass, particle_charge, sub_group};
+        species_map[state] =
+            SpeciesInfo{k, particle_mass, particle_charge, sub_group};
+        state++;
     }
     set_up_boundaries();
 }
@@ -248,12 +250,11 @@ void ParticleSystem::add_sources(double time, double dt)
     double particle_thermal_velocity;
     const long rank = this->sycl_target->comm_pair.rank_parent;
 
+    int state = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
-        std::string name = std::get<0>(v);
-
-        double particle_mass   = species_map[k].mass;
-        double particle_charge = species_map[k].charge;
+        double particle_mass   = species_map[state].mass;
+        double particle_charge = species_map[state].charge;
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
@@ -441,7 +442,8 @@ void ParticleSystem::add_sources(double time, double dt)
                             px + id_offset + this->total_num_particles_added;
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
-                        src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                        src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] =
+                            state;
                         src_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -464,13 +466,14 @@ void ParticleSystem::add_sources(double time, double dt)
                 }
             }
         }
-        int s = k;
+        int s = state;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[k] =
-            SpeciesInfo{name, particle_mass, particle_charge, sub_group};
+        species_map[state] =
+            SpeciesInfo{k, particle_mass, particle_charge, sub_group};
+        s++;
     }
     transfer_particles();
 }
@@ -515,6 +518,7 @@ void ParticleSystem::add_sinks(double time, double dt)
             }
         }
     }
+    int state = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
         for (auto &sink : this->config->get_particle_species_sinks(k))
@@ -543,7 +547,7 @@ void ParticleSystem::add_sinks(double time, double dt)
                     {
                         if (eqnarr[particle_index] >
                                 rng_dist(this->rng_phasespace) &&
-                            k == (*is)[0][rowx])
+                            state == (*is)[0][rowx])
                         {
                             (*id)[0][rowx] = particle_remove_key;
                         }
@@ -554,6 +558,7 @@ void ParticleSystem::add_sinks(double time, double dt)
                 }
             }
         }
+        state++;
     }
     remove_marked_particles();
 }

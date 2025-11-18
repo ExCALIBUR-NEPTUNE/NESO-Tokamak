@@ -139,19 +139,19 @@ void TokamakSystem::v_ExtraFldOutput(
     {
         const int nPhys   = m_fields[0]->GetNpoints();
         const int nCoeffs = m_fields[0]->GetNcoeffs();
+        int s             = 0;
         for (const auto &[k, v] : this->neso_config->get_species())
         {
-            std::string name = std::get<0>(v);
-
             for (int f = 0; f < this->n_fields_per_species; ++f)
             {
-                int fi = f + k * this->n_fields_per_species;
-                variables.push_back(m_session->GetVariable(f) + "_" + name);
+                int fi = f + s * this->n_fields_per_species;
+                variables.push_back(m_session->GetVariable(f) + "_" + k);
                 Array<OneD, NekDouble> Fwd(nCoeffs);
                 this->m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
                 fieldcoeffs.push_back(Fwd);
             }
+            s++;
         }
         if (Te)
         {
@@ -243,22 +243,22 @@ void TokamakSystem::v_InitObject(bool create_field)
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
 
     int s = 0;
-    for (auto [k, v] : this->neso_config->get_species())
+    for (auto &[k, v] : this->neso_config->get_species())
     {
         double charge = 1;
         double mass   = 1;
         this->neso_config->load_species_parameter(k, "Charge", charge);
         this->neso_config->load_species_parameter(k, "Mass", mass);
-        std::string name = std::get<0>(v);
-        Species spec{charge, mass, name};
+
+        Species spec{mass, k};
         if (charge == 0)
         {
-            Neutral neut{mass, name, s - 1};
+            Neutral neut{spec};
             m_neutrals[s] = neut;
         }
         else
         {
-            Ion ion{charge, mass, name};
+            Ion ion{spec};
             m_ions[s] = ion;
         }
         m_species[s++] = spec;
@@ -623,7 +623,8 @@ bool TokamakSystem::v_PreIntegrate(int step)
 }
 
 NESOSessionFunctionSharedPtr TokamakSystem::get_species_function(
-    int s, std::string name, const MR::ExpListSharedPtr &field, bool cache)
+    const std::string &s, std::string name, const MR::ExpListSharedPtr &field,
+    bool cache)
 {
     MR::ExpListSharedPtr vField = field;
     if (!field)

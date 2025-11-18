@@ -161,7 +161,6 @@ void SingleDiffusiveField::CalcKPar(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
     double Z;
-    this->neso_config->load_species_parameter(f, "Charge", Z);
     m_kpar = Array<OneD, NekDouble>(npoints, 0.0/*this->k_par / (Z * Z)*/);
     //Vmath::Vdiv(npoints, m_kpar, 1, m_indfields[f]->GetPhys(), 1, m_kpar, 1);
 }
@@ -170,8 +169,6 @@ void SingleDiffusiveField::CalcKPerp(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
     double Z, A;
-    this->neso_config->load_species_parameter(f, "Charge", Z);
-    this->neso_config->load_species_parameter(f, "Mass", A);
     m_kperp =
         Array<OneD, NekDouble>(npoints, 0.0/*this->k_perp * Z * Z * std::sqrt(A)*/);
     //Vmath::Vmul(npoints, m_kperp, 1, m_indfields[f]->GetPhys(), 1, m_kperp, 1);
