@@ -1074,15 +1074,15 @@ void ReducedBraginskii::v_ExtraFldOutput(
     if (this->particles_enabled)
     {
         int i = 0;
-        for (auto &[k, v] : this->GetSpecies())
+        for (auto &[k, v] : this->particle_sys->get_species())
         {
-            variables.push_back(v.name + "_SOURCE_DENSITY");
+            variables.push_back(k + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd1(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i]->GetPhys(),
                                            SrcFwd1);
             fieldcoeffs.push_back(SrcFwd1);
 
-            variables.push_back(v.name + "_SOURCE_ENERGY");
+            variables.push_back(k + "_SOURCE_ENERGY");
             Array<OneD, NekDouble> SrcFwd2(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i + 1]->GetPhys(),
                                            SrcFwd2);

@@ -224,8 +224,8 @@ void ParticleSystem::set_up_species()
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[state] =
-            SpeciesInfo{k, particle_mass, particle_charge, sub_group};
+        species_map[k] =
+            SpeciesInfo{state, particle_mass, particle_charge, sub_group};
         state++;
     }
     set_up_boundaries();
@@ -253,8 +253,8 @@ void ParticleSystem::add_sources(double time, double dt)
     int state = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
-        double particle_mass   = species_map[state].mass;
-        double particle_charge = species_map[state].charge;
+        double particle_mass   = species_map[k].mass;
+        double particle_charge = species_map[k].charge;
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
@@ -471,8 +471,8 @@ void ParticleSystem::add_sources(double time, double dt)
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[state] =
-            SpeciesInfo{k, particle_mass, particle_charge, sub_group};
+        species_map[k] =
+            SpeciesInfo{state, particle_mass, particle_charge, sub_group};
         s++;
     }
     transfer_particles();

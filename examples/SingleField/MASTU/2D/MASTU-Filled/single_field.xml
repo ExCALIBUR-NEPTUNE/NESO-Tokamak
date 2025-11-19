@@ -55,7 +55,7 @@
             <P> NonlinIterTolRelativeL2   = 1.0E-4  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
 
-            <P> particle_output_freq = 10              </P>
+            <P> particle_output_freq = 1              </P>
         </PARAMETERS>
 
         <VARIABLES>
@@ -63,11 +63,11 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <B ID="3"> C[3] </B>
+            <B ID="0"> C[3] </B>
         </BOUNDARYREGIONS>
         <BOUNDARYCONDITIONS>
             <!--Wall -->
-            <REGION REF="3">
+            <REGION REF="0">
                 <N VAR="n" VALUE="0"/>
             </REGION>         
         </BOUNDARYCONDITIONS>
@@ -99,12 +99,14 @@
             </I>
             <N NAME="D" ION="D+" FIELDS="n">
                 <P> Mass = 2 </P>
+                <P> Charge = 0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="1" />
                 </FUNCTION>
             </N>
             <KN NAME="D" ION="D+">
                 <P> Mass = 2.0 </P>
+                <P> Charge = 0 </P>
                 <INITIAL N="1">
                     <E VAR="W" VALUE="0.0000005"/>
                     <E VAR="X" VALUE="199.9999"/>
@@ -138,8 +140,8 @@
             </KI>
         </SPECIES>
         <VANTAGE>
-            <S ID="0" TYPE="Specular" SPECIES="D,W,D+">
-                <REGION REF="3"/>
+            <S TYPE="Specular" SPECIES="D,W">
+                <REGION REF="0"/>
                 <RATE TYPE="Constant" VALUE="1.0"/>
             </S>             
         </VANTAGE>

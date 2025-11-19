@@ -86,7 +86,7 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
+            src_syms.push_back(Sym<REAL>(k + "_SOURCE_DENSITY"));
             src_components.push_back(0);
         }
 
@@ -312,9 +312,9 @@ void SingleDiffusiveField::v_ExtraFldOutput(
     if (this->particles_enabled)
     {
         int i = 0;
-        for (auto &[k, v] : this->GetSpecies())
+        for (auto &[k, v] : this->particle_sys->get_species())
         {
-            variables.push_back(v.name + "_SOURCE_DENSITY");
+            variables.push_back(k + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i++]->GetPhys(),
                                            SrcFwd);

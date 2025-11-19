@@ -124,13 +124,13 @@ public:
 
     struct SpeciesInfo
     {
-        std::string name;
+        int id;
         double mass;
         double charge;
 
         std::shared_ptr<ParticleSubGroup> sub_group;
     };
-    virtual std::map<int, SpeciesInfo> &get_species()
+    virtual std::map<std::string, SpeciesInfo> &get_species()
     {
         return species_map;
     }
@@ -543,7 +543,7 @@ protected:
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
-    std::map<int, SpeciesInfo> species_map;
+    std::map<std::string, SpeciesInfo> species_map;
 
     std::vector<Sym<REAL>> src_syms;
     std::vector<int> src_components;
