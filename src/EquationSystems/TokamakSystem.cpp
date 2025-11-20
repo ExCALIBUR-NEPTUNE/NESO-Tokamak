@@ -140,12 +140,12 @@ void TokamakSystem::v_ExtraFldOutput(
         const int nPhys   = m_fields[0]->GetNpoints();
         const int nCoeffs = m_fields[0]->GetNcoeffs();
         int s             = 0;
-        for (const auto &[k, v] : this->neso_config->get_species())
+        for (const auto &[k, v] : this->GetSpecies())
         {
             for (int f = 0; f < this->n_fields_per_species; ++f)
             {
                 int fi = f + s * this->n_fields_per_species;
-                variables.push_back(m_session->GetVariable(f) + "_" + k);
+                variables.push_back(m_session->GetVariable(f) + "_" + v.name);
                 Array<OneD, NekDouble> Fwd(nCoeffs);
                 this->m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
@@ -242,33 +242,41 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     this->ve = Array<OneD, MR::DisContFieldSharedPtr>(3);
 
-    int s = 0;
+    int nfields = 0;
+    std::map<std::string, int> ions_by_name;
+    int s_idx = 0;
+    int f_idx = 0;
     for (auto &[k, v] : this->neso_config->get_species())
     {
-        double charge = 1;
-        double mass   = 1;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        this->neso_config->load_species_parameter(k, "Mass", mass);
+        double mass, charge;
+        this->neso_config->load_species_parameter(k, "Mass", mass, 1.0);
+        this->neso_config->load_species_parameter(k, "Charge", charge, 0.0);
 
         Species spec{mass, k};
-        if (charge == 0)
+        for (const auto &str : std::get<2>(v))
         {
-            Neutral neut{spec};
-            m_neutrals[s] = neut;
+            spec.fields[field_to_index[str]] = f_idx++;
+        }
+        if (std::get<3>(v).has_value())
+        {
+            int ion = ions_by_name[*std::get<3>(v)];
+            Neutral neutral{spec, ion};
+            m_neutrals[s_idx] = neutral;
         }
         else
         {
-            Ion ion{spec};
-            m_ions[s] = ion;
+            Ion ion{spec, charge};
+            m_ions[s_idx]   = ion;
+            ions_by_name[k] = s_idx;
         }
-        m_species[s++] = spec;
+        m_species[s_idx++] = spec;
     }
+
     this->n_species = m_species.size();
 
     m_allfields = Array<OneD, MR::ExpListSharedPtr>(
         m_fields.size() + this->n_species * n_fields_per_species);
-    m_indfields = Array<OneD, MR::ExpListSharedPtr>(
-        n_indep_fields + this->n_species * n_fields_per_species);
+    m_indfields = Array<OneD, MR::ExpListSharedPtr>(n_indep_fields + f_idx);
 
     for (int i = 0; i < m_fields.size(); ++i)
     {
@@ -278,12 +286,12 @@ void TokamakSystem::v_InitObject(bool create_field)
     for (const auto &[k, v] : this->GetSpecies())
     {
         std::string name = v.name;
-        for (int f = 0; f < this->n_fields_per_species; ++f)
+        for (const auto &[f, fi] : v.fields)
         {
             if (m_projectionType == MR::eGalerkin ||
                 m_projectionType == MR::eMixed_CG_Discontinuous)
             {
-                m_indfields[k * n_fields_per_species + f] =
+                m_indfields[fi] =
                     MemoryManager<MR::ContField>::AllocateSharedPtr(
                         *std::dynamic_pointer_cast<MR::ContField>(m_fields[0]),
                         m_graph, m_session->GetVariable(f), true,
@@ -291,7 +299,7 @@ void TokamakSystem::v_InitObject(bool create_field)
             }
             else
             {
-                m_indfields[k * n_fields_per_species + f] =
+                m_indfields[fi] =
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
                         *std::dynamic_pointer_cast<MR::DisContField>(
                             m_fields[0]),
@@ -301,7 +309,7 @@ void TokamakSystem::v_InitObject(bool create_field)
     }
     for (int i = 0; i < n_indep_fields; ++i)
     {
-        m_indfields[n_fields_per_species * n_species + i] =
+        m_indfields[f_idx + i] =
             m_fields[m_fields.size() - n_indep_fields + i];
     }
     // Ensure DG is setup
@@ -706,14 +714,13 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
         }
     }
     int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[k, v] : this->GetSpecies())
     {
-        if (this->neso_config->defines_species_function(k, "InitialConditions"))
+        if (this->neso_config->defines_species_function(v.name, "InitialConditions"))
         {
-            auto fn = this->get_species_function(k, "InitialConditions");
-            for (int f = 0; f < n_fields_per_species; ++f)
+            auto fn = this->get_species_function(v.name, "InitialConditions");
+            for (const auto& [f, fi] : v.fields)
             {
-                int fi = f + s * n_fields_per_species;
                 fn->Evaluate(m_session->GetVariables()[f],
                              m_indfields[fi]->UpdatePhys(), m_time, domain);
                 if (m_indfields[fi]->GetWaveSpace())
@@ -743,9 +750,8 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
         else
         {
             int nq = m_indfields[0]->GetNpoints();
-            for (int f = 0; f < this->n_fields_per_species; f++)
+            for (const auto& [f, fi] : v.fields)
             {
-                int fi = f + s * n_fields_per_species;
                 Vmath::Zero(nq, m_indfields[fi]->UpdatePhys(), 1);
                 m_indfields[fi]->SetPhysState(true);
                 Vmath::Zero(m_indfields[fi]->GetNcoeffs(),
@@ -768,9 +774,8 @@ void TokamakSystem::SetBoundaryConditions(NekDouble time)
     std::string varName;
     for (const auto &[k, v] : this->GetSpecies())
     {
-        for (int f = 0; f < this->n_fields_per_species; ++f)
+        for (const auto& [f, fi] : v.fields)
         {
-            int fi  = f + k * this->n_fields_per_species;
             varName = m_session->GetVariable(f);
             m_indfields[fi]->EvaluateBoundaryConditions(time, varName);
         }

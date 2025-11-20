@@ -364,7 +364,6 @@ public:
                     make_transformation_strategy<
                         SimpleRemovalTransformationStrategy>());
             config->read_boundary_regions();
-            this->boundary_groups = config->get_boundary_regions();
 
             for (auto &v : this->config->get_surface_reactions())
             {
@@ -424,7 +423,7 @@ public:
 
             this->composite_intersection =
                 std::make_shared<CompositeInteraction::CompositeIntersection>(
-                    this->sycl_target, mesh, this->boundary_groups);
+                    this->sycl_target, mesh, config->get_boundary_regions());
 
             this->reset_distance =
                 store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-4);
@@ -476,7 +475,6 @@ public:
             composite_intersection;
         std::shared_ptr<BoundaryTruncation> boundary_truncation;
 
-        std::map<int, std::vector<int>> boundary_groups;
         std::map<int, std::shared_ptr<ReactionController>> reaction_controllers;
 
         int ndim;

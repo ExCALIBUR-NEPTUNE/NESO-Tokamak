@@ -24,13 +24,14 @@ void ParticleSystem::set_up_species()
 
     double particle_thermal_velocity;
 
-    int state = 0;
+    int s = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
         double particle_mass, particle_charge;
-        this->config->load_particle_species_parameter(k, "Mass", particle_mass);
+        this->config->load_particle_species_parameter(k, "Mass", particle_mass,
+                                                      1.0);
         this->config->load_particle_species_parameter(k, "Charge",
-                                                      particle_charge);
+                                                      particle_charge, 0.0);
         long particle_number = this->config->get_particle_species_initial_N(k);
 
         if (particle_number > 0)
@@ -195,8 +196,7 @@ void ParticleSystem::set_up_species()
                         px + id_offset + this->total_num_particles_added;
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
-                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] =
-                        state;
+                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = s;
                     initial_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -219,14 +219,15 @@ void ParticleSystem::set_up_species()
             }
         }
 
-        int s = state;
+        int state = s;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
-                this->particle_group, [s](auto sid) { return sid[0] == s; },
+                this->particle_group,
+                [state](auto sid) { return sid[0] == state; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
         species_map[k] =
             SpeciesInfo{state, particle_mass, particle_charge, sub_group};
-        state++;
+        s++;
     }
     set_up_boundaries();
 }

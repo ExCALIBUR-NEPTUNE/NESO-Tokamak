@@ -65,7 +65,7 @@ public:
     {
         double mass;
         std::string name;
-        std::vector<int> index;
+        std::map<int, int> fields;
     };
     std::map<int, Species> m_species;
     std::map<int, Species> &GetSpecies()
