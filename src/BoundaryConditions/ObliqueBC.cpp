@@ -1,4 +1,5 @@
 #include "ObliqueBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -28,12 +29,13 @@ void ObliqueBC::v_Apply(
     [[maybe_unused]] const NekDouble &time)
 {
 
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[k, v] : m_system.lock()->GetIons())
     {
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+
         Array<OneD, NekDouble> ni_bndelmt;
-        m_fields[ni_idx[s]]->ExtractPhysToBndElmt(
-            m_bcRegion, physarray[ni_idx[s]], ni_bndelmt);
+        m_fields[ni_idx]->ExtractPhysToBndElmt(m_bcRegion, physarray[ni_idx],
+                                               ni_bndelmt);
         Array<OneD, Array<OneD, NekDouble>> ni_grad(m_spacedim);
         for (int d = 0; d < m_spacedim; d++)
         {
@@ -53,7 +55,7 @@ void ObliqueBC::v_Apply(
         for (int d = 0; d < m_spacedim; d++)
         {
             ni_bndGrad[d] = Array<OneD, NekDouble>(m_nEdgePts, 0.0);
-            m_fields[ni_idx[s]]->ExtractElmtToBndPhys(m_bcRegion, ni_grad[d],
+            m_fields[ni_idx]->ExtractElmtToBndPhys(m_bcRegion, ni_grad[d],
                                                       ni_bndGrad[d]);
         }
 
@@ -77,22 +79,22 @@ void ObliqueBC::v_Apply(
 
         LibUtilities::Equation cond =
             std::static_pointer_cast<SpatialDomains::NeumannBoundaryCondition>(
-                m_fields[ni_idx[s]]->GetBndConditions()[m_bcRegion])
+                m_fields[ni_idx]->GetBndConditions()[m_bcRegion])
                 ->m_neumannCondition;
 
         Array<OneD, NekDouble> x0(m_nEdgePts, 0.0);
         Array<OneD, NekDouble> x1(m_nEdgePts, 0.0);
         Array<OneD, NekDouble> x2(m_nEdgePts, 0.0);
 
-        m_bndExp[ni_idx[s]]->GetCoords(x0, x1, x2);
+        m_bndExp[ni_idx]->GetCoords(x0, x1, x2);
 
         Array<OneD, NekDouble> a(m_nEdgePts, 0.0);
         cond.Evaluate(x0, x1, x2, time, a);
 
         Vmath::Vsub(m_nEdgePts, a, 1, result, 1, result, 1);
 
-        m_bndExp[ni_idx[s]]->IProductWRTBase(
-            result, m_bndExp[ni_idx[s]]->UpdateCoeffs());
+        m_bndExp[ni_idx]->IProductWRTBase(result,
+                                          m_bndExp[ni_idx]->UpdateCoeffs());
     }
 }
 

@@ -36,6 +36,8 @@ class TokamakSystem
     : public TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>
 {
     friend class MagneticField;
+    friend class TokamakBaseBndCond;
+    friend class VariableConverter;
 
 public:
     friend class MemoryManager<TokamakSystem>;
@@ -143,6 +145,8 @@ protected:
 
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
+
+    VariableConverterSharedPtr m_varConv;
 
     /// Boundary Conditions
     std::shared_ptr<TokamakBoundaryConditions> m_bndConds;

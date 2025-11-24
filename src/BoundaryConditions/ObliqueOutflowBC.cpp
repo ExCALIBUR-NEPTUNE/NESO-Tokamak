@@ -1,4 +1,5 @@
 #include "ObliqueOutflowBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 

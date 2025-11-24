@@ -99,7 +99,6 @@ private:
 
     StdRegions::VarCoeffMap m_D;
 
-    VariableConverterSharedPtr m_varConv;
     // For Diffusion
     // workaround for bug in DiffusionLDG
     Array<OneD, MR::ExpListSharedPtr> m_difffields;

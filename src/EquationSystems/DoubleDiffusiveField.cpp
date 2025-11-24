@@ -34,8 +34,6 @@ DoubleDiffusiveField::DoubleDiffusiveField(
 void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     TokamakSystem::v_InitObject(DeclareFields);
-    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-        as<TokamakSystem>(), m_spacedim);
 
     std::string diffName;
     m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
@@ -66,9 +64,6 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
         ni_idx.push_back(this->n_fields_per_species * s);
         pi_idx.push_back(this->n_fields_per_species * s + 1);
     }
-    m_varConv->ni_idx = ni_idx;
-    m_varConv->pi_idx = pi_idx;
-    m_varConv->pe_idx = pe_idx;
 
     m_ode.DefineOdeRhs(&DoubleDiffusiveField::DoOdeRhs, this);
 

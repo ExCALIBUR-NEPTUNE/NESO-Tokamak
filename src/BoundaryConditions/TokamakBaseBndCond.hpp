@@ -7,7 +7,6 @@
 #include <LibUtilities/BasicUtils/NekFactory.hpp>
 #include <LibUtilities/BasicUtils/SharedArray.hpp>
 #include <MultiRegions/ExpList.h>
-#include <nektar_interface/solver_base/neso_reader.hpp>
 
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
@@ -62,11 +61,6 @@ public:
     int omega_idx;
     int phi_idx;
 
-    std::vector<int> ni_idx;
-    std::vector<int> vi_idx;
-    std::vector<int> pi_idx;
-    NESOReaderSharedPtr neso_config;
-
 protected:
     /// Session reader
     LU::SessionReaderSharedPtr m_session;
@@ -97,6 +91,7 @@ protected:
     int m_spacedim;
     /// Auxiliary object to convert variables
     VariableConverterSharedPtr m_varConv;
+    const NektarFieldIndexMap &field_to_index;
 
     /// Weight for average calculation of diffusion term
     NekDouble m_diffusionAveWeight;

@@ -21,7 +21,9 @@ TokamakBaseBndCond::TokamakBaseBndCond(
     Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
     const int bcRegion)
     : m_session(pSession), m_system(pSystem), m_fields(pFields),
-      m_spacedim(pSpaceDim), m_bcRegion(bcRegion), B(pB), E(pE)
+      m_spacedim(pSpaceDim), m_bcRegion(bcRegion), B(pB), E(pE),
+      m_varConv(pSystem.lock()->m_varConv),
+      field_to_index(pSystem.lock()->field_to_index)
 {
     for (int v = 0; v < m_fields.size(); ++v)
     {
@@ -41,8 +43,7 @@ TokamakBaseBndCond::TokamakBaseBndCond(
         B_bnd[d] = Array<OneD, NekDouble>(m_nEdgePts);
         E_bnd[d] = Array<OneD, NekDouble>(m_nEdgePts);
     }
-    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(m_system,
-                                                                    m_spacedim);
+
     m_diffusionAveWeight = 1.0;
 }
 

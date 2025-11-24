@@ -2,6 +2,7 @@
 #define TOKAMAKVARIABLECONVERTER_HPP
 
 #include "EquationOfState.hpp"
+#include "nektar_interface/utilities.hpp"
 #include <MultiRegions/ContField.h>
 #include <SolverUtils/UnsteadySystem.h>
 
@@ -118,15 +119,11 @@ public:
         return m_eos;
     }
 
-    int omega_idx;
-    int pe_idx;
-
-    std::vector<int> ni_idx;
-    std::vector<int> vi_idx;
-    std::vector<int> pi_idx;
-
 protected:
     const std::weak_ptr<TokamakSystem> m_system;
+    const NektarFieldIndexMap &field_to_index;
+    int omega_idx;
+    int pe_idx;
     EquationOfStateSharedPtr m_eos;
     size_t m_spacedim;
 };

@@ -28,7 +28,6 @@ SingleDiffusiveField::SingleDiffusiveField(
     : TokamakSystem(session, graph)
 {
     this->n_indep_fields       = 0;
-    this->n_fields_per_species = 1;
 }
 
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
@@ -160,19 +159,21 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
 void SingleDiffusiveField::CalcKPar(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
-    double Z;
-    m_kpar = Array<OneD, NekDouble>(npoints, 0.0/*this->k_par / (Z * Z)*/);
-    //Vmath::Vdiv(npoints, m_kpar, 1, m_indfields[f]->GetPhys(), 1, m_kpar, 1);
+    double Z = m_ions[f].charge;
+
+    m_kpar = Array<OneD, NekDouble>(npoints, this->k_par / (Z * Z));
+    Vmath::Vdiv(npoints, m_kpar, 1, m_indfields[f]->GetPhys(), 1, m_kpar, 1);
 }
 
 void SingleDiffusiveField::CalcKPerp(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
-    double Z, A;
+    double Z = m_ions[f].charge;
+    double A = m_ions[f].mass;
     m_kperp =
-        Array<OneD, NekDouble>(npoints, 0.0/*this->k_perp * Z * Z * std::sqrt(A)*/);
-    //Vmath::Vmul(npoints, m_kperp, 1, m_indfields[f]->GetPhys(), 1, m_kperp, 1);
-    //Vmath::Vdiv(npoints, m_kperp, 1, this->mag_B, 1, m_kperp, 1);
+        Array<OneD, NekDouble>(npoints, this->k_perp * Z * Z * std::sqrt(A));
+    Vmath::Vmul(npoints, m_kperp, 1, m_indfields[f]->GetPhys(), 1, m_kperp, 1);
+    Vmath::Vdiv(npoints, m_kperp, 1, this->mag_B, 1, m_kperp, 1);
 }
 
 void SingleDiffusiveField::CalcDiffTensor(int f)
@@ -249,9 +250,10 @@ void SingleDiffusiveField::GetFluxVectorDiff(
     unsigned int nFld = qfield[0].size();
     unsigned int nPts = qfield[0][0].size();
 
-    for (unsigned int f = 0; f < nFld; ++f)
+    for (auto &[k, v] : this->GetIons())
     {
-        CalcDiffTensor(f);
+        int f = v.fields[field_to_index["n"]];
+        CalcDiffTensor(k);
         for (unsigned int j = 0; j < nDim; ++j)
         {
             // Calc diffusion of n with D tensor

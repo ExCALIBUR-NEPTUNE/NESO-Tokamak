@@ -1,19 +1,22 @@
 #include <iomanip>
 #include <iostream>
 
+#include "../EquationSystems/TokamakSystem.hpp"
 #include "VariableConverter.hpp"
 #include <LibUtilities/BasicUtils/Smath.hpp>
 #include <LocalRegions/Expansion2D.h>
-#include "../EquationSystems/TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
 VariableConverter::VariableConverter(
     const std::weak_ptr<TokamakSystem> &pSystem, const int spaceDim)
-    : m_system(pSystem), m_spacedim(spaceDim)
+    : m_system(pSystem), m_spacedim(spaceDim),
+      field_to_index(pSystem.lock()->field_to_index)
 {
-    m_eos = GetEquationOfStateFactory().CreateInstance("IdealGas");
+    m_eos     = GetEquationOfStateFactory().CreateInstance("IdealGas");
+    omega_idx = field_to_index.get_idx("w");
+    pe_idx    = field_to_index.get_idx("p");
 }
 
 void VariableConverter::GetElectronDensity(
@@ -24,8 +27,10 @@ void VariableConverter::GetElectronDensity(
     Vmath::Zero(nPts, density, 1);
     for (const auto &[s, v] : m_system.lock()->GetIons())
     {
-        Vmath::Svtvp(nPts, v.charge, physfield[ni_idx[s]], 1, density, 1,
-                     density, 1);
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+
+        Vmath::Svtvp(nPts, v.charge, physfield[ni_idx], 1, density, 1, density,
+                     1);
     }
 }
 
@@ -38,7 +43,8 @@ void VariableConverter::GetElectronVelocity(
 
     for (const auto &[s, v] : m_system.lock()->GetIons())
     {
-        Vmath::Svtvp(nPts, v.charge, physfield[vi_idx[s]], 1, velocity, 1,
+        int vi_idx = v.fields.at(field_to_index.at("v"));
+        Vmath::Svtvp(nPts, v.charge, physfield[vi_idx], 1, velocity, 1,
                      velocity, 1);
     }
     Vmath::Vsub(nPts, velocity, 1, current, 1, velocity, 1);
@@ -94,12 +100,16 @@ void VariableConverter::GetIonDynamicEnergy(
 {
     size_t nPts = physfield[0].size();
     Vmath::Zero(nPts, energy, 1);
+    int ni_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("n"));
+    int vi_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("v"));
 
     // tmp = (rho * u_i)^2
-    Vmath::Vvtvp(nPts, physfield[vi_idx[s]], 1, physfield[vi_idx[s]], 1, energy,
-                 1, energy, 1);
+    Vmath::Vvtvp(nPts, physfield[vi_idx], 1, physfield[vi_idx], 1, energy, 1,
+                 energy, 1);
     // Divide by rho and multiply by 0.5 --> tmp = 0.5 * rho * u^2
-    Vmath::Vdiv(nPts, energy, 1, physfield[ni_idx[s]], 1, energy, 1);
+    Vmath::Vdiv(nPts, energy, 1, physfield[ni_idx], 1, energy, 1);
     Vmath::Smul(nPts, 0.5 / mass, energy, 1, energy, 1);
 }
 
@@ -112,11 +122,15 @@ void VariableConverter::GetIonInternalEnergy(
     Array<OneD, NekDouble> tmp(nPts);
 
     GetIonDynamicEnergy(s, mass, physfield, tmp);
+    int ni_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("n"));
+    int pi_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("p"));
 
     // Calculate rhoe = E - rho*V^2/2
-    Vmath::Vsub(nPts, physfield[pi_idx[s]], 1, tmp, 1, energy, 1);
+    Vmath::Vsub(nPts, physfield[pi_idx], 1, tmp, 1, energy, 1);
     // Divide by rho
-    Vmath::Vdiv(nPts, energy, 1, physfield[ni_idx[s]], 1, energy, 1);
+    Vmath::Vdiv(nPts, energy, 1, physfield[ni_idx], 1, energy, 1);
     Vmath::Smul(nPts, 1.0 / mass, energy, 1, energy, 1);
 }
 
@@ -126,8 +140,11 @@ void VariableConverter::GetIonParallelVelocity(
     Array<OneD, NekDouble> &velocity)
 {
     const size_t nPts = physfield[0].size();
-    Vmath::Vdiv(nPts, physfield[vi_idx[s]], 1, physfield[ni_idx[s]], 1,
-                velocity, 1);
+    int ni_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("n"));
+    int vi_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("v"));
+    Vmath::Vdiv(nPts, physfield[vi_idx], 1, physfield[ni_idx], 1, velocity, 1);
     Vmath::Smul(nPts, 1.0 / mass, velocity, 1, velocity, 1);
 }
 
@@ -140,10 +157,11 @@ void VariableConverter::GetIonPressure(
 
     Array<OneD, NekDouble> energy(nPts);
     GetIonInternalEnergy(s, mass, physfield, energy);
-
+    int ni_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("n"));
     for (size_t p = 0; p < nPts; ++p)
     {
-        pressure[p] = m_eos->GetPressure(physfield[ni_idx[s]][p], energy[p]);
+        pressure[p] = m_eos->GetPressure(physfield[ni_idx][p], energy[p]);
     }
 }
 
@@ -155,14 +173,18 @@ void VariableConverter::GetIonTemperature(
     size_t nPts = physfield[0].size();
 
     Array<OneD, NekDouble> energy(nPts);
+    int ni_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("n"));
+    int pi_idx =
+        m_system.lock()->GetIons()[s].fields.at(field_to_index.at("p"));
 
-    //GetIonInternalEnergy(s, mass, physfield, energy);
+    // GetIonInternalEnergy(s, mass, physfield, energy);
     for (size_t p = 0; p < nPts; ++p)
     {
         // temperature[p] =
         //     m_eos->GetTemperature(physfield[ni_idx[s]][p], energy[p]);
-        temperature[p] = m_eos->GetTemperature(physfield[ni_idx[s]][p],
-                                               physfield[pi_idx[s]][p]);
+        temperature[p] =
+            m_eos->GetTemperature(physfield[ni_idx][p], physfield[pi_idx][p]);
     }
 }
 
@@ -191,13 +213,15 @@ void VariableConverter::GetSystemSoundSpeed(
     Array<OneD, NekDouble> ne(nPts);
 
     GetElectronDensity(physfield, ne);
-    const auto &m = m_system.lock()->GetIons();
+    auto &m = m_system.lock()->GetIons();
 
     for (int p = 0; p < nPts; ++p)
     {
-        for (const auto &[s, v] : m)
+        for (auto &[s, v] : m)
         {
-            tmp[p] += physfield[ni_idx[s]][p] *
+            int ni_idx = v.fields.at(field_to_index.at("n"));
+
+            tmp[p] += physfield[ni_idx][p] *
                       m_eos->GetTemperature(ne[p], physfield[pe_idx][p]) /
                       (ne[p] * v.mass);
         }

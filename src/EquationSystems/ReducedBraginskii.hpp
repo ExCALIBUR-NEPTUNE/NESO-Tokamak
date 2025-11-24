@@ -167,7 +167,6 @@ private:
 
     StdRegions::VarCoeffMap m_D;
 
-    VariableConverterSharedPtr m_varConv;
     Array<OneD, NekDouble> kIZ;
     Array<OneD, NekDouble> kCX;
     Array<OneD, NekDouble> krec;

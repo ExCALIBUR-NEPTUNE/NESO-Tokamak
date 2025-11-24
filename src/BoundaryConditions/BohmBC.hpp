@@ -55,6 +55,7 @@ private:
 
     NekDouble lambda;
     NekDouble Ge;
+    NekDouble me = 1 / 2000;
 };
 
 } // namespace NESO::Solvers::tokamak

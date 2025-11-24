@@ -1,4 +1,5 @@
 #include "SheathBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -76,27 +77,24 @@ void SheathBC::v_Apply(
 
     // Get electron density on boundary
     Array<OneD, NekDouble> ne(m_nEdgePts, 0.0);
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
-    {
-        double charge;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
 
-        Vmath::Svtvp(m_nEdgePts, charge, Fwd[ni_idx[s]], 1, ne, 1, ne, 1);
+    for (const auto &[k, v] : m_system.lock()->GetIons())
+    {
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+        Vmath::Svtvp(m_nEdgePts, v.charge, Fwd[ni_idx], 1, ne, 1, ne, 1);
     }
 
     Array<OneD, NekDouble> ion_sum(m_nEdgePts, 0.0);
 
-    s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    for (const auto &[k, v] : m_system.lock()->GetIons())
     {
-        double mass, charge;
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-
         // Obtain pressure gradient in boundary elements
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+        int vi_idx = v.fields.at(field_to_index.at("v"));
+        int pi_idx = v.fields.at(field_to_index.at("p"));
+
         Array<OneD, NekDouble> pi_bndelmt;
-        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[pi_idx[s]],
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[pi_idx],
                                           pi_bndelmt);
 
         Array<OneD, Array<OneD, NekDouble>> pi_grad(m_spacedim);
@@ -165,39 +163,36 @@ void SheathBC::v_Apply(
                 v_dn += m_normals[d][p] * v_di[d][p];
             }
 
-            NekDouble c_i_sq =
-                (gamma_i * Fwd[pi_idx[s]][p] / Fwd[ni_idx[s]][p] +
-                 charge * Fwd[pe_idx][p] / ne[p]) /
-                mass;
+            NekDouble c_i_sq = (gamma_i * Fwd[pi_idx][p] / Fwd[ni_idx][p] +
+                                v.charge * Fwd[pe_idx][p] / ne[p]) /
+                               v.mass;
             NekDouble c_i = bn[p] > 0 ? std::sqrt(c_i_sq) : -std::sqrt(c_i_sq);
             NekDouble v_trial =
-                Fwd[vi_idx[s]][p] * bn[p] / (mass * Fwd[ni_idx[s]][p]) + v_en +
+                Fwd[vi_idx][p] * bn[p] / (v.mass * Fwd[ni_idx][p]) + v_en +
                 v_dn;
             NekDouble v_sheath = std::max(v_trial, c_i * bn[p]);
 
-            vi_bc[p] = bn[p] == 0 ? Fwd[vi_idx[s]][p]
-                                  : mass * Fwd[ni_idx[s]][p] *
+            vi_bc[p] = bn[p] == 0 ? Fwd[vi_idx][p]
+                                  : v.mass * Fwd[ni_idx][p] *
                                         (v_sheath - v_en - v_dn) / bn[p];
-            pi_bc[p] =
-                ((2 / 3) * gamma_i * Fwd[pi_idx[s]][p] +
-                 0.5 * vi_bc[p] * vi_bc[p] / (mass * Fwd[ni_idx[s]][p])) *
-                v_sheath;
-            ni_bc[p] = Fwd[ni_idx[s]][p] * v_sheath;
+            pi_bc[p] = ((2 / 3) * gamma_i * Fwd[pi_idx][p] +
+                        0.5 * vi_bc[p] * vi_bc[p] / (v.mass * Fwd[ni_idx][p])) *
+                       v_sheath;
+            ni_bc[p] = Fwd[ni_idx][p] * v_sheath;
         }
 
         Vmath::Vadd(m_nEdgePts, ni_bc, 1, ion_sum, 1, ion_sum, 1);
 
         // Momentum
-        m_bndExp[vi_idx[s]]->FwdTransBndConstrained(
-            vi_bc, m_bndExp[vi_idx[s]]->UpdateCoeffs());
+        m_bndExp[vi_idx]->FwdTransBndConstrained(
+            vi_bc, m_bndExp[vi_idx]->UpdateCoeffs());
         // Density
-        m_bndExp[ni_idx[s]]->IProductWRTBase(
-            ni_bc, m_bndExp[ni_idx[s]]->UpdateCoeffs());
+        m_bndExp[ni_idx]->IProductWRTBase(ni_bc,
+                                          m_bndExp[ni_idx]->UpdateCoeffs());
         // Ion Pressure
-        m_bndExp[pi_idx[s]]->IProductWRTBase(
-            pi_bc, m_bndExp[pi_idx[s]]->UpdateCoeffs());
+        m_bndExp[pi_idx]->IProductWRTBase(pi_bc,
+                                          m_bndExp[pi_idx]->UpdateCoeffs());
 
-        s++;
     }
 
     Array<OneD, NekDouble> phi_bc(m_nEdgePts, 0.0);

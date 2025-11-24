@@ -1,4 +1,5 @@
 #include "BohmBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -53,24 +54,24 @@ void BohmBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
     }
     // Get electron density on boundary
     Array<OneD, NekDouble> ne(m_nEdgePts, 0.0);
-    int s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+
+    for (const auto &[k, v] : m_system.lock()->GetIons())
     {
-        double charge;
-        this->neso_config->load_species_parameter(k, "Charge", charge);
-        Vmath::Svtvp(m_nEdgePts, charge, Fwd[ni_idx[s]], 1, ne, 1, ne, 1);
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+        Vmath::Svtvp(m_nEdgePts, v.charge, Fwd[ni_idx], 1, ne, 1, ne, 1);
     }
 
-    s = 0;
-    for (const auto &[k, v] : this->neso_config->get_species())
+    Array<OneD, NekDouble> ion_sum(m_nEdgePts, 0.0);
+
+    for (const auto &[k, v] : m_system.lock()->GetIons())
     {
-        double mass, charge;
-        this->neso_config->load_species_parameter(k, "Mass", mass);
-        this->neso_config->load_species_parameter(k, "Charge", charge);
+        int ni_idx = v.fields.at(field_to_index.at("n"));
+        int vi_idx = v.fields.at(field_to_index.at("v"));
+        int pi_idx = v.fields.at(field_to_index.at("p"));
 
         // Obtain pressure gradient in boundary elements
         Array<OneD, NekDouble> pi_bndelmt;
-        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[pi_idx[s]],
+        m_fields[0]->ExtractPhysToBndElmt(m_bcRegion, physarray[pi_idx],
                                           pi_bndelmt);
 
         Array<OneD, Array<OneD, NekDouble>> pi_grad(m_spacedim);
@@ -129,27 +130,24 @@ void BohmBC::v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
             }
             bn /= std::sqrt(mag_B[p]);
 
-            NekDouble c_i_sq =
-                (gamma_i * Fwd[pi_idx[s]][p] / Fwd[ni_idx[s]][p] +
-                 charge * Fwd[pe_idx][p] / ne[p]) /
-                mass;
+            NekDouble c_i_sq = (gamma_i * Fwd[pi_idx][p] / Fwd[ni_idx][p] +
+                                v.charge * Fwd[pe_idx][p] / ne[p]) /
+                               v.mass;
             NekDouble c_i = bn > 0 ? std::sqrt(c_i_sq) : -std::sqrt(c_i_sq);
 
-            v_par[p] = std::max(mass * Fwd[ni_idx[s]][p] *
+            v_par[p] = std::max(v.mass * Fwd[ni_idx][p] *
                                     (c_i * bn - v_en - v_dn) / bn,
-                                Fwd[vi_idx[s]][p]);
+                                Fwd[vi_idx][p]);
         }
-        m_bndExp[vi_idx[s]]->FwdTransBndConstrained(
-            v_par, m_bndExp[vi_idx[s]]->UpdateCoeffs());
-
-        s++;
+        m_bndExp[vi_idx]->FwdTransBndConstrained(
+            v_par, m_bndExp[vi_idx]->UpdateCoeffs());
     }
 
     Array<OneD, NekDouble> phi(m_nEdgePts, 0.0);
     for (int i = 0; i < m_nEdgePts; ++i)
     {
-        phi[i] = m_bndExp[Te_idx]->GetPhys()[i] *
-                 log(sqrt(m_bndExp[Te_idx]->GetPhys()[i] / (Me * 2 * M_PI)) *
+        phi[i] = m_bndExp[pe_idx]->GetPhys()[i] *
+                 log(sqrt(m_bndExp[pe_idx]->GetPhys()[i] / (me * 2 * M_PI)) *
                      (1. - Ge) / ion_sum[i]);
     }
     Array<OneD, NekDouble> wall_potential(m_nEdgePts, lambda);

@@ -19,7 +19,8 @@ void ParticleSystem::set_up_species()
     std::srand(std::time(nullptr));
     int seed;
 
-    this->config->load_parameter("particle_position_seed", seed, std::rand());
+    this->config->get_session()->LoadParameter("particle_position_seed", seed,
+                                               std::rand());
     this->rng_phasespace = std::mt19937(seed + this->rank);
 
     double particle_thermal_velocity;

@@ -139,19 +139,17 @@ void TokamakSystem::v_ExtraFldOutput(
     {
         const int nPhys   = m_fields[0]->GetNpoints();
         const int nCoeffs = m_fields[0]->GetNcoeffs();
-        int s             = 0;
+
         for (const auto &[k, v] : this->GetSpecies())
         {
-            for (int f = 0; f < this->n_fields_per_species; ++f)
+            for (const auto &[f, fi] : v.fields)
             {
-                int fi = f + s * this->n_fields_per_species;
                 variables.push_back(m_session->GetVariable(f) + "_" + v.name);
                 Array<OneD, NekDouble> Fwd(nCoeffs);
                 this->m_indfields[fi]->FwdTransLocalElmt(
                     this->m_indfields[fi]->GetPhys(), Fwd);
                 fieldcoeffs.push_back(Fwd);
             }
-            s++;
         }
         if (Te)
         {
@@ -274,14 +272,7 @@ void TokamakSystem::v_InitObject(bool create_field)
 
     this->n_species = m_species.size();
 
-    m_allfields = Array<OneD, MR::ExpListSharedPtr>(
-        m_fields.size() + this->n_species * n_fields_per_species);
     m_indfields = Array<OneD, MR::ExpListSharedPtr>(n_indep_fields + f_idx);
-
-    for (int i = 0; i < m_fields.size(); ++i)
-    {
-        m_allfields[i] = m_fields[i];
-    }
 
     for (const auto &[k, v] : this->GetSpecies())
     {
@@ -307,10 +298,10 @@ void TokamakSystem::v_InitObject(bool create_field)
             }
         }
     }
+
     for (int i = 0; i < n_indep_fields; ++i)
     {
-        m_indfields[f_idx + i] =
-            m_fields[m_fields.size() - n_indep_fields + i];
+        m_indfields[f_idx + i] = m_fields[m_fields.size() - n_indep_fields + i];
     }
     // Ensure DG is setup
     for (int i = 1; i < m_indfields.size(); ++i)
@@ -331,13 +322,17 @@ void TokamakSystem::v_InitObject(bool create_field)
                                   m_implHelper);
     }
 
+    //m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
+    //    as<TokamakSystem>(), m_spacedim);
+
     // Forcing terms
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_indfields,
                                   m_indfields.size());
 
-    m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
-    m_bndConds->Initialize(m_session, as<TokamakSystem>(), m_indfields, B, E,
-                           m_spacedim);
+    //m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
+//
+    //m_bndConds->Initialize(m_session, as<TokamakSystem>(), m_indfields, B, E,
+    //                       m_spacedim);
 }
 
 /**
@@ -716,10 +711,11 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
     int s = 0;
     for (const auto &[k, v] : this->GetSpecies())
     {
-        if (this->neso_config->defines_species_function(v.name, "InitialConditions"))
+        if (this->neso_config->defines_species_function(v.name,
+                                                        "InitialConditions"))
         {
             auto fn = this->get_species_function(v.name, "InitialConditions");
-            for (const auto& [f, fi] : v.fields)
+            for (const auto &[f, fi] : v.fields)
             {
                 fn->Evaluate(m_session->GetVariables()[f],
                              m_indfields[fi]->UpdatePhys(), m_time, domain);
@@ -750,7 +746,7 @@ void TokamakSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
         else
         {
             int nq = m_indfields[0]->GetNpoints();
-            for (const auto& [f, fi] : v.fields)
+            for (const auto &[f, fi] : v.fields)
             {
                 Vmath::Zero(nq, m_indfields[fi]->UpdatePhys(), 1);
                 m_indfields[fi]->SetPhysState(true);
@@ -774,7 +770,7 @@ void TokamakSystem::SetBoundaryConditions(NekDouble time)
     std::string varName;
     for (const auto &[k, v] : this->GetSpecies())
     {
-        for (const auto& [f, fi] : v.fields)
+        for (const auto &[f, fi] : v.fields)
         {
             varName = m_session->GetVariable(f);
             m_indfields[fi]->EvaluateBoundaryConditions(time, varName);
