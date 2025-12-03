@@ -322,17 +322,17 @@ void TokamakSystem::v_InitObject(bool create_field)
                                   m_implHelper);
     }
 
-    //m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
-    //    as<TokamakSystem>(), m_spacedim);
+    m_varConv = MemoryManager<VariableConverter>::AllocateSharedPtr(
+        as<TokamakSystem>(), m_spacedim);
 
     // Forcing terms
     m_forcing = SU::Forcing::Load(m_session, shared_from_this(), m_indfields,
                                   m_indfields.size());
 
-    //m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
-//
-    //m_bndConds->Initialize(m_session, as<TokamakSystem>(), m_indfields, B, E,
-    //                       m_spacedim);
+    m_bndConds = MemoryManager<TokamakBoundaryConditions>::AllocateSharedPtr();
+
+    m_bndConds->Initialize(m_session, as<TokamakSystem>(), m_indfields, B, E,
+                           m_spacedim);
 }
 
 /**

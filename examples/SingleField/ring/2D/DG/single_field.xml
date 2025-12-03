@@ -13,7 +13,7 @@
             <I PROPERTY="Projection"                   VALUE="DisContinuous" />
             <I PROPERTY="TimeIntegrationMethod"        VALUE="DIRKOrder2"    />
             <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
-            <I PROPERTY="DiffusionAdvancement"         VALUE="Explicit"/>
+            <I PROPERTY="DiffusionAdvancement"         VALUE="Implicit"/>
         </SOLVERINFO>
 
         <PARAMETERS>
@@ -26,7 +26,7 @@
             <!-- Normalised magnetic field in T -->
             <P> Bnorm = 1.0 </P>
             <!-- Time step in gyro times -->
-            <P> TimeStep = 0.01 </P>
+            <P> TimeStep = 0.0001 </P>
             <P> NumSteps = 100 </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
@@ -85,20 +85,20 @@
 
     <NESO>
         <SPECIES>
-            <S ID="0" NAME="D">
+            <I NAME="D" FIELDS="n">
                 <P> Mass = 2.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
-            </S>
-            <S ID="1" NAME="T">
+            </I>
+            <I NAME="T" FIELDS="n">
                 <P> Mass = 3.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="0.1+0.1*exp((-(x-rc+rs)*(x-rc+rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
-            </S>
+            </I>
         </SPECIES> 
     </NESO>
 </NEKTAR>
