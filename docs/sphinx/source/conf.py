@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'NESO-Tokamak'
-copyright = '2022, UKAEA'
+copyright = '2025, UKAEA'
 author = 'UKAEA'
 release = ''
 
