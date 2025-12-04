@@ -1,34 +1,66 @@
 name: Build Docs
-on:
+on: 
   push:
     branches:
       - main
+      - dev
     tags:
       - v*
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+      - name: Setup Pages
+        uses: actions/configure-pages@v2
       - name: Install Sphinx/Doxygen
         run: |
           sudo apt update
-          sudo apt install -y python3-pip
-      - name: Install Python Requirements
+          sudo apt install -y doxygen graphviz python3-pip
+      - name: Install pip requirements
         run: |
-          python -m pip install --upgrade pip
-          pip install sphinx
-          pip install myst-parser
-          pip install ghp-import # only required by this yaml for publishing the docs
+          ls -l
+          pip3 install -r ./docs/sphinx/requirements.txt
+      - name: Build docs
+        working-directory: ./docs/
+        run: |
+          bash build_branch_docs.sh
       - name: Build Website
         working-directory: ./docs/
         run: |
-          make html
-      - name: Run ghp-import
-        run: |
-          ghp-import -n -p -f docs/build/html
+          ls build
+          mkdir -p /tmp/gh-pages
+          cp -r ./build/* /tmp/gh-pages/.
+          touch /tmp/gh-pages/.nojekyll
+          ls /tmp/gh-pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/gh-pages
+      - id: deployment
+        uses: actions/deploy-pages@main
+
+
+
