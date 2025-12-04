@@ -27,16 +27,8 @@
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
             <P> IO_CheckSteps = 1     </P>
-            <P> particle_output_freq = 1          </P>
 
             <P> epsilon         = 1.0   </P>
-            <!-- Anisotropic diffusion -->
-            <P> k_par           = 1   </P>
-            <P> k_perp          = 1e-6   </P>
-            <P> TCore           = 300.0 </P>
-            <P> T_bnd            = 1.0 </P>
-            <P> k_B             = 1.0 </P>
-            <P> m_i             = 1.0 </P>
 
             <!-- Scaling factor for ICs -->
             <P> xc = 1 </P>
@@ -53,8 +45,6 @@
             <P> NewtonRelativeIteTol      = 1.0E-10  </P>
             <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
             <P> LinSysRelativeTolInNonlin = 1.0E-02  </P>
-
-            <P> num_particles_total = 1 </P>
         </PARAMETERS>
 
         <VARIABLES>
@@ -91,15 +81,16 @@
             <E VAR="Bz" VALUE="2.0" />
         </FUNCTION>
     </CONDITIONS>
+</NEKTAR>
 
+<NESO>
     <PARTICLES>
         <INFO>
             <I PROPERTY="PARTTYPE" VALUE="ParticleSystem"/>
         </INFO>
 
         <PARAMETERS>
-            <!-- No particles when num_particles_total = 0-->
-            <P> num_particles_total = 1 </P>
+            <P> particle_output_freq = 1          </P>
             <!-- Scaling coefficient when adding particle drift velocities. -->
             <P> particle_v_drift_scaling = 1.0 </P>
             <!-- Scaling coefficient applied to B for particles, -->
@@ -137,4 +128,4 @@
             </REGION>
         </BOUNDARYINTERACTION>
     </PARTICLES>
-</NEKTAR>
+</NESO>

@@ -1,5 +1,6 @@
 #ifndef DOUBLEDIFFUSIVEFIELD_HPP
 #define DOUBLEDIFFUSIVEFIELD_HPP
+#include "../Misc/VariableConverter.hpp"
 #include "TokamakSystem.hpp"
 
 namespace NESO::Solvers::tokamak
@@ -31,13 +32,20 @@ protected:
     DoubleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
+    bool v_PostIntegrate(int step) override;
+
+    void ImplicitTimeIntCG(
+        const Array<OneD, const Array<OneD, NekDouble>> &inarray,
+        Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,
+        const NekDouble lambda);
+
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcKappaPar();
-    void CalcKappaPerp();
+
+    void CalcK(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr, int f);
+    void CalcKappa(const Array<OneD, Array<OneD, NekDouble>> &in_arr);
     void CalcDiffTensor();
 
     void DoDiffusion(const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -52,31 +60,48 @@ protected:
 
     void load_params() override;
 
-    bool v_PostIntegrate(int step) override;
-
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
 
+private:
+    std::vector<int> ni_idx;
+    std::vector<int> pi_idx;
+
+    int pe_idx;
+
+    std::vector<int> ni_src_idx;
+    std::vector<int> pi_src_idx;
+
     // For Diffusion
     StdRegions::ConstFactorMap m_factors;
+    NekDouble m_epsilon;
+
+    bool m_useSpecVanVisc;
+    NekDouble
+        m_sVVCutoffRatio; // Cut-off ratio from which to start decaying modes
+    NekDouble m_sVVDiffCoeff; // Diffusion coefficient of SVV modes
 
     NekDouble k_par;
     NekDouble k_perp;
-    NekDouble kappa_par;
-    NekDouble kappa_perp;
-    Array<OneD, NekDouble> m_kperp;
+    NekDouble k_cross;
+    NekDouble kappa_i_par;
+    NekDouble kappa_i_perp;
+    NekDouble kappa_i_cross;
+    NekDouble kappa_e_par;
+    NekDouble kappa_e_perp;
+    NekDouble kappa_e_cross;
+    NekDouble k_ci;
+    NekDouble k_ce;
+
     Array<OneD, NekDouble> m_kpar;
+    Array<OneD, NekDouble> m_kperp;
+    Array<OneD, NekDouble> m_kcross;
+
     StdRegions::VarCoeffMap m_D;
 
-    Array<OneD, NekDouble> m_kappaperp;
-    Array<OneD, NekDouble> m_kappapar;
-    StdRegions::VarCoeffMap m_kappa;
-
-    NekDouble m_gamma;
-    NekDouble m_k_B;
-
-    std::vector<MR::DisContFieldSharedPtr> density_src_fields;
-    std::vector<MR::DisContFieldSharedPtr> energy_src_fields;
+    // For Diffusion
+    // workaround for bug in DiffusionLDG
+    Array<OneD, MR::ExpListSharedPtr> m_difffields;
 };
 
 } // namespace NESO::Solvers::tokamak

@@ -1,40 +1,49 @@
 #ifndef TOKAMAK_OBLIQUEOUTFLOW_HPP
 #define TOKAMAK_OBLIQUEOUTFLOW_HPP
 
-#include "TokamakBndCond.hpp"
+#include "TokamakBaseBndCond.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-class ObliqueOutflowBC : public TokamakBndCond
+class ObliqueOutflowBC : public TokamakBaseBndCond
 {
 public:
     friend class MemoryManager<ObliqueOutflowBC>;
 
-    static TokamakBndCondSharedPtr create(
+    static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
+        const std::weak_ptr<TokamakSystem> &pSystem,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
-        const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion)
+        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+        Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+        Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+        const int bcRegion)
     {
-        TokamakBndCondSharedPtr p =
+        TokamakBaseBndCondSharedPtr p =
             MemoryManager<ObliqueOutflowBC>::AllocateSharedPtr(
-                pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
+                pSession, pSystem, pFields, pB, pE, cond, exp, pSpaceDim,
+                bcRegion);
         return p;
     }
 
     static std::string className;
 
 protected:
-    void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
+    void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+                 const Array<OneD, const Array<OneD, NekDouble>> &physarray,
                  const NekDouble &time) override;
 
 private:
-    ObliqueOutflowBC(
-        const LU::SessionReaderSharedPtr &pSession,
-        const Array<OneD, MR::ExpListSharedPtr> &pFields,
-        const Array<OneD, Array<OneD, NekDouble>> &pObliqueOutflowFields,
-        const int pSpaceDim, const int bcRegion);
+    ObliqueOutflowBC(const LU::SessionReaderSharedPtr &pSession,
+                     const std::weak_ptr<TokamakSystem> &pSystem,
+                     const Array<OneD, MR::ExpListSharedPtr> &pFields,
+                     const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+                     const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+                     Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+                     Array<OneD, MultiRegions::ExpListSharedPtr> exp,
+                     const int pSpaceDim, const int bcRegion);
     ~ObliqueOutflowBC() override {};
 
     void CalcKPar();

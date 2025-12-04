@@ -1,9 +1,7 @@
 #ifndef TOKAMAKSYSTEM_HPP
 #define TOKAMAKSYSTEM_HPP
 
-#include "../BoundaryConditions/TokamakBndCond.hpp"
-#include "../ParticleSystems/ParticleSystem.hpp"
-
+#include "../../NESO/include/nektar_interface/solver_base/neso_session_function.hpp"
 #include "nektar_interface/solver_base/time_evolved_eqnsys_base.hpp"
 #include "nektar_interface/utilities.hpp"
 
@@ -13,7 +11,12 @@
 #include <SolverUtils/EquationSystem.h>
 #include <SolverUtils/Forcing/Forcing.h>
 
+#include "../BoundaryConditions/TokamakBndConds.hpp"
+#include "../Misc/Constants.hpp"
+#include "../ParticleSystems/ParticleSystem.hpp"
 #include "ImplicitHelper.hpp"
+#include "MagneticField.hpp"
+
 #include <solvers/solver_callback_handler.hpp>
 
 using namespace Nektar;
@@ -32,6 +35,10 @@ namespace NESO::Solvers::tokamak
 class TokamakSystem
     : public TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>
 {
+    friend class MagneticField;
+    friend class TokamakBaseBndCond;
+    friend class VariableConverter;
+
 public:
     friend class MemoryManager<TokamakSystem>;
 
@@ -56,34 +63,78 @@ public:
     /// Callback handler to call user-defined callbacks
     SolverCallbackHandler<TokamakSystem> solver_callback_handler;
 
+    struct Species
+    {
+        double mass;
+        std::string name;
+        std::map<int, int> fields;
+    };
+    std::map<int, Species> m_species;
+    std::map<int, Species> &GetSpecies()
+    {
+        return m_species;
+    }
+
+    struct Ion : public Species
+    {
+        double charge;
+    };
+    std::map<int, Ion> m_ions;
+    std::map<int, Ion> &GetIons()
+    {
+        return m_ions;
+    }
+
+    struct Neutral : public Species
+    {
+        int ion;
+    };
+    std::map<int, Neutral> m_neutrals;
+    std::map<int, Neutral> &GetNeutrals()
+    {
+        return m_neutrals;
+    }
+
 protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
                   const SD::MeshGraphSharedPtr &graph);
 
+    NekDouble mesh_length; // mesh conversion to m
+    NekDouble Nnorm;       // Density normalisation to m^-3
+    NekDouble Tnorm;       // Temperature normalisation to eV
+    NekDouble Bnorm;       // B field normalisation to T
+    NekDouble omega_c;     // Reference ion gyrofrequency
+    NekDouble rho_s;       // Reference ion length scale
+    NekDouble cs;          // Reference ion sound speed
+    NekDouble me;          // Electron mass
+
     bool transient_field;
+
+    std::shared_ptr<MagneticField> mag_field;
     /// Magnetic field vector
     Array<OneD, MR::DisContFieldSharedPtr> B;
     /// Normalised magnetic field vector
     Array<OneD, Array<OneD, NekDouble>> b_unit;
 
-    /// Magnitude of the magnetic field
+    /// Squared Magnitude of the magnetic field
     Array<OneD, NekDouble> mag_B;
-    /// Trace of magnetic field
-    Array<OneD, Array<OneD, NekDouble>> m_magneticFieldTrace;
 
     /// Electric Field
     Array<OneD, MR::DisContFieldSharedPtr> E;
 
-    /// Advection object used in the electron density equation
-    SU::AdvectionSharedPtr m_advection;
-    /// Advection type
-    std::string adv_type;
-
     /// Diffusion object used in anisotropic diffusion
     SU::DiffusionSharedPtr m_diffusion;
 
-    /// Sheath potential
-    NekDouble lambda;
+    MR::DisContFieldSharedPtr ne;
+    MR::DisContFieldSharedPtr Te;
+    Array<OneD, MR::DisContFieldSharedPtr> ve;
+
+    Array<OneD, MR::ExpListSharedPtr> m_allfields;
+    Array<OneD, MR::ExpListSharedPtr> m_saved;
+    Array<OneD, MR::ExpListSharedPtr> m_indfields;
+    int n_indep_fields;
+    int n_species;
+    int n_fields_per_species;
 
     /** Density source fields cast to DisContFieldSharedPtr for use in
      * particle evaluation/projection methods
@@ -95,8 +146,10 @@ protected:
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
 
+    VariableConverterSharedPtr m_varConv;
+
     /// Boundary Conditions
-    std::vector<TokamakBndCondSharedPtr> m_bndConds;
+    std::shared_ptr<TokamakBoundaryConditions> m_bndConds;
 
     /// Forcing terms
     std::vector<SolverUtils::ForcingSharedPtr> m_forcing;
@@ -117,15 +170,9 @@ protected:
     /// Particle timestep size.
     double part_timestep;
 
-    /// Riemann solver type (used for all advection terms)
-    std::string riemann_solver_type;
-    /// Riemann solver object used in electron advection
-    SU::RiemannSolverSharedPtr riemann_solver;
-
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    void ReadMagneticField(NekDouble time = 0);
 
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
@@ -135,18 +182,25 @@ protected:
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
-    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                               NekDouble time);
-    void SetBoundaryConditionsBwdWeight();
+    void SetBoundaryConditions(NekDouble time);
+
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
         std::vector<std::string> &variables) override;
-    virtual void v_GenerateSummary(SU::SummaryList &s) override;
+    void v_DoSolve() override;
+
     virtual void v_InitObject(bool DeclareField) override;
     virtual bool v_PostIntegrate(int step) override;
     virtual bool v_PreIntegrate(int step) override;
     virtual void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                         const int domain) override;
+
+    NESOSessionFunctionSharedPtr get_species_function(
+        const std::string &, std::string name,
+        const MR::ExpListSharedPtr &field = MR::NullExpListSharedPtr,
+        bool cache                        = false);
+    std::map<std::string, std::map<std::string, NESOSessionFunctionSharedPtr>>
+        m_nesoSessionFunctions;
 };
 
 } // namespace NESO::Solvers::tokamak

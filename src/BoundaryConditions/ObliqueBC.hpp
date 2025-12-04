@@ -1,52 +1,50 @@
 #ifndef TOKAMAK_OBLIQUE_HPP
 #define TOKAMAK_OBLIQUE_HPP
 
-#include "TokamakBndCond.hpp"
+#include "TokamakBaseBndCond.hpp"
 
 namespace NESO::Solvers::tokamak
 {
 
-class ObliqueBC : public TokamakBndCond
+class ObliqueBC : public TokamakBaseBndCond
 {
 public:
     friend class MemoryManager<ObliqueBC>;
 
-    static TokamakBndCondSharedPtr create(
+    static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
+        const std::weak_ptr<TokamakSystem> &pSystem,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
-        const Array<OneD, Array<OneD, NekDouble>> &pMagneticField,
-        const int pSpaceDim, const int bcRegion)
+        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+        Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+        Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+        const int bcRegion)
     {
-        TokamakBndCondSharedPtr p = MemoryManager<ObliqueBC>::AllocateSharedPtr(
-            pSession, pFields, pMagneticField, pSpaceDim, bcRegion);
+        TokamakBaseBndCondSharedPtr p =
+            MemoryManager<ObliqueBC>::AllocateSharedPtr(
+                pSession, pSystem, pFields, pB, pE, cond, exp, pSpaceDim,
+                bcRegion);
         return p;
     }
 
     static std::string className;
 
 protected:
-    void v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
+    void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+                 const Array<OneD, const Array<OneD, NekDouble>> &physarray,
                  const NekDouble &time) override;
 
 private:
     ObliqueBC(const LU::SessionReaderSharedPtr &pSession,
+              const std::weak_ptr<TokamakSystem> &pSystem,
               const Array<OneD, MR::ExpListSharedPtr> &pFields,
-              const Array<OneD, Array<OneD, NekDouble>> &pObliqueFields,
+              const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+              const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+              Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+              Array<OneD, MultiRegions::ExpListSharedPtr> exp,
               const int pSpaceDim, const int bcRegion);
     ~ObliqueBC() override {};
-
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcDTensor();
-
-    Array<OneD, NekDouble> m_D[3][3];
-    Array<OneD, NekDouble> kpar;
-    Array<OneD, NekDouble> kperp;
-    NekDouble T_bnd;
-    NekDouble m_i;
-    NekDouble k_B;
-    NekDouble k_par;
-    NekDouble k_perp;
 };
 
 } // namespace NESO::Solvers::tokamak
