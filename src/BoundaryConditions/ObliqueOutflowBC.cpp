@@ -1,4 +1,5 @@
 #include "ObliqueOutflowBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -12,14 +13,15 @@ std::string ObliqueOutflowBC::className =
 
 ObliqueOutflowBC::ObliqueOutflowBC(
     const LU::SessionReaderSharedPtr &pSession,
+    const std::weak_ptr<TokamakSystem> &pSystem,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
     const Array<OneD, MR::DisContFieldSharedPtr> &pB,
     const Array<OneD, MR::DisContFieldSharedPtr> &pE,
     Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
     Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
     const int bcRegion)
-    : TokamakBaseBndCond(pSession, pFields, pB, pE, cond, exp, pSpaceDim,
-                         bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
     m_session->LoadParameter("gamma", gamma, 7.0);
     m_session->LoadParameter("m_i", m_i);

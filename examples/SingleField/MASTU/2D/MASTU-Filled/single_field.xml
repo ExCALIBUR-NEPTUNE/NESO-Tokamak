@@ -8,6 +8,7 @@
     <CONDITIONS>
         <SOLVERINFO>      
             <I PROPERTY="EQTYPE"                        VALUE="SingleDiffusiveField" />
+            <I PROPERTY="PARTTYPE"                      VALUE="ReactionSystem"/>
             <I PROPERTY="Projection"                    VALUE="Continuous" />
             <I PROPERTY="TimeIntegrationMethod"         VALUE="IMEXOrder2" />
             <I PROPERTY="LinSysIterSolverTypeInNonlin"  VALUE="GMRES"/>
@@ -26,7 +27,7 @@
             <P> Bnorm = 1.0</P>
             <!-- Time step in cyclotron units -->
             <P> TimeStep       = 957.883316               </P>
-            <P> NumSteps      = 1000              </P>
+            <P> NumSteps      = 100              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -62,11 +63,11 @@
         </VARIABLES>
 
         <BOUNDARYREGIONS>
-            <B ID="3"> C[3] </B>
+            <B ID="0"> C[3] </B>
         </BOUNDARYREGIONS>
         <BOUNDARYCONDITIONS>
             <!--Wall -->
-            <REGION REF="3">
+            <REGION REF="0">
                 <N VAR="n" VALUE="0"/>
             </REGION>         
         </BOUNDARYCONDITIONS>
@@ -82,84 +83,73 @@
     </CONDITIONS>
     <NESO>
         <SPECIES>
-            <S ID="0" NAME="D+">
+            <I NAME="D+" FIELDS="n">
                 <P> Mass = 2.0 </P>
-                <P> Charge = 0.0 </P>
+                <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="2" />
                 </FUNCTION>
-            </S>
-            <S ID="1" NAME="W">
+            </I>
+            <I NAME="W20+" FIELDS="n">
                 <P> Mass = 183.0 </P>
-                <P> Charge = 0.0 </P>
+                <P> Charge = 20.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="1" />
                 </FUNCTION>
-            </S>
-        </SPECIES> 
-        <PARTICLES>
-            <INFO>
-                <I PROPERTY="PARTTYPE" VALUE="ReactionSystem"/>
-            </INFO>
-            <PARAMETERS>
-                <P> particle_output_freq = 10          </P>
-                <P> particle_v_drift_scaling = 1.0 </P>
-                <P> particle_B_scaling = 1.0 </P>
-                <P> particle_velocity_B_scaling = 0.0 </P>
-                <!-- Conversion of mesh unit to m -->
-                <P> mesh_length = 0.01</P> 
-                <!-- Normalised temperature in eV -->
-                <P> Tnorm = 1</P>
-                <!-- Normalised density in m^-3 -->
-                <P> Nnorm = 1e18</P>
-                <!-- Normalised magnetic field in T -->
-                <P> Bnorm = 1.0</P>
-            </PARAMETERS>   
-
-            <SPECIES>
-                <S ID="0" NAME="D">
-                    <P> Mass = 2.0 </P>
-                    <P> Charge = 0.0 </P>
-                    <INITIAL N="1">
-                        <E VAR="W" VALUE="0.0000005"/>
-                        <E VAR="X" VALUE="199.9999"/>
-                        <E VAR="Y" VALUE="4.377308645701408"/>
-                        <E VAR="VX" VALUE="-0.001820325651"/>
-                        <E VAR="VY" VALUE="-0.000713628137"/>
-                        <E VAR="VZ"  VALUE="-0.00235492694"/>
-                    </INITIAL>
-                    <SOURCES>
-                        <!-- <P N="10000">
-                            <E VAR="W" VALUE="0.0000005"/>
-                            <E VAR="X" VALUE="199.9999"/>
-                            <E VAR="Y" VALUE="0"/>
-                            <E VAR="Tin" VALUE="0.02585"/>
-                        </P> -->
-                    </SOURCES>
-                </S>
-                <S ID="1" NAME="W">
-                    <P> Mass = 183.0 </P>
-                    <P> Charge = 20.0 </P>
-                    <INITIAL N="1">
-                        <E VAR="W" VALUE="0.0000005"/>
-                        <E VAR="X" VALUE="120"/>
+            </I>
+            <!-- <N NAME="D" ION="D+" FIELDS="n">
+                <P> Mass = 2 </P>
+                <P> Charge = 0 </P>
+                <FUNCTION NAME="InitialConditions">
+                    <E VAR="n"  DOMAIN="0" VALUE="1" />
+                </FUNCTION>
+            </N> -->
+            <KI NAME="W20">
+                <P> Mass = 183.0 </P>
+                <P> Charge = 20.0 </P>
+                <INITIAL N="1">
+                    <E VAR="W" VALUE="0.0000005"/>
+                    <E VAR="X" VALUE="140"/>
+                    <E VAR="Y" VALUE="4.377308645701408"/>
+                    <E VAR="VX" VALUE="-0.001820325651"/>
+                    <E VAR="VY" VALUE="-0.000713628137"/>
+                    <E VAR="VZ"  VALUE="-0.00235492694"/>
+                </INITIAL>
+                <SOURCES>
+                    <P N="1000">
+                        <E VAR="W" VALUE="0.000005"/>
+                        <E VAR="X" VALUE="140"/>
                         <E VAR="Y" VALUE="0"/>
-                        <E VAR="VX" VALUE="-0.002"/>
-                        <E VAR="VY" VALUE="-0.0007"/>
-                        <E VAR="VZ"  VALUE="-0.002"/>
-                    </INITIAL>
-                    <SOURCES>
-                    </SOURCES>
-                </S>
-            </SPECIES>  
-
-            <REACTIONS>
-                <S ID="0" TYPE="Specular" SPECIES="0,1">
-                    <REGION REF="3"/>
-                    <RATE TYPE="Constant" VALUE="1.0"/>
-                </S>             
-            </REACTIONS>    
-
-        </PARTICLES>
+                        <E VAR="Tin" VALUE="2.585"/>
+                    </P>
+                </SOURCES>
+            </KI>
+            <KI NAME="W2">
+                <P> Mass = 183.0 </P>
+                <P> Charge = 2.0 </P>
+                <INITIAL N="1">
+                    <E VAR="W" VALUE="0.0000005"/>
+                    <E VAR="X" VALUE="140"/>
+                    <E VAR="Y" VALUE="4.377308645701408"/>
+                    <E VAR="VX" VALUE="-0.001820325651"/>
+                    <E VAR="VY" VALUE="-0.000713628137"/>
+                    <E VAR="VZ"  VALUE="-0.00235492694"/>
+                </INITIAL>
+                <SOURCES>
+                    <P N="1000">
+                        <E VAR="W" VALUE="0.000005"/>
+                        <E VAR="X" VALUE="140"/>
+                        <E VAR="Y" VALUE="0"/>
+                        <E VAR="Tin" VALUE="2.585"/>
+                    </P>
+                </SOURCES>
+            </KI>
+        </SPECIES>
+        <VANTAGE>
+            <S TYPE="Specular" SPECIES="W20,W2">
+                <REGION REF="0"/>
+                <RATE TYPE="Constant" VALUE="1.0"/>
+            </S>             
+        </VANTAGE>
     </NESO>
 </NEKTAR>

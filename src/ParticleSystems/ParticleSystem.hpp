@@ -12,9 +12,6 @@
 #include <nektar_interface/utilities.hpp>
 #include <neso_particles.hpp>
 
-// namespace LU = Nektar::LibUtilities;
-// namespace NP = NESO::Particles;
-
 namespace NESO::Solvers::tokamak
 {
 
@@ -77,13 +74,12 @@ public:
 
         for (auto &[k, v] : this->config->get_particle_species())
         {
-            std::string name = std::get<0>(v);
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_DENSITY"), 1));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_DENSITY"), 1));
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_ENERGY"), 1));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_ENERGY"), 1));
             this->particle_spec.push(
-                ParticleProp(Sym<REAL>(name + "_SOURCE_MOMENTUM"), this->ndim));
+                ParticleProp(Sym<REAL>(k + "_SOURCE_MOMENTUM"), this->ndim));
         }
         this->particle_spec.push(ParticleProp(Sym<REAL>("WEIGHT"), 1));
         this->particle_spec.push(
@@ -110,10 +106,11 @@ public:
     virtual void init_object() override
     {
         PartSysBase::init_object();
-        config->load_parameter("mesh_length", this->mesh_length, 1.);
-        config->load_parameter("Nnorm", this->Nnorm, 1e18);
-        config->load_parameter("Tnorm", this->Tnorm, 100.);
-        config->load_parameter("Bnorm", this->Bnorm, 1);
+        config->get_session()->LoadParameter("mesh_length", this->mesh_length,
+                                             1.);
+        config->get_session()->LoadParameter("Nnorm", this->Nnorm, 1e18);
+        config->get_session()->LoadParameter("Tnorm", this->Tnorm, 100.);
+        config->get_session()->LoadParameter("Bnorm", this->Bnorm, 1);
 
         this->omega_c =
             constants::qeomp * this->Bnorm; // Ion cyclotron frequency [1/s]
@@ -128,13 +125,13 @@ public:
 
     struct SpeciesInfo
     {
-        std::string name;
+        int id;
         double mass;
         double charge;
 
         std::shared_ptr<ParticleSubGroup> sub_group;
     };
-    virtual std::map<int, SpeciesInfo> &get_species()
+    virtual std::map<std::string, SpeciesInfo> &get_species()
     {
         return species_map;
     }
@@ -165,8 +162,7 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
-            this->apply_timestep(
-                static_particle_sub_group(this->particle_group), dt_inner);
+            this->apply_timestep(this->particle_group, dt_inner);
             this->transfer_particles();
 
             time_tmp += dt_inner;
@@ -322,41 +318,15 @@ public:
     }
 
 protected:
-    virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg,
-                                        const double dt_inner)
+    virtual inline void integrate_inner_ion(ParticleSubGroupSharedPtr sg,
+                                            const double dt_inner)
     {
-        const auto k_dt                = dt_inner;
-        ParticleSubGroupSharedPtr ions = std::make_shared<ParticleSubGroup>(
-            sg, [](auto Q) { return Q.at(0) != 0; },
-            Access::read(Sym<REAL>("Q")));
-        ParticleSubGroupSharedPtr neutrals = std::make_shared<ParticleSubGroup>(
-            sg, [](auto Q) { return Q.at(0) == 0; },
-            Access::read(Sym<REAL>("Q")));
+        const auto k_dt = dt_inner;
 
         if (this->ndim == 3)
         {
             particle_loop(
-                "ParticleSystem:neutrals_3D", neutrals,
-                [=](auto V, auto P, auto TSP)
-                {
-                    const REAL dt_left = k_dt - TSP.at(0);
-                    if (dt_left > 0.0)
-                    {
-                        P.at(0) += dt_left * V.at(0);
-                        P.at(1) += dt_left * V.at(1);
-                        P.at(2) += dt_left * V.at(2);
-
-                        TSP.at(0) = k_dt;
-                        TSP.at(1) = dt_left;
-                    }
-                },
-                Access::read(Sym<REAL>("VELOCITY")),
-                Access::write(Sym<REAL>("POSITION")),
-                Access::write(Sym<REAL>("TSP")))
-                ->execute();
-
-            particle_loop(
-                "ParticleSystem:ions_3D", ions,
+                "ParticleSystem:ions_3D", sg,
                 [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
                 {
                     const REAL dt_left  = k_dt - TSP.at(0);
@@ -426,40 +396,7 @@ protected:
         else if (ndim == 2)
         {
             particle_loop(
-                "ParticleSystem:neutrals_2D", neutrals,
-                [=](auto V, auto P, auto TSP)
-                {
-                    const REAL dt_left  = k_dt - TSP.at(0);
-                    const REAL hdt_left = dt_left * 0.5;
-
-                    if (dt_left > 0.0)
-                    {
-                        REAL o = hdt_left * V.at(2);
-                        REAL h =
-                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
-
-                        REAL vx = (V.at(0) + V.at(2) * o / P.at(0)) / h;
-                        REAL vz = (V.at(2) - V.at(0) * o / P.at(0)) / h;
-
-                        P.at(0) += dt_left * vx;
-                        P.at(1) += dt_left * V.at(1);
-
-                        o = hdt_left * vz;
-                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
-
-                        V.at(0) = (vx + vz * o / P.at(0)) / h;
-                        V.at(2) = (vz - vx * o / P.at(0)) / h;
-
-                        TSP.at(0) = k_dt;
-                        TSP.at(1) = dt_left;
-                    }
-                },
-                Access::write(Sym<REAL>("VELOCITY")),
-                Access::write(Sym<REAL>("POSITION")),
-                Access::write(Sym<REAL>("TSP")))
-                ->execute();
-            particle_loop(
-                "ParticleSystem:ions_2D", ions,
+                "ParticleSystem:ions_2D", sg,
                 [=](auto E, auto B, auto Q, auto M, auto P, auto V, auto TSP)
                 {
                     const REAL dt_left  = k_dt - TSP.at(0);
@@ -537,7 +474,72 @@ protected:
                 Access::write(Sym<REAL>("TSP")))
                 ->execute();
         }
-    };
+    }
+    virtual inline void integrate_inner_neutral(ParticleSubGroupSharedPtr sg,
+                                                const double dt_inner)
+    {
+        const auto k_dt = dt_inner;
+
+        if (this->ndim == 3)
+        {
+            particle_loop(
+                "ParticleSystem:neutrals_3D", sg,
+                [=](auto V, auto P, auto TSP)
+                {
+                    const REAL dt_left = k_dt - TSP.at(0);
+                    if (dt_left > 0.0)
+                    {
+                        P.at(0) += dt_left * V.at(0);
+                        P.at(1) += dt_left * V.at(1);
+                        P.at(2) += dt_left * V.at(2);
+
+                        TSP.at(0) = k_dt;
+                        TSP.at(1) = dt_left;
+                    }
+                },
+                Access::read(Sym<REAL>("VELOCITY")),
+                Access::write(Sym<REAL>("POSITION")),
+                Access::write(Sym<REAL>("TSP")))
+                ->execute();
+        }
+        else if (ndim == 2)
+        {
+            particle_loop(
+                "ParticleSystem:neutrals_2D", sg,
+                [=](auto V, auto P, auto TSP)
+                {
+                    const REAL dt_left  = k_dt - TSP.at(0);
+                    const REAL hdt_left = dt_left * 0.5;
+
+                    if (dt_left > 0.0)
+                    {
+                        REAL o = hdt_left * V.at(2);
+                        REAL h =
+                            sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        REAL vx = (V.at(0) + V.at(2) * o / P.at(0)) / h;
+                        REAL vz = (V.at(2) - V.at(0) * o / P.at(0)) / h;
+
+                        P.at(0) += dt_left * vx;
+                        P.at(1) += dt_left * V.at(1);
+
+                        o = hdt_left * vz;
+                        h = sycl::sqrt(1.0 + (o / P.at(0)) * (o / P.at(0)));
+
+                        V.at(0) = (vx + vz * o / P.at(0)) / h;
+                        V.at(2) = (vz - vx * o / P.at(0)) / h;
+
+                        TSP.at(0) = k_dt;
+                        TSP.at(1) = dt_left;
+                    }
+                },
+                Access::write(Sym<REAL>("VELOCITY")),
+                Access::write(Sym<REAL>("POSITION")),
+                Access::write(Sym<REAL>("TSP")))
+                ->execute();
+        }
+    }
+
     const long size;
     const long rank;
     std::mt19937 rng_phasespace;
@@ -547,7 +549,7 @@ protected:
     const int particle_remove_key = -1;
     std::shared_ptr<ParticleRemover> particle_remover;
 
-    std::map<int, SpeciesInfo> species_map;
+    std::map<std::string, SpeciesInfo> species_map;
 
     std::vector<Sym<REAL>> src_syms;
     std::vector<int> src_components;
@@ -578,10 +580,10 @@ protected:
     double Bnorm;       // B field normalisation to T
     double omega_c;     // Reference ion gyrofrequency
 
-    inline void apply_timestep_reset(ParticleSubGroupSharedPtr sg)
+    inline void apply_timestep_reset(ParticleGroupSharedPtr g)
     {
         particle_loop(
-            sg,
+            g,
             [=](auto TSP)
             {
                 TSP.at(0) = 0.0;
@@ -618,25 +620,59 @@ protected:
         return size_global > 0;
     };
 
-    inline void apply_timestep(ParticleSubGroupSharedPtr sg, const double dt)
+    inline void apply_ion_timestep(ParticleSubGroupSharedPtr sg,
+                                   const double dt)
     {
-        apply_timestep_reset(sg);
         pre_advection(sg);
-        integrate_inner(sg, dt);
+        integrate_inner_ion(sg, dt);
         apply_boundary_conditions(sg, dt);
         sg = find_partial_moves(sg, dt);
         while (partial_moves_remaining(sg))
         {
             pre_advection(sg);
-            integrate_inner(sg, dt);
+            integrate_inner_ion(sg, dt);
+            apply_boundary_conditions(sg, dt);
+            sg = find_partial_moves(sg, dt);
+        }
+    }
+    inline void apply_neutral_timestep(ParticleSubGroupSharedPtr sg,
+                                       const double dt)
+    {
+        pre_advection(sg);
+        integrate_inner_neutral(sg, dt);
+        apply_boundary_conditions(sg, dt);
+        sg = find_partial_moves(sg, dt);
+        while (partial_moves_remaining(sg))
+        {
+            pre_advection(sg);
+            integrate_inner_neutral(sg, dt);
             apply_boundary_conditions(sg, dt);
             sg = find_partial_moves(sg, dt);
         }
     }
 
+    inline void apply_timestep(ParticleGroupSharedPtr g, const double dt)
+    {
+        apply_timestep_reset(g);
+        for (auto &[k, v] : this->species_map)
+        {
+            if (v.charge == 0)
+            {
+                apply_neutral_timestep(static_particle_sub_group(v.sub_group),
+                                       dt);
+            }
+            else
+            {
+                apply_ion_timestep(static_particle_sub_group(v.sub_group), dt);
+            }
+        }
+    }
+
     /**
-     *  Apply boundary conditions and transfer particles between MPI ranks.
-     * // Move some of this to PartSysBase / make it a pure-virtual func?
+     *  Apply boundary conditions and transfer particles between MPI
+     * ranks.
+     * // Move some of this to PartSysBase / make it a pure-virtual
+     * func?
      */
     inline void transfer_particles()
     {

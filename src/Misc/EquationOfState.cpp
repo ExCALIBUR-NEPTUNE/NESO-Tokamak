@@ -8,12 +8,10 @@ EquationOfStateFactory &GetEquationOfStateFactory()
     return instance;
 }
 
-EquationOfState::EquationOfState(
-    const LU::SessionReaderSharedPtr &pSession)
+EquationOfState::EquationOfState()
 {
-    pSession->LoadParameter("Gamma", m_gamma, 1.4);
-    pSession->LoadParameter("GasConstant", m_gasConstant, 287.058);
-
+    m_gamma = 1.4;
+    m_gasConstant= 287.058;
     m_gammaMone          = m_gamma - 1.0;
     m_gammaMoneOgasConst = m_gammaMone / m_gasConstant;
 }

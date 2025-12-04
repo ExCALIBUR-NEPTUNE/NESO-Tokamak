@@ -1,4 +1,5 @@
 #include "TokamakBndConds.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -18,6 +19,7 @@ TokamakBoundaryConditions::TokamakBoundaryConditions()
  */
 void TokamakBoundaryConditions::Initialize(
     const LibUtilities::SessionReaderSharedPtr pSession,
+    const std::weak_ptr<TokamakSystem>& pSystem,
     Array<OneD, MultiRegions::ExpListSharedPtr> pFields,
     const Array<OneD, MR::DisContFieldSharedPtr> &pB,
     const Array<OneD, MR::DisContFieldSharedPtr> &pE, int pSpacedim)
@@ -52,7 +54,8 @@ void TokamakBoundaryConditions::Initialize(
         if (bndtype.size())
         {
             m_bounds[n] = GetTokamakBaseBndCondFactory().CreateInstance(
-                bndtype, pSession, pFields, pB, pE, cond, exp, pSpacedim, n);
+                bndtype, pSession, pSystem, pFields, pB, pE, cond, exp,
+                pSpacedim, n);
         }
     }
 }

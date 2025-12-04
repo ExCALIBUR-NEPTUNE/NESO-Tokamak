@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <NEKTAR>
-
-    <COLLECTIONS DEFAULT="MatrixFree" />
-
-    <!--
-        The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
-     -->
+    <COLLECTIONS DEFAULT="auto" />
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="A" />
        <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
@@ -17,6 +11,7 @@
             <I PROPERTY="Projection"                   VALUE="Continuous" />
             <I PROPERTY="TimeIntegrationMethod"        VALUE="IMEXOrder2"    />
             <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         />
+            <I PROPERTY="Preconditioner"               VALUE="Diagonal"/>
             <I PROPERTY="DiffusionAdvancement"         VALUE="Implicit"/>
         </SOLVERINFO>
 
@@ -30,8 +25,8 @@
             <!-- Normalised magnetic field in T -->
             <P> Bnorm = 1.0 </P>
             <!-- Time step in gyro times -->
-            <P> TimeStep = 10 </P>
-            <P> NumSteps = 100 </P>
+            <P> TimeStep = 0.01 </P>
+            <P> NumSteps = 1000 </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_CheckSteps  = 10                </P>
             <P> IO_InfoSteps   = 10                </P>
@@ -61,8 +56,7 @@
         </PARAMETERS>
 
         <VARIABLES>
-            <V ID="0"> A  </V>
-            <V ID="1"> n  </V>
+            <V ID="0"> n  </V>
         </VARIABLES>
 
         <BOUNDARYREGIONS>
@@ -72,39 +66,31 @@
 
         <BOUNDARYCONDITIONS>
             <REGION REF="1">
-                <D VAR="A"  VALUE="0.0" />
-                <N VAR="n"  VALUE="0.0" />
+                <D VAR="n"  VALUE="1.0" />
             </REGION>
             <REGION REF="2">
-                <D VAR="A"  VALUE="0.0" />
-                <N VAR="n"  VALUE="0.0" />
+                <D VAR="n"  VALUE="1.0" />
             </REGION>
         </BOUNDARYCONDITIONS>
         <FUNCTION NAME="InitialConditions">
-            <E VAR="A"  DOMAIN="0" VALUE="0" />
             <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
         </FUNCTION>
-        <!-- <FUNCTION NAME="MagneticField">
+        <FUNCTION NAME="MagneticField">
             <E VAR="Bx" VALUE="(y-yc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="By" VALUE="-(x-rc)/sqrt((x-rc)*(x-rc)+(y-yc)*(y-yc))" />
             <E VAR="Bz" VALUE="0" />
-        </FUNCTION> -->
-        <FUNCTION NAME="CurrentDensity">
-            <E VAR="Bx" VALUE="0" />
-            <E VAR="By" VALUE="0" />
-            <E VAR="Bz" VALUE="exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
         </FUNCTION>
+
     </CONDITIONS>
     <NESO>
         <SPECIES>
-            <S ID="0" NAME="D">
+            <I NAME="D" FIELDS="n">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
-                    <E VAR="A"  DOMAIN="0" VALUE="0" />
                     <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
-            </S>
+            </I>
         </SPECIES> 
     </NESO>
 </NEKTAR>

@@ -56,7 +56,7 @@ protected:
                           std::vector<std::string> &variables) override;
 
     // For Diffusion
-    StdRegions::ConstFactorMap m_factors;
+
     NekDouble m_epsilon;
     bool m_useSpecVanVisc;
     NekDouble
@@ -67,7 +67,7 @@ protected:
     NekDouble k_perp;
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
-    StdRegions::VarCoeffMap m_D;
+    Array<OneD, NekDouble> m_D[3][3];
 
     std::shared_ptr<DisContField> diag_field;
 };

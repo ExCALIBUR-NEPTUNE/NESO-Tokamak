@@ -2,6 +2,7 @@
 #define TOKAMAKVARIABLECONVERTER_HPP
 
 #include "EquationOfState.hpp"
+#include "nektar_interface/utilities.hpp"
 #include <MultiRegions/ContField.h>
 #include <SolverUtils/UnsteadySystem.h>
 
@@ -10,6 +11,7 @@ namespace SD = Nektar::SpatialDomains;
 namespace NESO::Solvers::tokamak
 {
 // Forward declarations
+class TokamakSystem;
 class VariableConverter;
 typedef std::shared_ptr<VariableConverter> VariableConverterSharedPtr;
 /**
@@ -18,9 +20,8 @@ typedef std::shared_ptr<VariableConverter> VariableConverterSharedPtr;
 class VariableConverter
 {
 public:
-    VariableConverter(const LU::SessionReaderSharedPtr &pSession,
-                      const int spaceDim,
-                      const SD::MeshGraphSharedPtr &pGraph = nullptr);
+    VariableConverter(const std::weak_ptr<TokamakSystem> &pSystem,
+                      const int spaceDim);
 
     ~VariableConverter() = default;
 
@@ -34,10 +35,9 @@ public:
         const Array<OneD, NekDouble> &density,
         Array<OneD, NekDouble> &velocity);
 
-    void GetElectronDynamicEnergy(
-        const Array<OneD, NekDouble> &velocity,
-        const Array<OneD, NekDouble>& density,
-        Array<OneD, NekDouble> &energy);
+    void GetElectronDynamicEnergy(const Array<OneD, NekDouble> &velocity,
+                                  const Array<OneD, NekDouble> &density,
+                                  Array<OneD, NekDouble> &energy);
 
     // Transformations depending on the equation of state
     void GetElectronTemperature(
@@ -119,17 +119,11 @@ public:
         return m_eos;
     }
 
+protected:
+    const std::weak_ptr<TokamakSystem> m_system;
+    const NektarFieldIndexMap &field_to_index;
     int omega_idx;
     int pe_idx;
-
-    std::vector<int> ni_idx;
-    std::vector<int> vi_idx;
-    std::vector<int> pi_idx;
-    std::map<int, double> mass;
-    std::map<int, double> charge;
-
-protected:
-    LU::SessionReaderSharedPtr m_session;
     EquationOfStateSharedPtr m_eos;
     size_t m_spacedim;
 };

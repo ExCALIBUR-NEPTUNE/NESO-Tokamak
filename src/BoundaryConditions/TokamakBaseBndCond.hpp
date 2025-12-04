@@ -7,7 +7,6 @@
 #include <LibUtilities/BasicUtils/NekFactory.hpp>
 #include <LibUtilities/BasicUtils/SharedArray.hpp>
 #include <MultiRegions/ExpList.h>
-#include <nektar_interface/solver_base/neso_reader.hpp>
 
 using namespace Nektar;
 namespace LU = Nektar::LibUtilities;
@@ -16,6 +15,7 @@ namespace SD = Nektar::SpatialDomains;
 
 namespace NESO::Solvers::tokamak
 {
+class TokamakSystem;
 class TokamakBaseBndCond;
 
 /// A shared pointer to a boundary condition object
@@ -24,6 +24,7 @@ typedef std::shared_ptr<TokamakBaseBndCond> TokamakBaseBndCondSharedPtr;
 /// Declaration of the boundary condition factory
 typedef LU::NekFactory<
     std::string, TokamakBaseBndCond, const LU::SessionReaderSharedPtr &,
+    const std::weak_ptr<TokamakSystem> &,
     const Array<OneD, MR::ExpListSharedPtr> &,
     const Array<OneD, MR::DisContFieldSharedPtr> &,
     const Array<OneD, MR::DisContFieldSharedPtr> &,
@@ -60,14 +61,11 @@ public:
     int omega_idx;
     int phi_idx;
 
-    std::vector<int> ni_idx;
-    std::vector<int> vi_idx;
-    std::vector<int> pi_idx;
-    NESOReaderSharedPtr neso_config;
-
 protected:
     /// Session reader
     LU::SessionReaderSharedPtr m_session;
+
+    const std::weak_ptr<TokamakSystem> m_system;
 
     std::map<int, SpatialDomains::BoundaryConditionShPtr> m_bndConds;
     std::map<int, MultiRegions::ExpListSharedPtr> m_bndExp;
@@ -93,6 +91,7 @@ protected:
     int m_spacedim;
     /// Auxiliary object to convert variables
     VariableConverterSharedPtr m_varConv;
+    const NektarFieldIndexMap &field_to_index;
 
     /// Weight for average calculation of diffusion term
     NekDouble m_diffusionAveWeight;
@@ -106,6 +105,7 @@ protected:
 
     /// Constructor
     TokamakBaseBndCond(const LU::SessionReaderSharedPtr &pSession,
+                       const std::weak_ptr<TokamakSystem> &pSystem,
                        const Array<OneD, MR::ExpListSharedPtr> &pFields,
                        const Array<OneD, MR::DisContFieldSharedPtr> &pB,
                        const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -113,7 +113,8 @@ protected:
                        Array<OneD, MultiRegions::ExpListSharedPtr> exp,
                        const int pSpaceDim, const int bcRegion);
 
-    virtual void v_Apply(const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+    virtual void v_Apply(
+        const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
         const Array<OneD, const Array<OneD, NekDouble>> &physarray,
         const NekDouble &time) = 0;
 

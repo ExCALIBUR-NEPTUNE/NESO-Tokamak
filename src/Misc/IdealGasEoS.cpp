@@ -7,8 +7,7 @@ std::string IdealGasEoS::className =
     GetEquationOfStateFactory().RegisterCreatorFunction(
         "IdealGas", IdealGasEoS::create, "Ideal gas equation of state.");
 
-IdealGasEoS::IdealGasEoS(const LU::SessionReaderSharedPtr &pSession)
-    : EquationOfState(pSession)
+IdealGasEoS::IdealGasEoS() : EquationOfState()
 {
 }
 

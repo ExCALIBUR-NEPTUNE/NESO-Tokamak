@@ -66,16 +66,16 @@ public:
         auto rng_kernel =
             host_atomic_block_kernel_rng<REAL>(rng_interface, 4 * 10);
 
-        for (const auto &[k, v] : this->config->get_reactions())
+        for (const auto &v : this->config->get_reactions())
         {
             std::shared_ptr<AbstractReaction> reaction;
             if (std::get<0>(v) == "Ionisation")
             {
                 auto target_species =
-                    Species(this->species_map[std::get<1>(v)[0]].name,
+                    Species(std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
                             this->species_map[std::get<1>(v)[0]].charge,
-                            std::get<1>(v)[0]);
+                            this->species_map[std::get<1>(v)[0]].id);
 
                 auto electron_species = Species("ELECTRON");
 
@@ -129,16 +129,16 @@ public:
             {
                 auto electron_species = Species("ELECTRON", 5.5e-4, -1.0);
                 auto neutral_species =
-                    Species(this->species_map[std::get<1>(v)[0]].name,
+                    Species(std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
                             this->species_map[std::get<1>(v)[0]].charge,
-                            std::get<1>(v)[0]);
+                            this->species_map[std::get<1>(v)[0]].id);
 
                 auto marker_species =
-                    Species(this->species_map[std::get<1>(v)[0]].name,
+                    Species(std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
                             this->species_map[std::get<1>(v)[0]].charge - 1,
-                            -1 - std::get<1>(v)[0]);
+                            -1 - this->species_map[std::get<1>(v)[0]].id);
 
                 if (std::get<2>(v).first == "Fixed")
                 {
@@ -237,15 +237,15 @@ public:
             else if (std::get<0>(v) == "ChargeExchange")
             {
                 auto projectile_species =
-                    Species(this->species_map[std::get<1>(v)[0]].name,
+                    Species(std::get<1>(v)[0],
                             this->species_map[std::get<1>(v)[0]].mass,
                             this->species_map[std::get<1>(v)[0]].charge,
-                            std::get<1>(v)[0]);
+                            this->species_map[std::get<1>(v)[0]].id);
                 auto target_species =
-                    Species(this->species_map[std::get<1>(v)[1]].name,
+                    Species(std::get<1>(v)[1],
                             this->species_map[std::get<1>(v)[1]].mass,
                             this->species_map[std::get<1>(v)[1]].charge,
-                            std::get<1>(v)[1]);
+                            this->species_map[std::get<1>(v)[1]].id);
                 auto parent_mass = target_species.get_mass();
                 auto child_mass  = projectile_species.get_mass();
                 auto reduced_mass =
@@ -350,6 +350,7 @@ public:
             Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
             std::shared_ptr<ParticleMeshInterface> mesh,
             NESOReaderSharedPtr config,
+            std::map<std::string, SpeciesInfo> &species,
             ParameterStoreSharedPtr store = std::make_shared<ParameterStore>())
             : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
               ndim(mesh->get_ndim()), config(config)
@@ -362,48 +363,59 @@ public:
                             Sym<REAL>("WEIGHT"), 1.0e-12)},
                     make_transformation_strategy<
                         SimpleRemovalTransformationStrategy>());
+            config->read_boundary_regions();
 
-            this->reaction_controller = std::make_shared<ReactionController>(
-                std::vector<std::shared_ptr<TransformationWrapper>>{},
-                std::vector<std::shared_ptr<TransformationWrapper>>{});
-
-            for (auto &[k, v] : this->config->get_surface_reactions())
+            for (auto &v : this->config->get_surface_reactions())
             {
-                if (std::get<0>(v) == "Specular")
+                std::vector<int> boundary_ids = std::get<2>(v);
+                for (int b_id : boundary_ids)
                 {
-                    this->boundary_groups[k] = std::get<2>(v);
-                    for (auto s : std::get<1>(v))
+                    if (!this->reaction_controllers[b_id])
                     {
-                        auto rate_data = FixedRateData(1.0);
-                        if (this->ndim == 2)
+                        reaction_controllers[b_id] =
+                            std::make_shared<ReactionController>(
+                                std::vector<
+                                    std::shared_ptr<TransformationWrapper>>{},
+                                std::vector<
+                                    std::shared_ptr<TransformationWrapper>>{});
+                    }
+
+                    if (std::get<0>(v) == "Specular")
+                    {
+                        for (const auto &s : std::get<1>(v))
                         {
-                            auto reflection_kernels =
-                                SpecularReflectionKernels<2>();
+                            int s_id       = species[s].id;
+                            auto rate_data = FixedRateData(1.0);
+                            if (this->ndim == 2)
+                            {
+                                auto reflection_kernels =
+                                    SpecularReflectionKernels<2>();
 
-                            auto reflection_reaction =
-                                std::make_shared<LinearReactionBase<
-                                    0, FixedRateData,
-                                    SpecularReflectionKernels<2>>>(
-                                    sycl_target, s, std::array<int, 0>{},
-                                    rate_data, reflection_kernels);
+                                auto reflection_reaction =
+                                    std::make_shared<LinearReactionBase<
+                                        0, FixedRateData,
+                                        SpecularReflectionKernels<2>>>(
+                                        sycl_target, s_id, std::array<int, 0>{},
+                                        rate_data, reflection_kernels);
 
-                            this->reaction_controller->add_reaction(
-                                reflection_reaction);
-                        }
-                        else if (this->ndim == 3)
-                        {
-                            auto reflection_kernels =
-                                SpecularReflectionKernels<3>();
+                                this->reaction_controllers[b_id]->add_reaction(
+                                    reflection_reaction);
+                            }
+                            else if (this->ndim == 3)
+                            {
+                                auto reflection_kernels =
+                                    SpecularReflectionKernels<3>();
 
-                            auto reflection_reaction =
-                                std::make_shared<LinearReactionBase<
-                                    0, FixedRateData,
-                                    SpecularReflectionKernels<3>>>(
-                                    sycl_target, s, std::array<int, 0>{},
-                                    rate_data, reflection_kernels);
+                                auto reflection_reaction =
+                                    std::make_shared<LinearReactionBase<
+                                        0, FixedRateData,
+                                        SpecularReflectionKernels<3>>>(
+                                        sycl_target, s_id, std::array<int, 0>{},
+                                        rate_data, reflection_kernels);
 
-                            this->reaction_controller->add_reaction(
-                                reflection_reaction);
+                                this->reaction_controllers[b_id]->add_reaction(
+                                    reflection_reaction);
+                            }
                         }
                     }
                 }
@@ -411,7 +423,7 @@ public:
 
             this->composite_intersection =
                 std::make_shared<CompositeInteraction::CompositeIntersection>(
-                    this->sycl_target, mesh, boundary_groups);
+                    this->sycl_target, mesh, config->get_boundary_regions());
 
             this->reset_distance =
                 store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-4);
@@ -433,26 +445,25 @@ public:
             auto groups = this->composite_intersection->get_intersections(
                 particle_sub_group);
 
-            for (auto &groupx : groups)
+            for (auto &[id, sg] : groups)
             {
                 copy_ephemeral_dat_to_particle_dat(
-                    groupx.second,
-                    Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
+                    sg, Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"),
                     Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"));
                 copy_ephemeral_dat_to_particle_dat(
-                    groupx.second, Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"),
+                    sg, Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"),
                     Sym<REAL>("NESO_PARTICLES_BOUNDARY_NORMAL"));
                 copy_ephemeral_dat_to_particle_dat(
-                    groupx.second, Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"),
+                    sg, Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"),
                     Sym<INT>("NESO_PARTICLES_BOUNDARY_METADATA"));
 
                 this->boundary_truncation->execute(
-                    groupx.second,
+                    sg,
                     get_particle_group(particle_sub_group)->position_dat->sym,
                     this->time_step_prop_sym,
                     this->composite_intersection->previous_position_sym);
-                this->reaction_controller->apply_reactions(
-                    groupx.second, dt, ControllerMode::surface_mode);
+                this->reaction_controllers[id]->apply_reactions(
+                    sg, dt, ControllerMode::surface_mode);
             }
         }
 
@@ -462,13 +473,13 @@ public:
         SYCLTargetSharedPtr sycl_target;
         std::shared_ptr<CompositeInteraction::CompositeIntersection>
             composite_intersection;
-        std::map<int, std::vector<int>> boundary_groups;
+        std::shared_ptr<BoundaryTruncation> boundary_truncation;
+
+        std::map<int, std::shared_ptr<ReactionController>> reaction_controllers;
 
         int ndim;
         REAL reset_distance;
 
-        std::shared_ptr<BoundaryTruncation> boundary_truncation;
-        std::shared_ptr<ReactionController> reaction_controller;
         NESOReaderSharedPtr config;
     };
 
@@ -485,13 +496,19 @@ public:
         this->boundary->execute(sg, dt);
     };
 
-    inline void integrate_inner(ParticleSubGroupSharedPtr sg,
+    inline void integrate_inner_ion(ParticleSubGroupSharedPtr sg,
                                 const double dt_inner) override
     {
-        ParticleSystem::integrate_inner(sg, dt_inner);
+        ParticleSystem::integrate_inner_ion(sg, dt_inner);
         if (this->config->get_reactions().size())
-            reaction_controller->apply_reactions(this->particle_group,
-                                                 dt_inner);
+            reaction_controller->apply_reactions(sg, dt_inner);
+    }
+        inline void integrate_inner_neutral(ParticleSubGroupSharedPtr sg,
+                                const double dt_inner) override
+    {
+        ParticleSystem::integrate_inner_neutral(sg, dt_inner);
+        if (this->config->get_reactions().size())
+            reaction_controller->apply_reactions(sg, dt_inner);
     }
 
     inline void finish_setup(
@@ -546,10 +563,9 @@ public:
 
         for (auto &[k, v] : this->config->get_particle_species())
         {
-            std::string name = std::get<0>(v);
-            src_names.push_back(name + "_SOURCE_DENSITY");
-            src_names.push_back(name + "_SOURCE_ENERGY");
-            src_names.push_back(name + "_SOURCE_MOMENTUM");
+            src_names.push_back(k + "_SOURCE_DENSITY");
+            src_names.push_back(k + "_SOURCE_ENERGY");
+            src_names.push_back(k + "_SOURCE_MOMENTUM");
         }
 
         auto zeroer_transform =

@@ -13,6 +13,7 @@ public:
 
     static TokamakBaseBndCondSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession,
+        const std::weak_ptr<TokamakSystem> &pSystem,
         const Array<OneD, MR::ExpListSharedPtr> &pFields,
         const Array<OneD, MR::DisContFieldSharedPtr> &pB,
         const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -22,8 +23,9 @@ public:
 
     {
         TokamakBaseBndCondSharedPtr p =
-            MemoryManager<BohmBC>::AllocateSharedPtr(
-                pSession, pFields, pB, cond, exp, pE, pSpaceDim, bcRegion);
+            MemoryManager<BohmBC>::AllocateSharedPtr(pSession, pSystem, pFields,
+                                                     pB, cond, exp, pE,
+                                                     pSpaceDim, bcRegion);
         return p;
     }
 
@@ -36,6 +38,7 @@ protected:
 
 private:
     BohmBC(const LU::SessionReaderSharedPtr &pSession,
+           const std::weak_ptr<TokamakSystem> &pSystem,
            const Array<OneD, MR::ExpListSharedPtr> &pFields,
            const Array<OneD, MR::DisContFieldSharedPtr> &pB,
            const Array<OneD, MR::DisContFieldSharedPtr> &pE,
@@ -52,6 +55,7 @@ private:
 
     NekDouble lambda;
     NekDouble Ge;
+    NekDouble me = 1 / 2000;
 };
 
 } // namespace NESO::Solvers::tokamak

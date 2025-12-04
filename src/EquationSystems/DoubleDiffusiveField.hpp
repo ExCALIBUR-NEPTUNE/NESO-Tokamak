@@ -32,7 +32,7 @@ protected:
     DoubleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
 
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
@@ -99,7 +99,6 @@ private:
 
     StdRegions::VarCoeffMap m_D;
 
-    VariableConverterSharedPtr m_varConv;
     // For Diffusion
     // workaround for bug in DiffusionLDG
     Array<OneD, MR::ExpListSharedPtr> m_difffields;

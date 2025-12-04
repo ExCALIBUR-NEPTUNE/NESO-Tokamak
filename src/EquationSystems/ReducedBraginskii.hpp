@@ -34,7 +34,7 @@ protected:
     void v_InitObject(bool DeclareFields = true) override;
     void v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
                                 const int domain) override;
-    bool v_PostIntegrate(int step);
+    bool v_PostIntegrate(int step) override;
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &inarray,
                   Array<OneD, Array<OneD, NekDouble>> &outarray,
                   const NekDouble time);
@@ -77,6 +77,12 @@ protected:
         const Array<OneD, Array<OneD, NekDouble>> &in_arr,
         const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &q_field,
         Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes);
+
+    void CalcNeutralRates(int s, int ion,
+                          const Array<OneD, Array<OneD, NekDouble>> &inarray);
+
+    void AddNeutralSources(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                           Array<OneD, Array<OneD, NekDouble>> &outarray);
 
     // Functions for the Implicit Solve
     void DoOdeImplicitRhs(
@@ -161,7 +167,9 @@ private:
 
     StdRegions::VarCoeffMap m_D;
 
-    VariableConverterSharedPtr m_varConv;
+    Array<OneD, NekDouble> kIZ;
+    Array<OneD, NekDouble> kCX;
+    Array<OneD, NekDouble> krec;
 };
 
 } // namespace NESO::Solvers::tokamak

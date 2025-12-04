@@ -36,6 +36,8 @@ class TokamakSystem
     : public TimeEvoEqnSysBase<SU::UnsteadySystem, ParticleSystem>
 {
     friend class MagneticField;
+    friend class TokamakBaseBndCond;
+    friend class VariableConverter;
 
 public:
     friend class MemoryManager<TokamakSystem>;
@@ -60,6 +62,38 @@ public:
 
     /// Callback handler to call user-defined callbacks
     SolverCallbackHandler<TokamakSystem> solver_callback_handler;
+
+    struct Species
+    {
+        double mass;
+        std::string name;
+        std::map<int, int> fields;
+    };
+    std::map<int, Species> m_species;
+    std::map<int, Species> &GetSpecies()
+    {
+        return m_species;
+    }
+
+    struct Ion : public Species
+    {
+        double charge;
+    };
+    std::map<int, Ion> m_ions;
+    std::map<int, Ion> &GetIons()
+    {
+        return m_ions;
+    }
+
+    struct Neutral : public Species
+    {
+        int ion;
+    };
+    std::map<int, Neutral> m_neutrals;
+    std::map<int, Neutral> &GetNeutrals()
+    {
+        return m_neutrals;
+    }
 
 protected:
     TokamakSystem(const LU::SessionReaderSharedPtr &session,
@@ -112,6 +146,8 @@ protected:
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;
 
+    VariableConverterSharedPtr m_varConv;
+
     /// Boundary Conditions
     std::shared_ptr<TokamakBoundaryConditions> m_bndConds;
 
@@ -137,7 +173,7 @@ protected:
     std::shared_ptr<ImplicitHelper> m_implHelper;
 
     virtual void load_params() override;
-    
+
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
@@ -160,10 +196,10 @@ protected:
                                         const int domain) override;
 
     NESOSessionFunctionSharedPtr get_species_function(
-        int s, std::string name,
+        const std::string &, std::string name,
         const MR::ExpListSharedPtr &field = MR::NullExpListSharedPtr,
         bool cache                        = false);
-    std::vector<std::map<std::string, NESOSessionFunctionSharedPtr>>
+    std::map<std::string, std::map<std::string, NESOSessionFunctionSharedPtr>>
         m_nesoSessionFunctions;
 };
 

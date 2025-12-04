@@ -19,18 +19,20 @@ void ParticleSystem::set_up_species()
     std::srand(std::time(nullptr));
     int seed;
 
-    this->config->load_parameter("particle_position_seed", seed, std::rand());
+    this->config->get_session()->LoadParameter("particle_position_seed", seed,
+                                               std::rand());
     this->rng_phasespace = std::mt19937(seed + this->rank);
 
     double particle_thermal_velocity;
 
+    int s = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
-        std::string name = std::get<0>(v);
         double particle_mass, particle_charge;
-        this->config->load_particle_species_parameter(k, "Mass", particle_mass);
+        this->config->load_particle_species_parameter(k, "Mass", particle_mass,
+                                                      1.0);
         this->config->load_particle_species_parameter(k, "Charge",
-                                                      particle_charge);
+                                                      particle_charge, 0.0);
         long particle_number = this->config->get_particle_species_initial_N(k);
 
         if (particle_number > 0)
@@ -96,7 +98,7 @@ void ParticleSystem::set_up_species()
                 else if (auto v = vmap.find(std::pair("Tin", 0));
                          v != vmap.end()) // Specific to EIRENE example
                 {
-                    for (int d = 0; d < ndim; ++d)
+                    for (int d = 0; d < 3; ++d)
                     {
                         velocities.emplace_back(std::vector<double>(N));
                     }
@@ -118,6 +120,8 @@ void ParticleSystem::set_up_species()
                         double sintheta  = std::sqrt(u(this->rng_phasespace));
                         double phi       = 2 * M_PI * u(this->rng_phasespace);
                         velocities[1][p] = speed * sintheta * cos(phi);
+                        velocities[2][p] = 0;
+
                         velocities[0][p] =
                             -speed * std::sqrt(1 - sintheta * sintheta);
                     }
@@ -195,7 +199,7 @@ void ParticleSystem::set_up_species()
                         px + id_offset + this->total_num_particles_added;
                     initial_distribution[Sym<INT>("CELL_ID")][px][0] =
                         cells.at(px);
-                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                    initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = s;
                     initial_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                     initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -218,13 +222,15 @@ void ParticleSystem::set_up_species()
             }
         }
 
-        int s = k;
+        int state = s;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
-                this->particle_group, [s](auto sid) { return sid[0] == s; },
+                this->particle_group,
+                [state](auto sid) { return sid[0] == state; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
         species_map[k] =
-            SpeciesInfo{name, particle_mass, particle_charge, sub_group};
+            SpeciesInfo{state, particle_mass, particle_charge, sub_group};
+        s++;
     }
     set_up_boundaries();
 }
@@ -248,12 +254,10 @@ void ParticleSystem::add_sources(double time, double dt)
     double particle_thermal_velocity;
     const long rank = this->sycl_target->comm_pair.rank_parent;
 
-    for (const auto &[k, v] : this->config->get_particle_species())
+    for (auto &[k, v] : this->species_map)
     {
-        std::string name = std::get<0>(v);
-
-        double particle_mass   = species_map[k].mass;
-        double particle_charge = species_map[k].charge;
+        double particle_mass   = v.mass;
+        double particle_charge = v.charge;
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
@@ -441,7 +445,8 @@ void ParticleSystem::add_sources(double time, double dt)
                             px + id_offset + this->total_num_particles_added;
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
-                        src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = k;
+                        src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] =
+                            v.id;
                         src_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -464,13 +469,12 @@ void ParticleSystem::add_sources(double time, double dt)
                 }
             }
         }
-        int s = k;
+        int s = v.id;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[k] =
-            SpeciesInfo{name, particle_mass, particle_charge, sub_group};
+        v.sub_group = sub_group;
     }
     transfer_particles();
 }
@@ -515,6 +519,7 @@ void ParticleSystem::add_sinks(double time, double dt)
             }
         }
     }
+    int state = 0;
     for (const auto &[k, v] : this->config->get_particle_species())
     {
         for (auto &sink : this->config->get_particle_species_sinks(k))
@@ -543,7 +548,7 @@ void ParticleSystem::add_sinks(double time, double dt)
                     {
                         if (eqnarr[particle_index] >
                                 rng_dist(this->rng_phasespace) &&
-                            k == (*is)[0][rowx])
+                            state == (*is)[0][rowx])
                         {
                             (*id)[0][rowx] = particle_remove_key;
                         }
@@ -554,6 +559,7 @@ void ParticleSystem::add_sinks(double time, double dt)
                 }
             }
         }
+        state++;
     }
     remove_marked_particles();
 }
