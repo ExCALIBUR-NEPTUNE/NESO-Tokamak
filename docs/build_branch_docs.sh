@@ -25,7 +25,7 @@ REPO=https://github.com/ExCALIBUR-NEPTUNE/NESO-Tokamak.git
 mkdir /tmp/repo-checkout
 cd /tmp/repo-checkout
 git clone $REPO
-cd NESO-Particles/docs
+cd NESO-Tokamak/docs
 
 # copy the redirecting index to the output directory
 cp ./redirect_index.html ${OUTPUT_DIR}/index.html
