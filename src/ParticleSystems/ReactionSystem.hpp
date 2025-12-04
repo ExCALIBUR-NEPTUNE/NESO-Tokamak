@@ -496,13 +496,19 @@ public:
         this->boundary->execute(sg, dt);
     };
 
-    inline void integrate_inner(ParticleSubGroupSharedPtr sg,
+    inline void integrate_inner_ion(ParticleSubGroupSharedPtr sg,
                                 const double dt_inner) override
     {
-        ParticleSystem::integrate_inner(sg, dt_inner);
+        ParticleSystem::integrate_inner_ion(sg, dt_inner);
         if (this->config->get_reactions().size())
-            reaction_controller->apply_reactions(this->particle_group,
-                                                 dt_inner);
+            reaction_controller->apply_reactions(sg, dt_inner);
+    }
+        inline void integrate_inner_neutral(ParticleSubGroupSharedPtr sg,
+                                const double dt_inner) override
+    {
+        ParticleSystem::integrate_inner_neutral(sg, dt_inner);
+        if (this->config->get_reactions().size())
+            reaction_controller->apply_reactions(sg, dt_inner);
     }
 
     inline void finish_setup(

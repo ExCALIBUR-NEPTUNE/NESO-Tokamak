@@ -98,7 +98,7 @@ void ParticleSystem::set_up_species()
                 else if (auto v = vmap.find(std::pair("Tin", 0));
                          v != vmap.end()) // Specific to EIRENE example
                 {
-                    for (int d = 0; d < ndim; ++d)
+                    for (int d = 0; d < 3; ++d)
                     {
                         velocities.emplace_back(std::vector<double>(N));
                     }
@@ -120,6 +120,8 @@ void ParticleSystem::set_up_species()
                         double sintheta  = std::sqrt(u(this->rng_phasespace));
                         double phi       = 2 * M_PI * u(this->rng_phasespace);
                         velocities[1][p] = speed * sintheta * cos(phi);
+                        velocities[2][p] = 0;
+
                         velocities[0][p] =
                             -speed * std::sqrt(1 - sintheta * sintheta);
                     }
@@ -252,11 +254,10 @@ void ParticleSystem::add_sources(double time, double dt)
     double particle_thermal_velocity;
     const long rank = this->sycl_target->comm_pair.rank_parent;
 
-    int state = 0;
-    for (const auto &[k, v] : this->config->get_particle_species())
+    for (auto &[k, v] : this->species_map)
     {
-        double particle_mass   = species_map[k].mass;
-        double particle_charge = species_map[k].charge;
+        double particle_mass   = v.mass;
+        double particle_charge = v.charge;
 
         for (auto &source : this->config->get_particle_species_sources(k))
         {
@@ -445,7 +446,7 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<INT>("CELL_ID")][px][0] =
                             cells.at(px);
                         src_distribution[Sym<INT>("INTERNAL_STATE")][px][0] =
-                            state;
+                            v.id;
                         src_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
@@ -468,14 +469,12 @@ void ParticleSystem::add_sources(double time, double dt)
                 }
             }
         }
-        int s = state;
+        int s = v.id;
         ParticleSubGroupSharedPtr sub_group =
             std::make_shared<ParticleSubGroup>(
                 this->particle_group, [s](auto sid) { return sid[0] == s; },
                 Access::read(Sym<INT>("INTERNAL_STATE")));
-        species_map[k] =
-            SpeciesInfo{state, particle_mass, particle_charge, sub_group};
-        s++;
+        v.sub_group = sub_group;
     }
     transfer_particles();
 }
