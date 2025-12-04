@@ -1,4 +1,5 @@
 #include "ObliqueOutflowBC.hpp"
+#include "../EquationSystems/TokamakSystem.hpp"
 
 using namespace std;
 
@@ -6,17 +7,21 @@ namespace NESO::Solvers::tokamak
 {
 
 std::string ObliqueOutflowBC::className =
-    GetTokamakBndCondFactory().RegisterCreatorFunction(
+    GetTokamakBaseBndCondFactory().RegisterCreatorFunction(
         "ObliqueOutflow", ObliqueOutflowBC::create,
         "ObliqueOutflow boundary condition.");
 
 ObliqueOutflowBC::ObliqueOutflowBC(
     const LU::SessionReaderSharedPtr &pSession,
+    const std::weak_ptr<TokamakSystem> &pSystem,
     const Array<OneD, MR::ExpListSharedPtr> &pFields,
-    const Array<OneD, Array<OneD, NekDouble>> &pObliqueOutflowField,
-    const int pSpaceDim, const int bcRegion)
-    : TokamakBndCond(pSession, pFields, pObliqueOutflowField, pSpaceDim,
-                     bcRegion)
+    const Array<OneD, MR::DisContFieldSharedPtr> &pB,
+    const Array<OneD, MR::DisContFieldSharedPtr> &pE,
+    Array<OneD, SpatialDomains::BoundaryConditionShPtr> cond,
+    Array<OneD, MultiRegions::ExpListSharedPtr> exp, const int pSpaceDim,
+    const int bcRegion)
+    : TokamakBaseBndCond(pSession, pSystem, pFields, pB, pE, cond, exp,
+                         pSpaceDim, bcRegion)
 {
     m_session->LoadParameter("gamma", gamma, 7.0);
     m_session->LoadParameter("m_i", m_i);
@@ -36,30 +41,32 @@ ObliqueOutflowBC::ObliqueOutflowBC(
     }
 }
 
-void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
-                               [[maybe_unused]] const NekDouble &time)
+void ObliqueOutflowBC::v_Apply(
+    const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
+    const Array<OneD, const Array<OneD, NekDouble>> &physarray,
+    [[maybe_unused]] const NekDouble &time)
 {
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> bndGrad(m_fields.size());
 
     for (int i = 0; i < m_fields.size(); ++i)
     {
         // Obtain field on boundary elmts
-        Array<OneD, NekDouble> Fwd;
-        m_fields[i]->ExtractPhysToBndElmt(m_bcRegion, physarray[i], Fwd);
+        Array<OneD, NekDouble> elmt;
+        m_fields[i]->ExtractPhysToBndElmt(m_bcRegion, physarray[i], elmt);
 
         // Obtain field derivative
         Array<OneD, Array<OneD, NekDouble>> grad(m_spacedim);
         for (int k = 0; k < m_spacedim; k++)
         {
-            grad[k] = Array<OneD, NekDouble>(Fwd.size(), 0.0);
+            grad[k] = Array<OneD, NekDouble>(elmt.size(), 0.0);
         }
         if (m_spacedim == 2)
         {
-            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1]);
+            m_bndElmtExp->PhysDeriv(elmt, grad[0], grad[1]);
         }
         else if (m_spacedim == 3)
         {
-            m_bndElmtExp->PhysDeriv(Fwd, grad[0], grad[1], grad[2]);
+            m_bndElmtExp->PhysDeriv(elmt, grad[0], grad[1], grad[2]);
         }
         // Obtain gradient on boundary of elements
         bndGrad[i] = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -100,9 +107,9 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
             Vmath::Vvtvp(m_nEdgePts, m_kappa[k][j], 1, bndGrad[1][j], 1,
                          energy_flux[k], 1, energy_flux[k], 1);
         }
-        Vmath::Vvtvp(m_nEdgePts, density_flux[k], 1, m_b[k], 1, density_bc, 1,
+        Vmath::Vvtvp(m_nEdgePts, density_flux[k], 1, B_bnd[k], 1, density_bc, 1,
                      density_bc, 1);
-        Vmath::Vvtvp(m_nEdgePts, energy_flux[k], 1, m_b[k], 1, energy_bc, 1,
+        Vmath::Vvtvp(m_nEdgePts, energy_flux[k], 1, B_bnd[k], 1, energy_bc, 1,
                      energy_bc, 1);
     }
 
@@ -113,7 +120,7 @@ void ObliqueOutflowBC::v_Apply(Array<OneD, Array<OneD, NekDouble>> &physarray,
 void ObliqueOutflowBC::CalcKPar()
 {
     NekDouble k_par = this->k_par;
-    kpar = Array<OneD, NekDouble>(m_nEdgePts, k_par);
+    kpar            = Array<OneD, NekDouble>(m_nEdgePts, k_par);
 }
 
 void ObliqueOutflowBC::CalcKPerp()
@@ -133,7 +140,8 @@ void ObliqueOutflowBC::CalcDTensor()
         {
             for (int k = 0; k < m_nEdgePts; k++)
             {
-                m_D[i][j][k] = (kpar[k] - kperp[k]) * m_b[i][k] * m_b[j][k];
+                m_D[i][j][k] =
+                    (kpar[k] - kperp[k]) * B_bnd[i][k] * B_bnd[j][k] / mag_B[k];
                 if (i == j)
                 {
                     m_D[i][j][k] += kperp[k];
@@ -146,13 +154,13 @@ void ObliqueOutflowBC::CalcDTensor()
 void ObliqueOutflowBC::CalcKappaPar()
 {
     NekDouble kappa_par = this->kappa_par;
-    kpar = Array<OneD, NekDouble>(m_nEdgePts, kappa_par);
+    kpar                = Array<OneD, NekDouble>(m_nEdgePts, kappa_par);
 }
 
 void ObliqueOutflowBC::CalcKappaPerp()
 {
     NekDouble kappa_perp = this->kappa_perp;
-    kperp = Array<OneD, NekDouble>(m_nEdgePts, kappa_perp);
+    kperp                = Array<OneD, NekDouble>(m_nEdgePts, kappa_perp);
 }
 
 void ObliqueOutflowBC::CalcKappaTensor()
@@ -165,8 +173,8 @@ void ObliqueOutflowBC::CalcKappaTensor()
         {
             for (int k = 0; k < m_nEdgePts; k++)
             {
-                m_kappa[i][j][k] =
-                    (kappapar[k] - kappaperp[k]) * m_b[i][k] * m_b[j][k];
+                m_kappa[i][j][k] = (kappapar[k] - kappaperp[k]) * B_bnd[i][k] *
+                                   B_bnd[j][k] / mag_B[k];
                 if (i == j)
                 {
                     m_kappa[i][j][k] += kappaperp[k];

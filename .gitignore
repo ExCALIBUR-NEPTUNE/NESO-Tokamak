@@ -43,6 +43,7 @@ env
 # Build dirs
 build
 builds
+docs/build/*
 
 # Example run dir
 runs

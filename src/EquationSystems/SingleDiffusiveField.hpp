@@ -31,7 +31,7 @@ protected:
     SingleDiffusiveField(const LU::SessionReaderSharedPtr &session,
                          const SD::MeshGraphSharedPtr &graph);
     void v_InitObject(bool DeclareFields = true) override;
-
+    bool v_PostIntegrate(int step) override;
     void ImplicitTimeIntCG(
         const Array<OneD, const Array<OneD, NekDouble>> &inarray,
         Array<OneD, Array<OneD, NekDouble>> &outarray, const NekDouble time,
@@ -40,9 +40,9 @@ protected:
     void DoOdeRhs(const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
                   Array<OneD, Array<OneD, NekDouble>> &out_arr,
                   const NekDouble time);
-    void CalcKPar();
-    void CalcKPerp();
-    void CalcDiffTensor();
+    void CalcKPar(int f);
+    void CalcKPerp(int f);
+    void CalcDiffTensor(int f);
 
     // Diffusive Flux vector
     void GetFluxVectorDiff(
@@ -56,19 +56,20 @@ protected:
                           std::vector<std::string> &variables) override;
 
     // For Diffusion
-    StdRegions::ConstFactorMap m_factors;
+
     NekDouble m_epsilon;
     bool m_useSpecVanVisc;
     NekDouble
         m_sVVCutoffRatio; // Cut-off ratio from which to start decaying modes
     NekDouble m_sVVDiffCoeff; // Diffusion coefficient of SVV modes
 
-    NekDouble m_k_B;
     NekDouble k_par;
     NekDouble k_perp;
     Array<OneD, NekDouble> m_kperp;
     Array<OneD, NekDouble> m_kpar;
-    StdRegions::VarCoeffMap m_D;
+    Array<OneD, NekDouble> m_D[3][3];
+
+    std::shared_ptr<DisContField> diag_field;
 };
 
 } // namespace NESO::Solvers::tokamak
