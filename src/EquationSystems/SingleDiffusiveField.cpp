@@ -174,26 +174,17 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
                 varcoeffs[vc[i][j]] = m_D[i][j];
             }
         }
-        // std::cout << "PreSolve: "
-        //           << m_indfields[ni_idx]->GetPoolCount("GlobalLinSys") <<
-        //           "\n";
 
         // Solve a system of equations with Helmholtz solver
         auto key = m_indfields[ni_idx]->HelmSolve(
             outarray[ni_idx], m_indfields[ni_idx]->UpdateCoeffs(), factors,
             varcoeffs, varfactors);
-        // std::cout << "PostSolve: "
-        //           << m_indfields[ni_idx]->GetPoolCount("GlobalLinSys") <<
-        //           "\n";
 
         if (key.GetMatrixType() == StdRegions::eHelmholtz ||
             key.GetMatrixType() == StdRegions::eHelmholtzGJP)
         {
             m_indfields[ni_idx]->UnsetGlobalLinSys(key, true);
         }
-        // std::cout << "PostUnset: "
-        //           << m_indfields[ni_idx]->GetPoolCount("GlobalLinSys") <<
-        //           "\n";
 
         m_indfields[ni_idx]->BwdTrans(m_indfields[ni_idx]->GetCoeffs(),
                                       outarray[ni_idx]);
@@ -224,6 +215,16 @@ void SingleDiffusiveField::CalcKPerp(int f)
     Vmath::Vmul(npoints, m_kperp, 1, m_indfields[ni_idx]->GetPhys(), 1, m_kperp,
                 1);
     Vmath::Vdiv(npoints, m_kperp, 1, this->mag_B, 1, m_kperp, 1);
+}
+
+void SingleDiffusiveField::CalcKPerpAnomalous(int f)
+{
+    int npoints = m_fields[0]->GetNpoints();
+
+    for (int p = 0; p < npoints; ++p)
+    {
+        m_kperp[p] = this->k_perp / std::sqrt(this->mag_B[p]);
+    }
 }
 
 void SingleDiffusiveField::CalcDiffTensor(int f)

@@ -107,23 +107,35 @@ void ParticleSystem::set_up_species()
 
                     std::uniform_real_distribution u(0.0, 1.0);
                     std::gamma_distribution mb(1.5, T);
+                    std::normal_distribution norm(0.0,
+                                                  std::sqrt(T / particle_mass));
                     double vth = constants::c *
                                  std::sqrt(Tnorm / constants::m_p) /
                                  (mesh_length * omega_c);
 
                     for (int p = 0; p < N; ++p)
                     {
-                        double energy = mb(this->rng_phasespace);
-                        double speed =
-                            vth * std::sqrt(2 * energy / particle_mass);
-                        // inverse transform sampling
-                        double sintheta  = std::sqrt(u(this->rng_phasespace));
-                        double phi       = 2 * M_PI * u(this->rng_phasespace);
-                        velocities[1][p] = speed * sintheta * cos(phi);
-                        velocities[2][p] = 0;
+                        double sintheta = std::sqrt(u(this->rng_phasespace));
 
-                        velocities[0][p] =
-                            -speed * std::sqrt(1 - sintheta * sintheta);
+                        // double energy = mb(this->rng_phasespace);
+                        // double speed =
+                        //     vth * std::sqrt(2 * energy / particle_mass);
+                        // double phi       = 2 * M_PI *
+                        // u(this->rng_phasespace); velocities[1][p] = speed *
+                        // sintheta * cos(phi); velocities[2][p] = speed *
+                        // sintheta * sin(phi);
+
+                        // velocities[0][p] =
+                        //     -speed * std::sqrt(1 - sintheta * sintheta);
+
+                        velocities[1][p] = vth * norm(this->rng_phasespace);
+                        velocities[2][p] = vth * norm(this->rng_phasespace);
+                        double vperp =
+                            std::sqrt(velocities[1][p] * velocities[1][p] +
+                                      velocities[2][p] * velocities[2][p]);
+                        velocities[0][p] = -vperp *
+                                           std::sqrt(1 - sintheta * sintheta) /
+                                           sintheta;
                     }
                 }
 
@@ -345,24 +357,36 @@ void ParticleSystem::add_sources(double time, double dt)
 
                         std::uniform_real_distribution u(0.0, 1.0);
                         std::gamma_distribution mb(1.5, T);
+                        std::normal_distribution norm(
+                            0.0, std::sqrt(T / particle_mass));
+
                         double vth = constants::c *
                                      std::sqrt(Tnorm / constants::m_p) /
                                      (mesh_length * omega_c);
 
                         for (int p = 0; p < N; ++p)
                         {
-                            double energy = mb(this->rng_phasespace);
-                            double speed =
-                                vth * std::sqrt(2 * energy / particle_mass);
+
                             // inverse transform sampling
                             double sintheta =
                                 std::sqrt(u(this->rng_phasespace));
-                            double phi = 2 * M_PI * u(this->rng_phasespace);
-                            velocities[1][p] = speed * sintheta * cos(phi);
-                            velocities[2][p] = speed * sintheta * sin(phi);
+                            // double energy = mb(this->rng_phasespace);
+                            // double speed =
+                            //     vth * std::sqrt(2 * energy / particle_mass);
+                            // double phi = 2 * M_PI * u(this->rng_phasespace);
+                            // velocities[1][p] = speed * sintheta * cos(phi);
+                            // velocities[2][p] = speed * sintheta * sin(phi);
 
+                            // velocities[0][p] =
+                            //     -speed * std::sqrt(1 - sintheta * sintheta);
+                            velocities[1][p] = vth * norm(this->rng_phasespace);
+                            velocities[2][p] = vth * norm(this->rng_phasespace);
+                            double vperp =
+                                std::sqrt(velocities[1][p] * velocities[1][p] +
+                                          velocities[2][p] * velocities[2][p]);
                             velocities[0][p] =
-                                -speed * std::sqrt(1 - sintheta * sintheta);
+                                -vperp * std::sqrt(1 - sintheta * sintheta) /
+                                sintheta;
                         }
                     }
 

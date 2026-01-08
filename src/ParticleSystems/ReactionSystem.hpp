@@ -497,14 +497,14 @@ public:
     };
 
     inline void integrate_inner_ion(ParticleSubGroupSharedPtr sg,
-                                const double dt_inner) override
+                                    const double dt_inner) override
     {
         ParticleSystem::integrate_inner_ion(sg, dt_inner);
         if (this->config->get_reactions().size())
             reaction_controller->apply_reactions(sg, dt_inner);
     }
-        inline void integrate_inner_neutral(ParticleSubGroupSharedPtr sg,
-                                const double dt_inner) override
+    inline void integrate_inner_neutral(ParticleSubGroupSharedPtr sg,
+                                        const double dt_inner) override
     {
         ParticleSystem::integrate_inner_neutral(sg, dt_inner);
         if (this->config->get_reactions().size())

@@ -42,6 +42,7 @@ protected:
                   const NekDouble time);
     void CalcKPar(int f);
     void CalcKPerp(int f);
+    void CalcKPerpAnomalous(int f);
     void CalcDiffTensor(int f);
 
     // Diffusive Flux vector
