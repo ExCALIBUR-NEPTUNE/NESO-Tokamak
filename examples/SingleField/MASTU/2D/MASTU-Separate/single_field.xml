@@ -15,6 +15,7 @@
             <I PROPERTY="LinSysIterSolverTypeInNonlin"  VALUE="GMRES"/>
             <I PROPERTY="Preconditioner"                VALUE="Diagonal"/>
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
+            <I PROPERTY="OutputPartitions"          VALUE="True"/>
         </SOLVERINFO>
 
         <PARAMETERS>        
@@ -28,7 +29,7 @@
             <P> Bnorm = 1.0</P>
             <!-- Time step in cyclotron units -->
             <P> TimeStep       = 957.883316               </P>
-            <P> NumSteps      = 100              </P>
+            <P> NumSteps      = 200              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <!-- ~957883.316 -->
             <P> IO_CheckSteps  = 10                </P>
@@ -76,10 +77,10 @@
         
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="2" />
-            <E VAR="n"  DOMAIN="1" VALUE="1" />
+            <E VAR="n"  DOMAIN="1" VALUE="0" />
         </FUNCTION>
         
-        <FUNCTION NAME="MagneticMeanField">
+        <FUNCTION NAME="MagneticField">
             <F VAR="Bx,By,Bz"  FILE="B.pts"  />
         </FUNCTION>
 
@@ -92,13 +93,13 @@
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="2" />
-                    <E VAR="n"  DOMAIN="1" VALUE="0" />
+                    <E VAR="n"  DOMAIN="1" VALUE="0.1" />
                 </FUNCTION>
             </I>
             <KN NAME="D">
                 <P> Mass = 2.0 </P>
                 <INITIAL N="1">
-                    <E VAR="W" VALUE="0.000000001"/>
+                    <E VAR="W" VALUE="0.00005"/>
                     <E VAR="X" VALUE="199.9999"/>
                     <E VAR="Y" VALUE="0"/>
                 </INITIAL>
@@ -118,7 +119,12 @@
             <S TYPE="Specular" SPECIES="D">
                 <REGION REF="3"/>
                 <RATE TYPE="Constant" VALUE="1.0"/>
-            </S>           
+            </S>
+            <R TYPE="Ionisation" SPECIES="D">
+                <RATE TYPE="AMJUEL" VALUE="1"/>
+                <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
+            </R>
+
         </VANTAGE>
 
     </NESO>
