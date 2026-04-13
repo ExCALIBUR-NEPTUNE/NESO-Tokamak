@@ -32,6 +32,9 @@ ReducedBraginskii::ReducedBraginskii(const LU::SessionReaderSharedPtr &session,
     this->n_indep_fields = 1; // p_e
 }
 
+/**
+ * @brief Initialise the class.
+ */
 void ReducedBraginskii::v_InitObject(bool DeclareFields)
 {
     PlasmaSystem::v_InitObject(DeclareFields);
@@ -118,6 +121,9 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     }
 }
 
+/**
+ * @brief Initialise the advection object.
+ */
 void ReducedBraginskii::InitAdvection()
 {
     for (const auto &[s, v] : this->GetSpecies())
@@ -462,9 +468,6 @@ void ReducedBraginskii::CalcVelocities(
 /**
  *  @brief Compute components of advection velocities normal to trace elements
  * (faces, in 3D).
- *
- * @param[in,out] trace_vel_norm Trace normal velocities for each field
- * @param         adv_vel_trace        Advection velocities for each field
  */
 Array<OneD, Array<OneD, NekDouble>> &ReducedBraginskii::GetAdvVelNorm()
 {
@@ -538,6 +541,9 @@ void ReducedBraginskii::GetFluxVector(
     }
 }
 
+/**
+ * @brief Add diffusion to the rhs
+ */
 void ReducedBraginskii::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,

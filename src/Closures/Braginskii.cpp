@@ -6,6 +6,9 @@ namespace PENKNIFE
 std::string Braginskii::className = GetClosureFactory().RegisterCreatorFunction(
     "Braginskii", Braginskii::create, "Braginskii closure system");
 
+/**
+ * @brief Constructor for the Braginskii closure.
+ */
 Braginskii::Braginskii(const std::weak_ptr<PlasmaSystem> &pSystem,
                        const int spaceDim)
     : Closure(pSystem, spaceDim)
@@ -57,6 +60,11 @@ inline double CoulombLog_ei(double Nnorm, double Tnorm, double ni, double ne,
         return 31.0 - 0.5 * log(ne) + log(Te) - 0.5 * log(Nnorm) + log(Tnorm);
 }
 
+/**
+ * @brief Constructor for the Braginskii closure.
+ * @param in_arr Physical field values
+ * @param ne Electron density
+ */
 void Braginskii::CalcCollisionFrequencies(
     const Array<OneD, Array<OneD, NekDouble>> &in_arr,
     const Array<OneD, NekDouble> &ne)
@@ -182,6 +190,15 @@ inline double CrossElectronConductivity(double n, double T, double B)
     return 2.5 * n * T / B;
 }
 
+/**
+ * @brief Evaluate the Braginskii closure.
+ * @param values Physical field values
+ * @param grads Physical field gradients
+ * @param[out] fluxes Heat fluxes
+ * @param[out] frictions Collisional frictions
+ * @param ne Electron density
+ * @param ve Electron velocity
+ */
 void Braginskii::v_EvaluateClosure(
     const Array<OneD, Array<OneD, NekDouble>> &values,
     const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &grads,

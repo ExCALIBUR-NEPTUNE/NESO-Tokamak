@@ -30,6 +30,9 @@ DoubleDiffusiveField::DoubleDiffusiveField(
     this->n_indep_fields = 1;
 }
 
+/**
+ * @brief Initialise the class.
+ */
 void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     PlasmaSystem::v_InitObject(DeclareFields);
@@ -104,6 +107,12 @@ void DoubleDiffusiveField::v_InitObject(bool DeclareFields)
     }
 }
 
+/**
+ * @brief Implicit solution function.
+ * @param inarray physical values of all fields
+ * @param[out] outarray output array (RHSs of time integration equations)
+ * @param time simulation time
+ */
 void DoubleDiffusiveField::ImplicitTimeIntCG(
     const Array<OneD, const Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,
@@ -357,6 +366,14 @@ void DoubleDiffusiveField::DoOdeRhs(
     }
 }
 
+/**
+ * @brief Post-integration step
+ * @param inarray physical values of all fields
+ * @param[out] outarray physical values with diffusion applied
+ * @param pFwd Fwd trace values
+ * @param pBwd Bwd trace values
+ * 
+ */
 void DoubleDiffusiveField::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,
@@ -429,8 +446,12 @@ void DoubleDiffusiveField::DoDiffusion(
                     1);
     }
 }
+
 /**
  * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @param in_arr physical values of all fields
+ * @param qfield derivatives
+ * @param[out] fluxes flux vectors
  */
 void DoubleDiffusiveField::GetFluxVectorDiff(
     const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -583,6 +604,9 @@ void DoubleDiffusiveField::load_params()
     kappa_e_cross /= scaling_constant;
 }
 
+/**
+ * @brief Post-integration step
+ */
 bool DoubleDiffusiveField::v_PostIntegrate(int step)
 {
     Vmath::Zero(this->n_pts, m_fields[0]->UpdatePhys(), 1);
@@ -601,6 +625,11 @@ bool DoubleDiffusiveField::v_PostIntegrate(int step)
     return PlasmaSystem::v_PostIntegrate(step);
 }
 
+/**
+ * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @param fieldcoeffs field coefficients to be appended to
+ * @param variables variable names to be appended to
+ */
 void DoubleDiffusiveField::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)

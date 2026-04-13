@@ -22,6 +22,9 @@ void ReactionSystem::set_up_boundaries()
         this->species_map, store);
 }
 
+/**
+ * @brief Build the reactions and add them to the reaction controller
+ */
 void ReactionSystem::set_up_reactions()
 {
     auto prop_map = get_default_map();
@@ -183,6 +186,9 @@ void ReactionSystem::set_up_reactions()
     }
 }
 
+/**
+ * @brief Finish setup of the class, including projection of source fields
+ */
 void ReactionSystem::finish_setup(
     std::vector<std::shared_ptr<DisContField>> &src_fields,
     std::vector<Sym<REAL>> &syms, std::vector<int> &components)

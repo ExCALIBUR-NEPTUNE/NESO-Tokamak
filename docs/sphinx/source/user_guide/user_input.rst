@@ -164,26 +164,90 @@ The three currently supported reactions are ionisation, recombination and charge
 Reactions coupling
 ==================
 
+Both bulk and surface reactions can be added under the :xml:`<VANTAGE>` XML field:
+:xml:`<R>` indicates that the reaction applied to all particles.
+:xml:`<S>` indicates that the reaction is only applied to particles that hit a boundary.
+
 Bulk Reactions
 --------------
 
 Ionisation
 ~~~~~~~~~~
 
+.. code-block:: xml
+
+    <R TYPE="Ionisation" SPECIES="D">
+        <RATE TYPE="AMJUEL" VALUE="1"/>
+        <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
+    </R>
+
 Recombination
 ~~~~~~~~~~~~~
+
+.. code-block:: xml
+
+    <R TYPE="Recombination" SPECIES="D">
+        <RATE TYPE="AMJUEL" VALUE="1"/>
+        <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
+    </R>
 
 Charge Exchange
 ~~~~~~~~~~~~~~~
 
+.. code-block:: xml
+
+    <R TYPE="ChargeExchange" SPECIES="D">
+        <RATE TYPE="AMJUEL" VALUE="1"/>
+        <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
+    </R>
+
 Surface Reactions
 -----------------
+
+For each surface reaction the species it involves are listed after the type.
+It is also possible to have separate xml fields for each species and type of reaction if different parameters are desired.
+
+
+The :xml:`<REGION>` field has references to the IDs of the boundary regions at which the boundary reaction should apply.
+The boundary regions are the same ones identified in the :xml:`<BOUNDARYREGIONS>` field inside :xml:`<CONDITIONS>`.
+Each boundary region has a surcface boundary controller which handles all the reactions that occur on that region.
 
 Specular Reflection
 ~~~~~~~~~~~~~~~~~~~
 
+The :xml:`VALUE` field indicates the relative proportion of weight that is carried by the reflected particle.
+
+
+.. code-block:: xml
+    
+    <S TYPE="Specular" SPECIES="D,T">
+        <REGION REF="1,2"/>
+        <RATE TYPE="Constant" VALUE="0.9"/>
+    </S>
+
+
 Absorption
 ~~~~~~~~~~
 
+The :xml:`VALUE` field indicates the relative proportion of weight that is absorbed.
+
+.. code-block:: xml
+    
+    <S TYPE="Absorption" SPECIES="D,T">
+        <REGION REF="1,2"/>
+        <RATE TYPE="Constant" VALUE="0.1"/>
+    </S>
+    
+
 Thermal Reflection
 ~~~~~~~~~~~~~~~~~~
+
+The :xml:`VALUE` field indicates the relative proportion of weight that is carried by the reflected particle.
+
+
+.. code-block:: xml
+
+    <S TYPE="Thermal" SPECIES="D,T">
+        <REGION REF="1,2"/>
+        <RATE TYPE="Constant" VALUE="0.5"/>
+    </S>

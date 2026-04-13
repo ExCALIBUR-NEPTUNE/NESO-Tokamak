@@ -30,6 +30,9 @@ SingleDiffusiveField::SingleDiffusiveField(
     this->n_indep_fields = 0;
 }
 
+/**
+ * @brief Initialise the class.
+ */
 void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 {
     PlasmaSystem::v_InitObject(DeclareFields);
@@ -110,6 +113,12 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
     }
 }
 
+/**
+ * @brief Implicit solution function.
+ * @param inarray physical values of all fields
+ * @param[out] outarray output array (RHSs of time integration equations)
+ * @param time simulation time
+ */
 void SingleDiffusiveField::ImplicitTimeIntCG(
     const Array<OneD, const Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,
@@ -244,6 +253,10 @@ void SingleDiffusiveField::CalcKPerpAnomalous(int f)
     }
 }
 
+/**
+ * @brief Calculate diffusion tensor for species @p f
+ * @param f species index
+ */
 void SingleDiffusiveField::CalcDiffTensor(int f)
 {
     int npoints = m_fields[0]->GetNpoints();
@@ -269,9 +282,10 @@ void SingleDiffusiveField::CalcDiffTensor(int f)
 }
 
 /**
- * @brief Populate rhs array ( @p out_arr ) with diffused quantitites
+ * @brief Populate rhs array ( @p out_arr ) with diffused quantitities
  * @param in_arr physical values of all fields
  * @param[out] out_arr output array (RHSs of time integration equations)
+ * @param time simulation time
  */
 void SingleDiffusiveField::DoOdeRhs(
     const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
@@ -309,6 +323,9 @@ void SingleDiffusiveField::DoOdeRhs(
 
 /**
  * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @param in_arr physical values of all fields
+ * @param qfield derivatives
+ * @param[out] fluxes flux vectors
  */
 void SingleDiffusiveField::GetFluxVectorDiff(
     const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -336,6 +353,9 @@ void SingleDiffusiveField::GetFluxVectorDiff(
     }
 }
 
+/**
+ * @brief load necessary parameters
+ */
 void SingleDiffusiveField::load_params()
 {
     PlasmaSystem::load_params();
@@ -362,6 +382,9 @@ void SingleDiffusiveField::load_params()
     // multiply k_perp by A^0.5 Z^2 n B^-1 in solver
 }
 
+/**
+ * @brief Post-integration step
+ */
 bool SingleDiffusiveField::v_PostIntegrate(int step)
 {
     Vmath::Zero(this->n_pts, m_fields[0]->UpdatePhys(), 1);
@@ -382,6 +405,11 @@ bool SingleDiffusiveField::v_PostIntegrate(int step)
     return PlasmaSystem::v_PostIntegrate(step);
 }
 
+/**
+ * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @param fieldcoeffs field coefficients to be appended to
+ * @param variables variable names to be appended to
+ */
 void SingleDiffusiveField::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)

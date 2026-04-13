@@ -128,6 +128,11 @@ void PlasmaSystem::DoOdeProjection(
     }
 }
 
+/**
+ * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @param fieldcoeffs field coefficients to be appended to
+ * @param variables variable names to be appended to
+ */
 void PlasmaSystem::v_ExtraFldOutput(
     std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
     std::vector<std::string> &variables)
@@ -641,6 +646,9 @@ bool PlasmaSystem::v_PreIntegrate(int step)
     return UnsteadySystem::v_PreIntegrate(step);
 }
 
+/**
+ * @brief Returns a session function particular to a species
+ */
 NESOSessionFunctionSharedPtr PlasmaSystem::get_species_function(
     const std::string &s, std::string name, const MR::ExpListSharedPtr &field,
     bool cache)

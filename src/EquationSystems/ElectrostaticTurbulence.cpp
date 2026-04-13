@@ -34,6 +34,9 @@ ElectrostaticTurbulence::ElectrostaticTurbulence(
     this->n_indep_fields = 3; // p_e, w, phi
 }
 
+/**
+ * @brief Initialise the class.
+ */
 void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 {
     PlasmaSystem::v_InitObject(DeclareFields);
@@ -137,6 +140,9 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
     }
 }
 
+/**
+ * @brief Initialise the advection object.
+ */
 void ElectrostaticTurbulence::InitAdvection()
 {
     for (const auto &[s, v] : this->GetSpecies())
@@ -359,7 +365,7 @@ void ElectrostaticTurbulence::DoAdvection(
 }
 
 /**
- * @brief Compute the advection terms for the right-hand side
+ * @brief Add particle sources to the rhs
  */
 void ElectrostaticTurbulence::DoParticles(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
@@ -508,10 +514,11 @@ void ElectrostaticTurbulence::ComputeE()
     this->E[2]->FwdTrans(this->E[2]->GetPhys(), this->E[2]->UpdateCoeffs());
 }
 
+/**
+ * @brief Calculate ExB velocity
+ */
 void ElectrostaticTurbulence::ComputevExB()
 {
-    // Calculate ExB velocity
-
     const Array<OneD, NekDouble> &Ex = this->E[0]->GetPhys();
     const Array<OneD, NekDouble> &Ey = this->E[1]->GetPhys();
     const Array<OneD, NekDouble> &Ez = this->E[2]->GetPhys();
@@ -540,6 +547,9 @@ void ElectrostaticTurbulence::ComputevExB()
     }
 }
 
+/**
+ * @brief Calculate advection velocities
+ */
 void ElectrostaticTurbulence::CalcVelocities(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray)
@@ -658,6 +668,9 @@ void ElectrostaticTurbulence::CalcVelocities(
     }
 }
 
+/**
+ * @brief Add drift velocities to the advection velocities
+ */
 void ElectrostaticTurbulence::AddDriftVelocities(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray)
@@ -830,6 +843,9 @@ void ElectrostaticTurbulence::AddDriftVelocities(
     }
 }
 
+/**
+ * @brief Calculate initial vorticity
+ */
 void ElectrostaticTurbulence::CalcInitOmega()
 {
     const Array<OneD, NekDouble> &Bx = this->B[0]->GetPhys();
@@ -892,6 +908,9 @@ void ElectrostaticTurbulence::CalcInitOmega()
         m_indfields[omega_idx]->UpdateCoeffs());
 }
 
+/**
+ * @brief Calculate vorticity flux
+ */
 void ElectrostaticTurbulence::CalcOmegaFlux(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &omega_flux)
@@ -963,9 +982,6 @@ void ElectrostaticTurbulence::CalcOmegaFlux(
 /**
  *  @brief Compute components of advection velocities normal to trace
  * elements (faces, in 3D).
- *
- * @param[in,out] trace_vel_norm Trace normal velocities for each field
- * @param         adv_vel_trace        Advection velocities for each field
  */
 Array<OneD, Array<OneD, NekDouble>> &ElectrostaticTurbulence::GetAdvVelNorm()
 {
@@ -998,6 +1014,9 @@ Array<OneD, Array<OneD, NekDouble>> &ElectrostaticTurbulence::GetAdvVelNorm()
     return this->trace_vel_norm;
 }
 
+/**
+ * @brief Fetch the flux of vorticity
+ */
 Array<OneD, NekDouble> &ElectrostaticTurbulence::GetOmegaFlux()
 {
     int num_trace_pts = GetTraceNpoints();
@@ -1069,6 +1088,9 @@ void ElectrostaticTurbulence::GetFluxVector(
     }
 }
 
+/**
+ * @brief Add diffusion to the rhs
+ */
 void ElectrostaticTurbulence::DoDiffusion(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
     Array<OneD, Array<OneD, NekDouble>> &outarray,
