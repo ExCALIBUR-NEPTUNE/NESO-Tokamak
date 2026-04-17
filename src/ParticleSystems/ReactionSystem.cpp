@@ -1,5 +1,6 @@
 #include "ReactionSystem.hpp"
 #include "Reactions.hpp"
+#include "Transforms.hpp"
 
 namespace PENKNIFE
 {
@@ -205,34 +206,51 @@ void ReactionSystem::finish_setup(
     auto project_transform_wrapper = std::make_shared<TransformationWrapper>(
         std::dynamic_pointer_cast<TransformationStrategy>(project_transform));
 
-    auto remove_transform =
-        std::make_shared<SimpleRemovalTransformationStrategy>();
-    auto remove_transform_wrapper = std::make_shared<TransformationWrapper>(
-        std::vector<std::shared_ptr<MarkingStrategy>>{
-            make_direct_marking_strategy(
-                "very_low_weight", [](auto w) { return w[0] < 1e-12; },
-                Access::read(Sym<REAL>("WEIGHT")))},
-        make_transformation_strategy<SimpleRemovalTransformationStrategy>());
+    double remove_threshold;
+    config->get_session()->LoadParameter("RemoveThreshold", remove_threshold,
+                                         1e-12);
+    auto remove_transform_wrapper = removal_wrapper(remove_threshold);
 
-    std::shared_ptr<TransformationStrategy> merge_transform;
+    std::vector<std::shared_ptr<TransformationWrapper>> parent_transforms,
+        child_transforms;
+    child_transforms.push_back(remove_transform_wrapper);
 
-    if (this->ndim == 2)
+    double merge_threshold, merge_velocity_extents;
+    int merge_bins;
+    config->get_session()->LoadParameter("MergeThreshold", merge_threshold,
+                                         1e-6);
+    config->get_session()->LoadParameter("MergeVelocityExtents",
+                                         merge_velocity_extents, 3.0);
+    config->get_session()->LoadParameter("MergeBins", merge_bins, 5);
+    std::shared_ptr<TransformationWrapper> merge_transform_wrapper;
+
+    if (this->ndim == 2 && this->vdim == 2)
     {
-        merge_transform =
-            make_transformation_strategy<MergeTransformationStrategy<2>>();
+        std::array<REAL, 2> velocity_extents;
+        std::array<INT, 2> velocity_bins;
+        velocity_bins.fill(merge_bins);
+        velocity_extents.fill(merge_velocity_extents);
+        merge_transform_wrapper =
+            merging_wrapper<2>(this->particle_group, merge_threshold,
+                               velocity_extents, velocity_bins);
+        child_transforms.emplace_back(merge_transform_wrapper);
     }
-    else if (this->ndim == 3)
+    else if (this->ndim == 3 && this->vdim == 3)
     {
-        merge_transform =
-            make_transformation_strategy<MergeTransformationStrategy<3>>();
+        std::array<REAL, 3> velocity_extents;
+        std::array<INT, 3> velocity_bins;
+        velocity_bins.fill(merge_bins);
+        velocity_extents.fill(merge_velocity_extents);
+        merge_transform_wrapper =
+            merging_wrapper<3>(this->particle_group, merge_threshold,
+                               velocity_extents, velocity_bins);
+        child_transforms.emplace_back(merge_transform_wrapper);
     }
-
-    auto merge_transform_wrapper = std::make_shared<TransformationWrapper>(
-        std::vector<std::shared_ptr<MarkingStrategy>>{
-            make_direct_marking_strategy(
-                "very_low_weight", [](auto w) { return w[0] < 1e-6; },
-                Access::read(Sym<REAL>("WEIGHT")))},
-        merge_transform);
+    else if (this->ndim == 2 && this->vdim == 3)
+    {
+        // TODO 2D3V merging
+        // merge_transform_wrapper = legacy_merging_wrapper<3>(merge_threshold);
+    }
 
     std::vector<std::string> src_names{"ELECTRON_SOURCE_DENSITY",
                                        "ELECTRON_SOURCE_ENERGY",
@@ -248,11 +266,11 @@ void ReactionSystem::finish_setup(
     this->zeroer_transform =
         std::make_shared<ParticleDatZeroer<REAL>>(src_names);
 
+    parent_transforms.insert(parent_transforms.end(), child_transforms.begin(),
+                             child_transforms.end());
+
     this->reaction_controller = std::make_shared<ReactionController>(
-        std::vector<std::shared_ptr<TransformationWrapper>>{
-            remove_transform_wrapper},
-        std::vector<std::shared_ptr<TransformationWrapper>>{
-            remove_transform_wrapper});
+        parent_transforms, child_transforms);
 
     set_up_reactions();
     init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
@@ -271,12 +289,10 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
     : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
       ndim(mesh->get_ndim()), vdim(3), config(config)
 {
-    this->remove_wrapper = std::make_shared<TransformationWrapper>(
-        std::vector<std::shared_ptr<MarkingStrategy>>{
-            make_direct_marking_strategy(
-                "very_low_weight", [](auto w) { return w[0] < 1e-6; },
-                Access::read(Sym<REAL>("WEIGHT")))},
-        make_transformation_strategy<SimpleRemovalTransformationStrategy>());
+    double remove_threshold;
+    config->get_session()->LoadParameter("RemoveThreshold", remove_threshold,
+                                         1e-12);
+    this->remove_wrapper = removal_wrapper(remove_threshold);
     config->read_boundary_regions();
 
     for (auto &v : this->config->get_surface_reactions())
@@ -288,8 +304,10 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
             {
                 reaction_controllers[b_id] =
                     std::make_shared<ReactionController>(
-                        std::vector<std::shared_ptr<TransformationWrapper>>{},
-                        std::vector<std::shared_ptr<TransformationWrapper>>{});
+                        std::vector<std::shared_ptr<TransformationWrapper>>{
+                            remove_wrapper},
+                        std::vector<std::shared_ptr<TransformationWrapper>>{
+                            remove_wrapper});
             }
 
             if (std::get<0>(v) == "Specular")
