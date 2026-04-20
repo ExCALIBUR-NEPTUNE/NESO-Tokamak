@@ -35,7 +35,9 @@ public:
 
     inline void apply_timestep(const double dt) override
     {
+        this->boundary->init_funcs();
         ParticleSystem::apply_timestep(dt);
+        this->boundary->finalise_funcs();
         if (this->config->get_reactions().size())
         {
             reaction_controller->apply(this->particle_group, dt);
@@ -89,6 +91,29 @@ public:
             this->composite_intersection->pre_integration(particle_sub_group);
         }
 
+        inline void init_funcs()
+        {
+
+            for (int b_id : this->boundary_ids)
+            {
+                this->composite_intersection->function_project_initialise(
+                    this->funcs_dens[b_id]);
+                this->composite_intersection->function_project_initialise(
+                    this->funcs_energy[b_id]);
+            }
+        }
+
+        inline void finalise_funcs()
+        {
+            for (int b_id : this->boundary_ids)
+            {
+                this->composite_intersection->function_project_finalise(
+                    this->funcs_dens[b_id]);
+                this->composite_intersection->function_project_finalise(
+                    this->funcs_energy[b_id]);
+            }
+        }
+
         inline void execute(ParticleSubGroupSharedPtr particle_sub_group,
                             ParticleGroupSharedPtr child_group, double dt)
         {
@@ -117,6 +142,13 @@ public:
                     this->composite_intersection->previous_position_sym);
                 this->reaction_controllers[id]->apply(
                     sg, dt, child_group, ControllerMode::surface_mode);
+
+                this->composite_intersection->function_project_contribute(
+                    sg, Sym<REAL>("SURFACE_DENSITY_SOURCE"), 0, false,
+                    funcs_dens[id]);
+                this->composite_intersection->function_project_contribute(
+                    sg, Sym<REAL>("SURFACE_ENERGY_SOURCE"), 0, false,
+                    funcs_energy[id]);
             }
             remove_wrapper->transform(particle_sub_group);
         }
@@ -129,6 +161,8 @@ public:
             composite_intersection;
         std::shared_ptr<BoundaryTruncation> boundary_truncation;
 
+        std::vector<int> boundary_ids;
+
         std::map<int, std::shared_ptr<ReactionController>> reaction_controllers;
         std::shared_ptr<TransformationWrapper> remove_wrapper;
 
@@ -137,6 +171,11 @@ public:
         REAL reset_distance;
 
         NESOReaderSharedPtr config;
+
+        std::map<int, CompositeInteraction::CompositeFunctionSharedPtr>
+            funcs_dens;
+        std::map<int, CompositeInteraction::CompositeFunctionSharedPtr>
+            funcs_energy;
     };
 
 protected:

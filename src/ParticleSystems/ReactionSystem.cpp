@@ -281,8 +281,8 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
 
     for (auto &v : this->config->get_surface_reactions())
     {
-        std::vector<int> boundary_ids = std::get<2>(v);
-        for (int b_id : boundary_ids)
+        auto boundary_ids = std::get<2>(v);
+        for (int b_id : this->boundary_ids)
         {
             if (!this->reaction_controllers[b_id])
             {
@@ -397,6 +397,15 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
     this->composite_intersection =
         std::make_shared<CompositeInteraction::CompositeIntersection>(
             this->sycl_target, mesh, config->get_boundary_regions());
+
+    for (auto &[b_id, comps] : config->get_boundary_regions())
+    {
+        boundary_ids.push_back(b_id);
+        auto func = this->composite_intersection->create_function(b_id);
+        this->funcs_dens[b_id] = func;
+        func = this->composite_intersection->create_function(b_id);
+        this->funcs_energy[b_id] = func;
+    }
 
     this->reset_distance =
         store->get<REAL>("ReactionsBoundary/reset_distance", 1.0e-4);
