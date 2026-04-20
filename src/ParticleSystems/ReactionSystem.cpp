@@ -405,6 +405,11 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
         this->funcs_dens[b_id] = func;
         func = this->composite_intersection->create_function(b_id);
         this->funcs_energy[b_id] = func;
+        for (int d = 0; d < this->vdim; ++d)
+        {
+            func = this->composite_intersection->create_function(b_id);
+            this->funcs_mom[b_id].emplace_back(func);
+        }
     }
 
     this->reset_distance =

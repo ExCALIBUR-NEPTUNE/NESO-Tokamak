@@ -93,13 +93,17 @@ public:
 
         inline void init_funcs()
         {
-
             for (int b_id : this->boundary_ids)
             {
                 this->composite_intersection->function_project_initialise(
                     this->funcs_dens[b_id]);
                 this->composite_intersection->function_project_initialise(
                     this->funcs_energy[b_id]);
+                for (int d = 0; d < this->vdim; ++d)
+                {
+                    this->composite_intersection->function_project_initialise(
+                        this->funcs_mom[b_id][d]);
+                }
             }
         }
 
@@ -111,6 +115,11 @@ public:
                     this->funcs_dens[b_id]);
                 this->composite_intersection->function_project_finalise(
                     this->funcs_energy[b_id]);
+                for (int d = 0; d < this->vdim; ++d)
+                {
+                    this->composite_intersection->function_project_finalise(
+                        this->funcs_mom[b_id][d]);
+                }
             }
         }
 
@@ -149,6 +158,13 @@ public:
                 this->composite_intersection->function_project_contribute(
                     sg, Sym<REAL>("SURFACE_ENERGY_SOURCE"), 0, false,
                     funcs_energy[id]);
+
+                for (int d = 0; d < this->vdim; ++d)
+                {
+                    this->composite_intersection->function_project_contribute(
+                        sg, Sym<REAL>("SURFACE_MOMENTUM_SOURCE"), d, false,
+                        funcs_mom[id][d]);
+                }
             }
             remove_wrapper->transform(particle_sub_group);
         }
@@ -176,6 +192,10 @@ public:
             funcs_dens;
         std::map<int, CompositeInteraction::CompositeFunctionSharedPtr>
             funcs_energy;
+
+        std::map<int,
+                 std::vector<CompositeInteraction::CompositeFunctionSharedPtr>>
+            funcs_mom;
     };
 
 protected:
