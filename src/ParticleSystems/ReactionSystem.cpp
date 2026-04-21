@@ -12,14 +12,15 @@ ReactionSystem::ReactionSystem(NESOReaderSharedPtr session,
     : ParticleSystem(session, graph)
 {
 }
-void ReactionSystem::set_up_boundaries()
+void ReactionSystem::set_up_boundaries(
+    MultiRegions::DisContFieldSharedPtr prototype_field)
 {
     auto store = std::make_shared<ParameterStore>();
     store->set<REAL>("ReactionsBoundary/reset_distance", 1.0e-6);
     auto mesh      = std::make_shared<ParticleMeshInterface>(this->graph);
     this->boundary = std::make_shared<ReactionsBoundary>(
         Sym<REAL>("TSP"), this->sycl_target, mesh, this->config,
-        this->species_map, store);
+        this->species_map, prototype_field, store);
 }
 
 /**
@@ -267,7 +268,9 @@ void ReactionSystem::finish_setup(
 ReactionSystem::ReactionsBoundary::ReactionsBoundary(
     Sym<REAL> time_step_prop_sym, SYCLTargetSharedPtr sycl_target,
     std::shared_ptr<ParticleMeshInterface> mesh, NESOReaderSharedPtr config,
-    std::map<std::string, SpeciesInfo> &species, ParameterStoreSharedPtr store)
+    std::map<std::string, SpeciesInfo> &species,
+    MultiRegions::DisContFieldSharedPtr prototype_field,
+    ParameterStoreSharedPtr store)
     : time_step_prop_sym(time_step_prop_sym), sycl_target(sycl_target),
       ndim(mesh->get_ndim()), vdim(3), config(config)
 {
@@ -282,7 +285,7 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
     for (auto &v : this->config->get_surface_reactions())
     {
         auto boundary_ids = std::get<2>(v);
-        for (int b_id : this->boundary_ids)
+        for (int b_id : boundary_ids)
         {
             if (!this->reaction_controllers[b_id])
             {
@@ -393,22 +396,22 @@ ReactionSystem::ReactionsBoundary::ReactionsBoundary(
             }
         }
     }
-
     this->composite_intersection =
         std::make_shared<CompositeInteraction::CompositeIntersection>(
-            this->sycl_target, mesh, config->get_boundary_regions());
+            this->sycl_target, mesh, config->get_boundary_regions(),
+            prototype_field);
 
     for (auto &[b_id, comps] : config->get_boundary_regions())
     {
         boundary_ids.push_back(b_id);
-        auto func = this->composite_intersection->create_function(b_id);
-        this->funcs_dens[b_id] = func;
-        func = this->composite_intersection->create_function(b_id);
-        this->funcs_energy[b_id] = func;
+        this->funcs_dens[b_id] =
+            this->composite_intersection->create_function(b_id);
+        this->funcs_energy[b_id] =
+            this->composite_intersection->create_function(b_id);
         for (int d = 0; d < this->vdim; ++d)
         {
-            func = this->composite_intersection->create_function(b_id);
-            this->funcs_mom[b_id].emplace_back(func);
+            this->funcs_mom[b_id].emplace_back(
+                this->composite_intersection->create_function(b_id));
         }
     }
 

@@ -207,6 +207,21 @@ void PlasmaSystem::v_ExtraFldOutput(
     }
 }
 
+void PlasmaSystem::CheckpointSurface_Output(int n)
+{
+    std::vector<std::vector<Array<OneD, NekDouble>>> fieldcoeffs;
+    std::vector<std::string> variables;
+    std::vector<ExpListSharedPtr> flds;
+    std::vector<std::string> names;
+    this->particle_sys->get_surface_data(names, flds, variables, fieldcoeffs);
+    for (int s = 0; s < flds.size(); ++s)
+    {
+        std::string name =
+            "surface_" + names[s] + "_" + std::to_string(n) + ".chk";
+        WriteFld(name, flds[s], fieldcoeffs[s], variables);
+    }
+}
+
 /**
  * @brief Post-construction class initialisation.
  *
@@ -360,6 +375,12 @@ void PlasmaSystem::v_InitObject(bool create_field)
 
     m_bndConds->Initialize(m_session, as<PlasmaSystem>(), m_indfields, B, E,
                            m_spacedim);
+
+    if (this->particles_enabled)
+    {
+        this->particle_sys->set_up_boundaries(
+            std::dynamic_pointer_cast<DisContField>(m_fields[0]));
+    }
 }
 
 /**
@@ -571,6 +592,7 @@ void PlasmaSystem::v_DoSolve()
         {
 
             Checkpoint_Output(m_nchk);
+            CheckpointSurface_Output(m_nchk);
             m_nchk++;
 
             doCheckTime = false;

@@ -194,6 +194,8 @@ protected:
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
         std::vector<std::string> &variables) override;
+
+    void CheckpointSurface_Output(int n);
     void v_DoSolve() override;
 
     virtual void v_InitObject(bool DeclareField) override;

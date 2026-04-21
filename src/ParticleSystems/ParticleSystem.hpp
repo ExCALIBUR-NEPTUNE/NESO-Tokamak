@@ -56,7 +56,8 @@ public:
     virtual void init_spec() override;
     virtual void init_object() override;
     virtual void set_up_species() override;
-    virtual void set_up_boundaries();
+    virtual void set_up_boundaries(
+        MultiRegions::DisContFieldSharedPtr prototype_field = nullptr);
 
     struct SpeciesInfo
     {
@@ -141,7 +142,15 @@ public:
     }
 
     inline virtual void zero_source_dats()
-    {}
+    {
+    }
+
+    inline virtual void get_surface_data(
+        std::vector<std::string> &names, std::vector<ExpListSharedPtr> &fld,
+        std::vector<std::string> &variables,
+        std::vector<std::vector<Array<OneD, NekDouble>>> &fieldcoeffs)
+    {
+    }
 
     virtual void setup_evaluate_fields(
         Array<OneD, std::shared_ptr<DisContField>> &E,
@@ -426,7 +435,7 @@ protected:
     }
 
     virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg,
-                                const double dt_inner)
+                                        const double dt_inner)
     {
         auto ions = particle_sub_group(
             sg, [=](auto Q) { return Q.at(0) != 0.0; },

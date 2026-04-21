@@ -93,7 +93,7 @@ void ParticleSystem::init_object()
     this->particle_group_temporary = std::make_shared<ParticleGroupTemporary>();
 
     this->transfer_particles();
-    pre_advection(particle_sub_group(this->particle_group));
+    
 }
 
 /**
@@ -324,7 +324,7 @@ void ParticleSystem::set_up_species()
         species_map[k] =
             SpeciesInfo{s, particle_mass, particle_charge, partitions[s++]};
     }
-    set_up_boundaries();
+    //set_up_boundaries();
 }
 
 /**
@@ -377,6 +377,7 @@ void ParticleSystem::finish_setup(
     std::vector<std::shared_ptr<DisContField>> &src_fields,
     std::vector<Sym<REAL>> &syms, std::vector<int> &components)
 {
+    pre_advection(particle_sub_group(this->particle_group));
     this->src_syms       = syms;
     this->src_components = components;
     this->field_project  = std::make_shared<FieldProject<DisContField>>(
@@ -670,7 +671,6 @@ void ParticleSystem::add_sources(double time, double dt)
     transfer_particles();
 }
 
-
 /**
  * @brief Evaluate and apply particle sinks.
  */
@@ -763,7 +763,8 @@ void ParticleSystem::add_sinks(double time, double dt)
     remove_marked_particles();
 }
 
-void ParticleSystem::set_up_boundaries()
+void ParticleSystem::set_up_boundaries(
+    MultiRegions::DisContFieldSharedPtr prototype_field)
 {
     auto store = std::make_shared<ParameterStore>();
     store->set<REAL>("NektarCompositeTruncatedReflection/reset_distance",

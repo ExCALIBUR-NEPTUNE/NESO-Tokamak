@@ -51,7 +51,8 @@ public:
     }
 
     void set_up_reactions();
-    void set_up_boundaries() override;
+    void set_up_boundaries(
+        MultiRegions::DisContFieldSharedPtr prototype_field) override;
 
     inline void pre_advection(ParticleSubGroupSharedPtr sg) override
     {
@@ -75,6 +76,14 @@ public:
                       std::vector<Sym<REAL>> &syms,
                       std::vector<int> &components) override;
 
+    inline void get_surface_data(
+        std::vector<std::string> &names, std::vector<ExpListSharedPtr> &flds,
+        std::vector<std::string> &variables,
+        std::vector<std::vector<Array<OneD, NekDouble>>> &fieldcoeffs) override
+    {
+        this->boundary->get_surface_data(names, flds, variables, fieldcoeffs);
+    }
+
     class ReactionsBoundary
     {
 
@@ -84,6 +93,7 @@ public:
             std::shared_ptr<ParticleMeshInterface> mesh,
             NESOReaderSharedPtr config,
             std::map<std::string, SpeciesInfo> &species,
+            MultiRegions::DisContFieldSharedPtr prototype_field,
             ParameterStoreSharedPtr store = std::make_shared<ParameterStore>());
 
         inline void pre_advection(ParticleSubGroupSharedPtr particle_sub_group)
@@ -113,8 +123,10 @@ public:
             {
                 this->composite_intersection->function_project_finalise(
                     this->funcs_dens[b_id]);
+
                 this->composite_intersection->function_project_finalise(
                     this->funcs_energy[b_id]);
+
                 for (int d = 0; d < this->vdim; ++d)
                 {
                     this->composite_intersection->function_project_finalise(
@@ -167,6 +179,34 @@ public:
                 }
             }
             remove_wrapper->transform(particle_sub_group);
+        }
+
+        inline void get_surface_data(
+            std::vector<std::string>& names, std::vector<ExpListSharedPtr> &flds,
+            std::vector<std::string> &variables,
+            std::vector<std::vector<Array<OneD, NekDouble>>> &fieldcoeffs)
+        {
+            variables = {"n_S", "e_S"};
+            for (int d = 0; d < this->vdim; ++d)
+            {
+                variables.push_back("p_S" + std::to_string(d));
+            }
+            for (int b_id : this->boundary_ids)
+            {
+                names.push_back(std::to_string(b_id));
+
+                flds.push_back(funcs_dens[b_id]->exp_lists[0]);
+
+                std::vector<Array<OneD, NekDouble>> values;
+                values.push_back(funcs_dens[b_id]->exp_lists[0]->GetCoeffs());
+                values.push_back(funcs_energy[b_id]->exp_lists[0]->GetCoeffs());
+                for (int d = 0; d < this->vdim; ++d)
+                {
+                    values.push_back(
+                        funcs_mom[b_id][d]->exp_lists[0]->GetCoeffs());
+                }
+                fieldcoeffs.emplace_back(values);
+            }
         }
 
     private:
