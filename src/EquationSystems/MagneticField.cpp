@@ -4,7 +4,9 @@
 
 namespace PENKNIFE
 {
-
+/**
+ * @brief Constructs magnetic field object
+ */
 MagneticField::MagneticField(const LU::SessionReaderSharedPtr &session,
                              const std::weak_ptr<PlasmaSystem> &eqn_sys,
                              Array<OneD, MR::DisContFieldSharedPtr> &pB,
@@ -216,7 +218,9 @@ void MagneticField::Solve(Array<OneD, Array<OneD, NekDouble>> &J)
         Vmath::Neg(npoints, B[1]->UpdatePhys(), 1);
     }
 }
-
+/**
+ * @brief Update magnetic field when it is time-dependent
+ */
 void MagneticField::Update(NekDouble time)
 {
     if (this->type == field_type::solve)

@@ -12,6 +12,12 @@ PlasmaSolver::PlasmaSolver(
 {
 }
 
+/**
+ * @brief Perform the Riemann solve either pointwise or arraywise.
+ * @param Fwd   Forwards trace space.
+ * @param Bwd   Backwards trace space.
+ * @param flux  Resulting flux.
+ */
 void PlasmaSolver::v_Solve(
     const int nDim, const Array<OneD, const Array<OneD, NekDouble>> &Fwd,
     const Array<OneD, const Array<OneD, NekDouble>> &Bwd,

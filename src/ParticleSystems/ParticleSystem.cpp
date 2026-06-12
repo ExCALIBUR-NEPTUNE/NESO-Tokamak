@@ -22,6 +22,9 @@ ParticleSystem::~ParticleSystem()
     this->sycl_target->profile_map.write_events_json("profile", this->rank);
 }
 
+/**
+ * @brief Build the particle spec.
+ */
 void ParticleSystem::init_spec()
 {
     this->particle_spec = {
@@ -92,6 +95,10 @@ void ParticleSystem::init_object()
     this->transfer_particles();
     pre_advection(particle_sub_group(this->particle_group));
 }
+
+/**
+ * @brief Evaluate and apply particle initial conditions.
+ */
 void ParticleSystem::set_up_species()
 {
     // get seed from file
@@ -320,6 +327,9 @@ void ParticleSystem::set_up_species()
     set_up_boundaries();
 }
 
+/**
+ * @brief Setup NESO evaluations
+ */
 void ParticleSystem::setup_evaluate_fields(
     Array<OneD, std::shared_ptr<DisContField>> &E,
     Array<OneD, std::shared_ptr<DisContField>> &B,
@@ -360,6 +370,9 @@ void ParticleSystem::setup_evaluate_fields(
     }
 }
 
+/**
+ * @brief Finish setup of the class, including projection of source fields
+ */
 void ParticleSystem::finish_setup(
     std::vector<std::shared_ptr<DisContField>> &src_fields,
     std::vector<Sym<REAL>> &syms, std::vector<int> &components)
@@ -395,6 +408,9 @@ inline std::vector<double> gamma_distribution(const int N, const double alpha,
     return array;
 }
 
+/**
+ * @brief Evaluate and apply particle sources.
+ */
 void ParticleSystem::add_sources(double time, double dt)
 {
     auto r = ProfileRegion("NESO", "add_sources");
@@ -654,6 +670,10 @@ void ParticleSystem::add_sources(double time, double dt)
     transfer_particles();
 }
 
+
+/**
+ * @brief Evaluate and apply particle sinks.
+ */
 void ParticleSystem::add_sinks(double time, double dt)
 {
     auto r = ProfileRegion("NESO", "add_sinks");
