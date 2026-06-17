@@ -9,10 +9,13 @@ namespace LU = Nektar::LibUtilities;
 namespace SU = Nektar::SolverUtils;
 namespace PENKNIFE
 {
+class PlasmaSystem;
+
 class PlasmaSolver : public SU::RiemannSolver
 {
 public:
     int omega_idx;
+    std::weak_ptr<PlasmaSystem> m_system;
 
 protected:
     bool m_pointSolve;

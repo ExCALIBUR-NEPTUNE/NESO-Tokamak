@@ -1,5 +1,7 @@
 #ifndef ELECTROSTATICTURBULENCE_HPP
 #define ELECTROSTATICTURBULENCE_HPP
+#include "../Advection/OmegaAdvection.h"
+//#include "../Diffusion/DiffusionLDGET.hpp"
 #include "../Misc/VariableConverter.hpp"
 #include "PlasmaSystem.hpp"
 
@@ -56,7 +58,11 @@ protected:
                             [[maybe_unused]] Array<OneD, Array<OneD, NekDouble>>
                                 &outarray = NullNekDoubleArrayOfArray);
     void CalcOmegaFlux(const Array<OneD, Array<OneD, NekDouble>> &inarray,
-                       Array<OneD, Array<OneD, NekDouble>> &omega_flux);
+                       Array<OneD, Array<OneD, NekDouble>> &omega_flux,
+                       Array<OneD, NekDouble> &omega_flux_trace);
+    void ApplyOmegaBC(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                      const NekDouble time);
+
     // Advective Flux vector
     void GetFluxVector(
         const Array<OneD, Array<OneD, NekDouble>> &field_vals,
@@ -118,6 +124,8 @@ protected:
 
     void v_ExtraFldOutput(std::vector<Array<OneD, NekDouble>> &fieldcoeffs,
                           std::vector<std::string> &variables) override;
+    void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &physarray,
+                               NekDouble time) override;
 
 private:
     int ee_idx;
@@ -136,6 +144,8 @@ private:
     /// Velocities
     /// Storage for ExB drift velocity
     Array<OneD, Array<OneD, NekDouble>> v_ExB;
+    Array<OneD, Array<OneD, Array<OneD, NekDouble>>> dia_v;
+    Array<OneD, NekDouble> j_par;
     // Electron parallel velocity
     Array<OneD, NekDouble> v_e_par;
     // Ion parallel velocities
@@ -168,12 +178,16 @@ private:
     std::string riemann_solver_type;
     /// Riemann solver object used in electron advection
     SU::RiemannSolverSharedPtr riemann_solver;
+    SU::RiemannSolverSharedPtr dia_riemann_solver;
     /// Advection object used in the electron density equation
     SU::AdvectionSharedPtr m_advection;
+    SU::AdvectionSharedPtr m_dia_advection;
     /// Advection type
     std::string adv_type;
+    std::shared_ptr<OmegaAdvection> m_omega_advection;
 
     // For Diffusion
+    Array<OneD, MR::ExpListSharedPtr> m_temps;
     // workaround for bug in DiffusionLDG
     Array<OneD, MR::ExpListSharedPtr> m_difffields;
     //
@@ -186,6 +200,8 @@ private:
     Array<OneD, NekDouble> m_kappaperp;
     Array<OneD, NekDouble> m_kappapar;
     StdRegions::VarCoeffMap m_kappa;
+
+    double m_zeta = 1;
 };
 
 } // namespace PENKNIFE

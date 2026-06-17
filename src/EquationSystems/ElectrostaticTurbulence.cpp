@@ -46,28 +46,55 @@ void ElectrostaticTurbulence::v_InitObject(bool DeclareFields)
 
     m_varConv->ee_idx = this->ee_idx;
 
+    m_temps = Array<OneD, MR::ExpListSharedPtr>(n_species + 1);
+    int f   = 0;
+    for (const auto &[s, v] : this->GetSpecies())
+    {
+        if (v.fields.find(field_to_index["e"]) != v.fields.end())
+        {
+            int ei_idx = v.fields.at(field_to_index["e"]);
+
+            m_temps[f++] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                *std::dynamic_pointer_cast<MR::DisContField>(
+                    m_indfields[ei_idx]),
+                m_graph, "e");
+        }
+    }
+    m_temps[f] = MemoryManager<MR::DisContField>::AllocateSharedPtr(
+        *std::dynamic_pointer_cast<MR::DisContField>(m_indfields[ee_idx]),
+        m_graph, "e");
+
     std::string diffName;
-    m_session->LoadSolverInfo("DiffusionType", diffName, "LDG");
-    m_diffusion =
-        SolverUtils::GetDiffusionFactory().CreateInstance(diffName, diffName);
-    m_diffusion->SetFluxVector(&ElectrostaticTurbulence::GetFluxVectorDiff,
-                               this);
+    m_session->LoadSolverInfo("DiffusionType", diffName, "LDGET");
+    // m_diffusion =
+    //     SolverUtils::GetDiffusionFactory().CreateInstance(diffName,
+    //     diffName);
+    // m_diffusion->SetFluxVector(&ElectrostaticTurbulence::GetFluxVectorDiff,
+    //                            this);
 
     // workaround for bug in DiffusionLDG
-    m_difffields = Array<OneD, MR::ExpListSharedPtr>(m_indfields.size() - 1);
-    for (int f = 0; f < m_difffields.size(); ++f)
+
+    m_difffields =
+        Array<OneD, MR::ExpListSharedPtr>(m_indfields.size() + n_species);
+    int j = 0;
+    for (int i = 0; i < m_indfields.size() - 1; ++i, ++j)
     {
-        m_difffields[f] = m_indfields[f];
+        m_difffields[j] = m_indfields[i];
+    }
+    for (int i = 0; i < n_species + 1; ++i, ++j)
+    {
+        m_difffields[j] = m_temps[i];
     }
 
-    m_diffusion->InitObject(m_session, m_difffields);
+    // m_diffusion->InitObject(m_session, m_difffields);
 
     // Create storage for velocities
 
     // ExB velocity
-    this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
+    this->v_ExB = Array<OneD, Array<OneD, NekDouble>>(3);
+    this->j_par = Array<OneD, NekDouble>(this->n_pts, 0.0);
 
-    for (int d = 0; d < m_spacedim; ++d)
+    for (int d = 0; d < 3; ++d)
     {
         this->v_ExB[d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
     }
@@ -172,14 +199,24 @@ void ElectrostaticTurbulence::InitAdvection()
     }
     // Per-field advection velocities (phi not advected, omega is calculates
     // separately)
-    this->adv_vel = Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(
-        this->advected_fields.size());
-    for (int i = 0; i < this->adv_vel.size() - 1; ++i)
+    this->adv_vel =
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(this->n_species + 2);
+    this->dia_v =
+        Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(this->n_species + 1);
+    for (int i = 0; i < this->adv_vel.size(); ++i)
     {
-        this->adv_vel[i] = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
-        for (int d = 0; d < m_spacedim; ++d)
+        this->adv_vel[i] = Array<OneD, Array<OneD, NekDouble>>(3);
+        for (int d = 0; d < 3; ++d)
         {
             this->adv_vel[i][d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
+        }
+    }
+    for (int i = 0; i < this->dia_v.size(); ++i)
+    {
+        this->dia_v[i] = Array<OneD, Array<OneD, NekDouble>>(3);
+        for (int d = 0; d < 3; ++d)
+        {
+            this->dia_v[i][d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
         }
     }
     this->omega_flux = Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
@@ -194,20 +231,12 @@ void ElectrostaticTurbulence::InitAdvection()
         auto nTrace = GetTraceNpoints();
 
         this->trace_vel_norm =
-            Array<OneD, Array<OneD, NekDouble>>(adv_vel.size());
+            Array<OneD, Array<OneD, NekDouble>>(m_advfields.size());
         this->trace_b_norm = Array<OneD, NekDouble>(nTrace, 0.0);
-        this->adv_vel_trace =
-            Array<OneD, Array<OneD, Array<OneD, NekDouble>>>(adv_vel.size());
+
         for (int i = 0; i < this->trace_vel_norm.size(); ++i)
         {
-            this->adv_vel_trace[i] =
-                Array<OneD, Array<OneD, NekDouble>>(m_spacedim);
-
             this->trace_vel_norm[i] = Array<OneD, NekDouble>(nTrace, 0.0);
-            for (int d = 0; d < m_spacedim; ++d)
-            {
-                this->adv_vel_trace[i][d] = Array<OneD, NekDouble>(nTrace, 0.0);
-            }
         }
         this->omega_flux_norm = Array<OneD, NekDouble>(nTrace, 0.0);
         this->omega_flux_trace =
@@ -226,10 +255,22 @@ void ElectrostaticTurbulence::InitAdvection()
         this->riemann_solver_type, m_session);
     auto t = std::dynamic_pointer_cast<PlasmaSolver>(this->riemann_solver);
     t->omega_idx = omega_idx;
+    t->m_system  = as<PlasmaSystem>();
 
     this->riemann_solver->SetVector(
         "Vn", &ElectrostaticTurbulence::GetAdvVelNorm, this);
     this->riemann_solver->SetScalar(
+        "wf", &ElectrostaticTurbulence::GetOmegaFlux, this);
+
+    this->dia_riemann_solver = SU::GetRiemannSolverFactory().CreateInstance(
+        "VorticityAverage", m_session);
+    t = std::dynamic_pointer_cast<PlasmaSolver>(this->dia_riemann_solver);
+    t->omega_idx = omega_idx;
+    t->m_system  = as<PlasmaSystem>();
+
+    this->dia_riemann_solver->SetVector(
+        "Vn", &ElectrostaticTurbulence::GetAdvVelNorm, this);
+    this->dia_riemann_solver->SetScalar(
         "wf", &ElectrostaticTurbulence::GetOmegaFlux, this);
 
     // Setup advection object
@@ -239,6 +280,19 @@ void ElectrostaticTurbulence::InitAdvection()
     m_advection->SetFluxVector(&ElectrostaticTurbulence::GetFluxVector, this);
     m_advection->SetRiemannSolver(this->riemann_solver);
     m_advection->InitObject(m_session, m_indfields);
+
+    m_omega_advection = std::make_shared<OmegaAdvection>();
+    m_omega_advection->SetFluxVector(&ElectrostaticTurbulence::CalcOmegaFlux,
+                                     this);
+
+    // workaround for bug in DiffusionLDG
+    // m_difffields = Array<OneD, MR::ExpListSharedPtr>(m_indfields.size() - 1);
+    // for (int f = 0; f < m_difffields.size(); ++f)
+    // {
+    //     m_difffields[f] = m_indfields[f];
+    // }
+    m_omega_advection->omega_idx = omega_idx;
+    m_omega_advection->InitObject(m_session, m_indfields[omega_idx]);
 }
 
 bool ElectrostaticTurbulence::v_PostIntegrate(int step)
@@ -283,32 +337,17 @@ void ElectrostaticTurbulence::DoOdeRhs(
         m_indfields[i]->GetFwdBwdTracePhys(inarray[i], Fwd[i], Bwd[i]);
     }
 
-    // Helmholtz Solve for electrostatic potential
-    SolvePhi(inarray, m_fields[0]->GetPhys());
-
-    // Calculate E
-    ComputeE();
-    // Calculate ExB, parallel and diamagnetic velocities
-    ComputevExB();
-    CalcVelocities(inarray, outarray);
-    AddDriftVelocities(inarray, outarray);
-
-    CalcOmegaFlux(inarray, this->omega_flux);
+    // CalcOmegaFlux(inarray, this->omega_flux, this->omega_flux_norm);
 
     // Perform advection
     DoAdvection(inarray, outarray, time, Fwd, Bwd);
 
     m_bndConds->Update(inarray, time);
 
-    for (int i = 0; i < nvariables - 1; ++i)
-    {
-        Vmath::Neg(this->n_pts, outarray[i], 1);
-    }
-
-    CalcKappaTensor();
+    // CalcKappaTensor();
 
     // Perform Diffusion
-    DoDiffusion(inarray, outarray, Fwd, Bwd);
+    // DoDiffusion(inarray, outarray, Fwd, Bwd);
 
     if (this->particles_enabled)
     {
@@ -319,6 +358,87 @@ void ElectrostaticTurbulence::DoOdeRhs(
     for (auto &x : m_forcing)
     {
         x->Apply(m_fields, inarray, outarray, time);
+    }
+}
+
+void ElectrostaticTurbulence::ApplyOmegaBC(
+    const Array<OneD, Array<OneD, NekDouble>> &inarray, const NekDouble time)
+{
+    auto BndExps = m_indfields[omega_idx]->GetBndCondExpansions();
+
+    for (size_t r = 0; r < BndExps.size(); ++r)
+    {
+        MultiRegions::ExpListSharedPtr bndExp = BndExps[r];
+
+        int nEdgePts    = bndExp->GetTotPoints();
+        int nEdgeCoeffs = bndExp->GetNcoeffs();
+
+        MultiRegions::ExpListSharedPtr bndElmtExp;
+        m_indfields[omega_idx]->GetBndElmtExpansion(r, bndElmtExp, false);
+
+        Array<OneD, Array<OneD, NekDouble>> B_bndelmt(3);
+
+        for (int d = 0; d < 3; ++d)
+        {
+            this->B[d]->ExtractPhysToBndElmt(r, this->B[d]->GetPhys(),
+                                             B_bndelmt[d]);
+        }
+
+        int bnd_elmt_pts = B_bndelmt[0].size();
+        Array<OneD, Array<OneD, NekDouble>> w(3);
+        Array<OneD, Array<OneD, NekDouble>> v_bndelmt(3);
+        for (int d = 0; d < 3; ++d)
+        {
+            w[d] = Array<OneD, NekDouble>(bnd_elmt_pts, 0.0);
+        }
+        Array<OneD, NekDouble> ni(bnd_elmt_pts);
+
+        for (const auto &[s, v] : this->GetIons())
+        {
+            int ni_idx = v.fields.at(field_to_index["n"]);
+            m_indfields[ni_idx]->ExtractPhysToBndElmt(r, inarray[ni_idx], ni);
+
+            for (int d = 0; d < 3; ++d)
+            {
+                m_indfields[omega_idx]->ExtractPhysToBndElmt(
+                    r, this->adv_vel[s][d], v_bndelmt[d]);
+            }
+
+            // Calculate sum of w = (n_i) v0 X b/|B|
+
+            for (int p = 0; p < bnd_elmt_pts; ++p)
+            {
+                NekDouble mag_B = B_bndelmt[0][p] * B_bndelmt[0][p] +
+                                  B_bndelmt[1][p] * B_bndelmt[1][p] +
+                                  B_bndelmt[2][p] * B_bndelmt[2][p];
+                w[0][p] += v.mass * ni[p] *
+                           (v_bndelmt[1][p] * B_bndelmt[2][p] -
+                            v_bndelmt[2][p] * B_bndelmt[1][p]) /
+                           mag_B;
+                w[1][p] += v.mass * ni[p] *
+                           (v_bndelmt[2][p] * B_bndelmt[0][p] -
+                            v_bndelmt[0][p] * B_bndelmt[2][p]) /
+                           mag_B;
+                w[2][p] += v.mass * ni[p] *
+                           (v_bndelmt[0][p] * B_bndelmt[1][p] -
+                            v_bndelmt[1][p] * B_bndelmt[0][p]) /
+                           mag_B;
+            }
+        }
+        Array<OneD, NekDouble> Omega(bnd_elmt_pts, 0.0);
+
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            bndElmtExp->PhysDeriv(d, w[d], w[d]);
+            Vmath::Vadd(bnd_elmt_pts, w[d], 1, Omega, 1, Omega, 1);
+        }
+
+        Array<OneD, NekDouble> Omega_bnd(nEdgePts, 0.0);
+
+        m_fields[omega_idx]->ExtractElmtToBndPhys(r, Omega, Omega_bnd);
+        bndExp->UpdatePhys() = Omega_bnd;
+
+        bndExp->FwdTransBndConstrained(Omega_bnd, bndExp->UpdateCoeffs());
     }
 }
 
@@ -334,9 +454,8 @@ void ElectrostaticTurbulence::DoAdvection(
     int nvariables = this->advected_fields.size();
     int nTracePts  = GetTraceTotPoints();
 
-    Array<OneD, Array<OneD, NekDouble>> advVel(m_spacedim);
-
     Array<OneD, Array<OneD, NekDouble>> outarrayAdv(nvariables);
+
     for (int i = 0; i < nvariables; ++i)
     {
         outarrayAdv[i] = Array<OneD, NekDouble>(this->n_pts, 0.0);
@@ -353,15 +472,50 @@ void ElectrostaticTurbulence::DoAdvection(
         inBwd[i]      = pBwd[advected_fields[i]];
     }
 
+    Array<OneD, Array<OneD, NekDouble>> advVel(m_spacedim);
+    // Helmholtz Solve for electrostatic potential
+    SolvePhi(inarray, m_fields[0]->GetPhys());
+
+    // Calculate E
+    ComputeE();
+    // // Calculate ExB, parallel and diamagnetic velocities
+    ComputevExB();
+    CalcVelocities(inarray, outarray);
+    AddDriftVelocities(inarray, outarray);
+
+    for (int k = 0; k < dia_v.size()-1; ++k)
+        for (int d = 0; d < 3; ++d)
+        {
+            Vmath::Vadd(n_pts, adv_vel[k][d], 1, dia_v[k][d], 1, adv_vel[k][d],
+                        1);
+        }
+
+    m_advection->SetRiemannSolver(this->riemann_solver);
+
     m_advection->Advect(nvariables, m_advfields, advVel, inarrayAdv,
                         outarrayAdv, time, inFwd, inBwd);
 
+    // m_omega_advection->Advect(m_indfields[omega_idx], inarrayAdv,
+    // outarrayAdv,
+    //                           inFwd, inBwd);
+
     for (int i = 0; i < nvariables; ++i)
     {
-        Vmath::Vadd(this->n_pts, outarrayAdv[i], 1,
-                    outarray[this->advected_fields[i]], 1,
-                    outarray[this->advected_fields[i]], 1);
+        Vmath::Vsub(this->n_pts, outarray[this->advected_fields[i]], 1,
+                    outarrayAdv[i], 1, outarray[this->advected_fields[i]], 1);
     }
+
+    // AddDriftVelocities(inarray, outarray);
+    // m_advection->SetRiemannSolver(this->dia_riemann_solver);
+
+    // m_advection->Advect(nvariables, m_advfields, advVel, inarrayAdv,
+    //                     outarrayAdv, time, inFwd, inBwd);
+    // for (int i = 0; i < nvariables; ++i)
+    // {
+    //     Vmath::Vsub(this->n_pts, outarray[this->advected_fields[i]], 1,
+    //                 outarrayAdv[i], 1, outarray[this->advected_fields[i]],
+    //                 1);
+    // }
 }
 
 /**
@@ -427,20 +581,6 @@ void ElectrostaticTurbulence::SolvePhi(
     // Helmholtz => Poisson (lambda = 0)
     factors[StdRegions::eFactorLambda] = 0.0;
 
-    Array<OneD, NekDouble> tmp(this->n_pts, 0.0);
-    Array<OneD, NekDouble> tmp2(this->n_pts, 0.0);
-    for (const auto &[s, v] : this->GetIons())
-    {
-        int ni_idx = v.fields.at(field_to_index["n"]);
-        int ei_idx = v.fields.at(field_to_index["e"]);
-        Vmath::Svtvp(this->n_pts, v.mass, inarray[ni_idx], 1, tmp, 1, tmp, 1);
-        Vmath::Vdiv(this->n_pts, inarray[ei_idx], 1, inarray[ni_idx], 1, tmp2,
-                    1);
-        Vmath::Smul(this->n_pts, 1.0 / v.charge, tmp2, 1, tmp2, 1);
-    }
-    Vmath::Vdiv(this->n_pts, inarray[omega_idx], 1, tmp, 1, tmp, 1);
-    Vmath::Vmul(this->n_pts, tmp, 1, this->mag_B, 1, tmp, 1);
-
     for (int i = 0; i < 3; i++)
     {
         for (int j = 0; j < 3; j++)
@@ -453,6 +593,7 @@ void ElectrostaticTurbulence::SolvePhi(
                 {
                     D[p] += 1;
                 }
+                D[p] /= mag_B[p];
             }
 
             m_phi_varcoeff[vc[i][j]] = D;
@@ -463,14 +604,29 @@ void ElectrostaticTurbulence::SolvePhi(
     // space, so backwards transform to physical space since we'll need that
     // for the advection step & computing drift velocity.
 
-    m_indfields[phi_idx]->HelmSolve(tmp, this->phi->UpdateCoeffs(), factors,
-                                    m_phi_varcoeff);
+    m_indfields[phi_idx]->HelmSolve(
+        inarray[omega_idx], this->phi->UpdateCoeffs(), factors, m_phi_varcoeff);
 
     m_indfields[phi_idx]->BwdTrans(this->phi->GetCoeffs(),
                                    this->phi->UpdatePhys());
 
-    Vmath::Vsub(this->n_pts, this->phi->GetPhys(), 1, tmp2, 1,
-                this->phi->UpdatePhys(), 1);
+    Array<OneD, NekDouble> tmp(this->n_pts, 0.0);
+    Array<OneD, NekDouble> tmp2(this->n_pts, 0.0);
+    for (const auto &[s, v] : this->GetIons())
+    {
+        int ni_idx = v.fields.at(field_to_index["n"]);
+        int ei_idx = v.fields.at(field_to_index["e"]);
+        for (int p = 0; p < this->n_pts; ++p)
+        {
+            tmp2[p] += (2. / 3) * inarray[ei_idx][p] / v.charge;
+            tmp[p] += v.mass * inarray[ni_idx][p];
+        }
+    }
+    Array<OneD, NekDouble> &phi = this->phi->UpdatePhys();
+    for (int p = 0; p < this->n_pts; ++p)
+    {
+        phi[p] = (phi[p] - tmp2[p]) / tmp[p];
+    }
     m_indfields[phi_idx]->FwdTrans(m_indfields[phi_idx]->GetPhys(),
                                    m_indfields[phi_idx]->UpdateCoeffs());
 }
@@ -525,25 +681,12 @@ void ElectrostaticTurbulence::ComputevExB()
     const Array<OneD, NekDouble> &Bx = this->B[0]->GetPhys();
     const Array<OneD, NekDouble> &By = this->B[1]->GetPhys();
     const Array<OneD, NekDouble> &Bz = this->B[2]->GetPhys();
-    if (m_spacedim == 3)
+
+    for (int p = 0; p < this->n_pts; ++p)
     {
-        for (int p = 0; p < this->n_pts; ++p)
-        {
-            this->v_ExB[0][p] =
-                (Ey[p] * Bz[p] - Ez[p] * By[p]) / this->mag_B[p];
-            this->v_ExB[1][p] =
-                (Ez[p] * Bx[p] - Ex[p] * Bz[p]) / this->mag_B[p];
-            this->v_ExB[2][p] =
-                (Ex[p] * By[p] - Ey[p] * Bx[p]) / this->mag_B[p];
-        }
-    }
-    else
-    {
-        for (int p = 0; p < this->n_pts; ++p)
-        {
-            this->v_ExB[0][p] = Ey[p] * Bz[p] / this->mag_B[p];
-            this->v_ExB[1][p] = -Ex[p] * Bz[p] / this->mag_B[p];
-        }
+        this->v_ExB[0][p] = (Ey[p] * Bz[p] - Ez[p] * By[p]) / this->mag_B[p];
+        this->v_ExB[1][p] = (Ez[p] * Bx[p] - Ex[p] * Bz[p]) / this->mag_B[p];
+        this->v_ExB[2][p] = (Ex[p] * By[p] - Ey[p] * Bx[p]) / this->mag_B[p];
     }
 }
 
@@ -584,51 +727,62 @@ void ElectrostaticTurbulence::CalcVelocities(
         {
             j_i[p] += v.charge * inarray[vi_idx][p] / v.mass;
             double v_i_par = inarray[vi_idx][p] / (v.mass * inarray[ni_idx][p]);
-            for (int d = 0; d < m_spacedim; ++d)
+            for (int d = 0; d < 3; ++d)
             {
-                this->adv_vel[ni_idx][d][p] =
-                    this->v_ExB[d][p] + v_i_par * this->b_unit[d][p];
-                this->adv_vel[vi_idx][d][p] =
-                    this->v_ExB[d][p] + v_i_par * this->b_unit[d][p];
-                this->adv_vel[ei_idx][d][p] =
+                this->adv_vel[s][d][p] =
                     this->v_ExB[d][p] + v_i_par * this->b_unit[d][p];
             }
         }
-        if (outarray != NullNekDoubleArrayOfArray)
-        {
-            if (m_spacedim == 2)
-                m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradv[0],
-                                               gradv[1]);
-            else if (m_spacedim == 3)
-                m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradv[0],
-                                               gradv[1], gradv[2]);
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                for (int d = 0; d < m_spacedim; ++d)
-                {
-                    outarray[ei_idx][p] +=
-                        (2.0 / 3.0) * inarray[ei_idx][p] * gradv[d][p];
-                }
-            }
-        }
+        // if (outarray != NullNekDoubleArrayOfArray)
+        // {
+        //     if (m_spacedim == 2)
+        //         m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradv[0],
+        //                                        gradv[1]);
+        //     else if (m_spacedim == 3)
+        //         m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradv[0],
+        //                                        gradv[1], gradv[2]);
+        //     for (int p = 0; p < this->n_pts; ++p)
+        //     {
+        //         for (int d = 0; d < m_spacedim; ++d)
+        //         {
+        //             outarray[ei_idx][p] -=
+        //                 (2.0 / 3.0) * inarray[ei_idx][p] * gradv[d][p];
+        //         }
+        //     }
+        // }
     }
-    Array<OneD, NekDouble> j_par(this->n_pts, 0.0);
+
+    Array<OneD, Array<OneD, NekDouble>> gradp(3);
+    for (int d = 0; d < 3; ++d)
+    {
+        gradp[d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
+    }
+    if (m_spacedim == 3)
+        m_indfields[ee_idx]->PhysDeriv(inarray[ee_idx], gradp[0], gradp[1],
+                                       gradp[2]);
+    else
+        m_indfields[ee_idx]->PhysDeriv(inarray[ee_idx], gradp[0], gradp[1]);
+
     // TODO calculate conductivity
-    double sigma = 0;
+    double sigma = 1;
     for (int p = 0; p < this->n_pts; ++p)
     {
-        for (int d = 0; d < m_spacedim; ++d)
+        this->j_par[p] = 0.0;
+        for (int d = 0; d < 3; ++d)
         {
-            j_par[p] += sigma * this->E[d]->GetPhys()[p] * this->b_unit[d][p];
+            this->j_par[p] += sigma *
+                              (this->E[d]->GetPhys()[p] + gradp[d][p] / ne[p]) *
+                              this->b_unit[d][p];
         }
     }
     for (int p = 0; p < this->n_pts; ++p)
     {
-        for (int d = 0; d < m_spacedim; ++d)
+        for (int d = 0; d < 3; ++d)
         {
-            this->adv_vel[ee_idx][d][p] =
+            this->adv_vel[n_species][d][p] =
                 this->v_ExB[d][p] +
-                this->b_unit[d][p] * (j_i[p] - j_par[p]) / ne[p];
+                this->b_unit[d][p] * (j_i[p] - this->j_par[p]) / ne[p];
+            this->adv_vel[n_species + 1][d][p] = 0.5 * this->v_ExB[d][p];
         }
     }
 
@@ -643,8 +797,21 @@ void ElectrostaticTurbulence::CalcVelocities(
         {
             for (int d = 0; d < m_spacedim; ++d)
             {
-                outarray[ee_idx][p] +=
-                    (2.0 / 3.0) * inarray[ee_idx][p] * gradv[d][p];
+                // outarray[ee_idx][p] -=
+                //     (2.0 / 3.0) * inarray[ee_idx][p] * gradv[d][p];
+            }
+        }
+
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            for (int p = 0; p < this->n_pts; ++p)
+            {
+                gradv[d][p] = this->j_par[p] * b_unit[d][p];
+            }
+            m_indfields[omega_idx]->PhysDeriv(d, gradv[d], gradv[d]);
+            for (int p = 0; p < this->n_pts; ++p)
+            {
+                // outarray[omega_idx][p] += gradv[d][p];
             }
         }
     }
@@ -660,9 +827,7 @@ void ElectrostaticTurbulence::CalcVelocities(
             double v_n_par = inarray[vn_idx][p] / (v.mass * inarray[nn_idx][p]);
             for (int d = 0; d < m_spacedim; ++d)
             {
-                this->adv_vel[nn_idx][d][p] = v_n_par * this->b_unit[d][p];
-                this->adv_vel[vn_idx][d][p] = v_n_par * this->b_unit[d][p];
-                this->adv_vel[pn_idx][d][p] = v_n_par * this->b_unit[d][p];
+                this->adv_vel[s][d][p] = v_n_par * this->b_unit[d][p];
             }
         }
     }
@@ -681,9 +846,9 @@ void ElectrostaticTurbulence::AddDriftVelocities(
     const Array<OneD, NekDouble> &By = this->B[1]->GetPhys();
     const Array<OneD, NekDouble> &Bz = this->B[2]->GetPhys();
 
-    Array<OneD, Array<OneD, NekDouble>> gradp(m_spacedim);
+    Array<OneD, Array<OneD, NekDouble>> gradp(3);
 
-    for (int d = 0; d < m_spacedim; ++d)
+    for (int d = 0; d < 3; ++d)
     {
         gradp[d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
     }
@@ -694,79 +859,46 @@ void ElectrostaticTurbulence::AddDriftVelocities(
         int vi_idx = v.fields.at(field_to_index["v"]);
         int ei_idx = v.fields.at(field_to_index["e"]);
 
-        if (m_spacedim == 2)
-            m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradp[0], gradp[1]);
-        else if (m_spacedim == 3)
-            m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradp[0], gradp[1],
-                                           gradp[2]);
-
         if (m_spacedim == 3)
-        {
             m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradp[0], gradp[1],
                                            gradp[2]);
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                double driftvx =
-                    (2.0 / 3.0) * (gradp[1][p] * Bz[p] - gradp[2][p] * By[p]) /
-                    (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
-                double driftvy =
-                    (2.0 / 3.0) * (gradp[2][p] * Bx[p] - gradp[0][p] * Bz[p]) /
-                    (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
-                double driftvz =
-                    (2.0 / 3.0) * (gradp[0][p] * By[p] - gradp[1][p] * Bx[p]) /
-                    (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
-                this->adv_vel[ni_idx][0][p] += driftvx;
-                this->adv_vel[ni_idx][1][p] += driftvy;
-                this->adv_vel[ni_idx][2][p] += driftvz;
-
-                this->adv_vel[vi_idx][0][p] += driftvx;
-                this->adv_vel[vi_idx][1][p] += driftvy;
-                this->adv_vel[vi_idx][2][p] += driftvz;
-
-                this->adv_vel[ei_idx][0][p] += (5.0 / 3.0) * driftvx;
-                this->adv_vel[ei_idx][1][p] += (5.0 / 3.0) * driftvy;
-                this->adv_vel[ei_idx][2][p] += (5.0 / 3.0) * driftvz;
-
-                for (int d = 0; d < m_spacedim; ++d)
-                {
-                    outarray[vi_idx][p] +=
-                        b_unit[d][p] * ((2.0 / 3.0) * gradp[d][p] -
-                                        v.charge * inarray[ni_idx][p] *
-                                            this->E[d]->GetPhys()[p]);
-                }
-            }
-        }
         else
-        {
             m_indfields[ei_idx]->PhysDeriv(inarray[ei_idx], gradp[0], gradp[1]);
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                double driftvx =
-                    (2.0 / 3.0) * (gradp[1][p] * Bz[p]) /
-                    (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
-                double driftvy =
-                    (2.0 / 3.0) * (-gradp[0][p] * Bz[p]) /
-                    (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
 
-                this->adv_vel[ni_idx][0][p] += driftvx;
-                this->adv_vel[ni_idx][1][p] += driftvy;
+        // if (outarray != NullNekDoubleArrayOfArray)
+        // {
+        //     for (int p = 0; p < this->n_pts; ++p)
+        //     {
+        //         for (int d = 0; d < m_spacedim; ++d)
+        //         {
+        //             outarray[vi_idx][p] +=
+        //                 b_unit[d][p] * (v.charge * inarray[ni_idx][p] *
+        //                                     this->E[d]->GetPhys()[p] -
+        //                                 (2.0 / 3.0) * gradp[d][p]);
+        //         }
+        //     }
+        // }
+        // else
+        // {
+        for (int p = 0; p < this->n_pts; ++p)
+        {
+            double driftvx = (2.0 / 3.0) *
+                             (gradp[1][p] * Bz[p] - gradp[2][p] * By[p]) /
+                             (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
+            double driftvy = (2.0 / 3.0) *
+                             (gradp[2][p] * Bx[p] - gradp[0][p] * Bz[p]) /
+                             (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
+            double driftvz = (2.0 / 3.0) *
+                             (gradp[0][p] * By[p] - gradp[1][p] * Bx[p]) /
+                             (v.charge * this->mag_B[p] * inarray[ni_idx][p]);
 
-                this->adv_vel[vi_idx][0][p] += driftvx;
-                this->adv_vel[vi_idx][1][p] += driftvy;
-
-                this->adv_vel[ei_idx][0][p] += (5.0 / 3.0) * driftvx;
-                this->adv_vel[ei_idx][1][p] += (5.0 / 3.0) * driftvy;
-
-                for (int d = 0; d < m_spacedim; ++d)
-                {
-                    outarray[vi_idx][p] +=
-                        b_unit[d][p] * ((2.0 / 3.0) * gradp[d][p] -
-                                        v.charge * inarray[ni_idx][p] *
-                                            this->E[d]->GetPhys()[p]);
-                }
-            }
+            this->dia_v[s][0][p] = driftvx;
+            this->dia_v[s][1][p] = driftvy;
+            this->dia_v[s][2][p] = driftvz;
         }
+        //}
     }
+
     for (const auto &[s, v] : this->GetNeutrals())
     {
         int nn_idx = v.fields.at(field_to_index["n"]);
@@ -779,22 +911,8 @@ void ElectrostaticTurbulence::AddDriftVelocities(
             m_indfields[en_idx]->PhysDeriv(inarray[en_idx], gradp[0], gradp[1],
                                            gradp[2]);
 
-        if (m_spacedim == 3)
+        if (outarray != NullNekDoubleArrayOfArray)
         {
-            m_indfields[en_idx]->PhysDeriv(inarray[en_idx], gradp[0], gradp[1],
-                                           gradp[2]);
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                for (int d = 0; d < m_spacedim; ++d)
-                {
-                    outarray[vn_idx][p] +=
-                        b_unit[d][p] * ((2.0 / 3.0) * gradp[d][p]);
-                }
-            }
-        }
-        else
-        {
-            m_indfields[en_idx]->PhysDeriv(inarray[en_idx], gradp[0], gradp[1]);
             for (int p = 0; p < this->n_pts; ++p)
             {
                 for (int d = 0; d < m_spacedim; ++d)
@@ -807,40 +925,30 @@ void ElectrostaticTurbulence::AddDriftVelocities(
     }
     // Calculate electron diagmagnetic velocity
     if (m_spacedim == 3)
-    {
         m_indfields[ee_idx]->PhysDeriv(inarray[ee_idx], gradp[0], gradp[1],
                                        gradp[2]);
-        for (int p = 0; p < this->n_pts; ++p)
-        {
-            double driftvx = (2.0 / 3.0) *
-                             (gradp[1][p] * Bz[p] - gradp[2][p] * By[p]) /
-                             (this->mag_B[p] * ne[p]);
-            double driftvy = (2.0 / 3.0) *
-                             (gradp[2][p] * Bx[p] - gradp[0][p] * Bz[p]) /
-                             (this->mag_B[p] * ne[p]);
-            double driftvz = (2.0 / 3.0) *
-                             (gradp[0][p] * By[p] - gradp[1][p] * Bx[p]) /
-                             (this->mag_B[p] * ne[p]);
-
-            this->adv_vel[ee_idx][0][p] += (5.0 / 3.0) * driftvx;
-            this->adv_vel[ee_idx][1][p] += (5.0 / 3.0) * driftvy;
-            this->adv_vel[ee_idx][2][p] += (5.0 / 3.0) * driftvz;
-        }
-    }
     else
-    {
         m_indfields[ee_idx]->PhysDeriv(inarray[ee_idx], gradp[0], gradp[1]);
-        for (int p = 0; p < this->n_pts; ++p)
-        {
-            double driftvx =
-                (2.0 / 3.0) * (gradp[1][p] * Bz[p]) / (this->mag_B[p] * ne[p]);
-            double driftvy =
-                (2.0 / 3.0) * (-gradp[0][p] * Bz[p]) / (this->mag_B[p] * ne[p]);
 
-            this->adv_vel[ee_idx][0][p] += (5.0 / 3.0) * driftvx;
-            this->adv_vel[ee_idx][1][p] += (5.0 / 3.0) * driftvy;
-        }
+    // if (outarray == NullNekDoubleArrayOfArray)
+    // {
+    for (int p = 0; p < this->n_pts; ++p)
+    {
+        double driftvx = (2.0 / 3.0) *
+                         (gradp[1][p] * Bz[p] - gradp[2][p] * By[p]) /
+                         (this->mag_B[p] * ne[p]);
+        double driftvy = (2.0 / 3.0) *
+                         (gradp[2][p] * Bx[p] - gradp[0][p] * Bz[p]) /
+                         (this->mag_B[p] * ne[p]);
+        double driftvz = (2.0 / 3.0) *
+                         (gradp[0][p] * By[p] - gradp[1][p] * Bx[p]) /
+                         (this->mag_B[p] * ne[p]);
+
+        this->dia_v[n_species][0][p] = driftvx;
+        this->dia_v[n_species][1][p] = driftvy;
+        this->dia_v[n_species][2][p] = driftvz;
     }
+    //}
 }
 
 /**
@@ -851,9 +959,10 @@ void ElectrostaticTurbulence::CalcInitOmega()
     const Array<OneD, NekDouble> &Bx = this->B[0]->GetPhys();
     const Array<OneD, NekDouble> &By = this->B[1]->GetPhys();
     const Array<OneD, NekDouble> &Bz = this->B[2]->GetPhys();
+    Vmath::Zero(this->n_pts, m_indfields[omega_idx]->UpdatePhys(), 1);
 
-    Array<OneD, Array<OneD, NekDouble>> w(m_spacedim);
-    for (int d = 0; d < m_spacedim; ++d)
+    Array<OneD, Array<OneD, NekDouble>> w(3);
+    for (int d = 0; d < 3; ++d)
     {
         w[d] = Array<OneD, NekDouble>(this->n_pts, 0.0);
     }
@@ -862,34 +971,19 @@ void ElectrostaticTurbulence::CalcInitOmega()
     {
         int ni_idx                       = v.fields.at(field_to_index["n"]);
         const Array<OneD, NekDouble> &ni = m_indfields[ni_idx]->GetPhys();
-        // Calculate sum of w = (n_i) v0 X b/|B|
-        if (m_spacedim == 3)
+        // Calculate sum of Zw = (n_i) v0 X b/|B|
+
+        for (int p = 0; p < this->n_pts; ++p)
         {
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                w[0][p] += v.mass * ni[p] *
-                           (this->adv_vel[ni_idx][1][p] * Bz[p] -
-                            this->adv_vel[ni_idx][2][p] * By[p]) /
-                           this->mag_B[p];
-                w[1][p] += v.mass * ni[p] *
-                           (this->adv_vel[ni_idx][2][p] * Bx[p] -
-                            this->adv_vel[ni_idx][0][p] * Bz[p]) /
-                           this->mag_B[p];
-                w[2][p] += v.mass * ni[p] *
-                           (this->adv_vel[ni_idx][0][p] * By[p] -
-                            this->adv_vel[ni_idx][1][p] * Bx[p]) /
-                           this->mag_B[p];
-            }
-        }
-        else if (m_spacedim == 2)
-        {
-            for (int p = 0; p < this->n_pts; ++p)
-            {
-                w[0][p] += v.mass * ni[p] * this->adv_vel[ni_idx][1][p] *
-                           Bz[p] / this->mag_B[p];
-                w[1][p] += -v.mass * ni[p] * this->adv_vel[ni_idx][0][p] *
-                           Bz[p] / this->mag_B[p];
-            }
+            double vx = this->adv_vel[s][0][p] + this->dia_v[s][0][p];
+            double vy = this->adv_vel[s][1][p] + this->dia_v[s][1][p];
+            double vz = this->adv_vel[s][2][p] + this->dia_v[s][2][p];
+            w[0][p] +=
+                v.mass * ni[p] * (vy * Bz[p] - vz * By[p]) / this->mag_B[p];
+            w[1][p] +=
+                v.mass * ni[p] * (vz * Bx[p] - vx * Bz[p]) / this->mag_B[p];
+            w[2][p] +=
+                v.mass * ni[p] * (vx * By[p] - vy * Bx[p]) / this->mag_B[p];
         }
     }
     for (int d = 0; d < m_spacedim; ++d)
@@ -899,9 +993,9 @@ void ElectrostaticTurbulence::CalcInitOmega()
         Vmath::Vadd(this->n_pts, w[d], 1, m_indfields[omega_idx]->GetPhys(), 1,
                     m_indfields[omega_idx]->UpdatePhys(), 1);
     }
-    Vmath::Smul(this->n_pts, 1.0 / this->omega_c,
-                m_indfields[omega_idx]->GetPhys(), 1,
-                m_indfields[omega_idx]->UpdatePhys(), 1);
+    // Vmath::Smul(this->n_pts, 1.0 / this->omega_c,
+    //             m_indfields[omega_idx]->GetPhys(), 1,
+    //             m_indfields[omega_idx]->UpdatePhys(), 1);
 
     m_indfields[omega_idx]->FwdTransLocalElmt(
         m_indfields[omega_idx]->GetPhys(),
@@ -913,47 +1007,73 @@ void ElectrostaticTurbulence::CalcInitOmega()
  */
 void ElectrostaticTurbulence::CalcOmegaFlux(
     const Array<OneD, Array<OneD, NekDouble>> &inarray,
-    Array<OneD, Array<OneD, NekDouble>> &omega_flux)
+    Array<OneD, Array<OneD, NekDouble>> &volume_flux,
+    Array<OneD, NekDouble> &trace_flux)
 {
+    size_t n_tracepoints = GetTraceNpoints();
+    size_t ncoeffs       = GetNcoeffs();
+
     const Array<OneD, NekDouble> &Bx = this->B[0]->GetPhys();
     const Array<OneD, NekDouble> &By = this->B[1]->GetPhys();
     const Array<OneD, NekDouble> &Bz = this->B[2]->GetPhys();
     for (int d = 0; d < m_spacedim; ++d)
     {
-        Vmath::Zero(this->n_pts, omega_flux[d], 1);
+        Vmath::Zero(this->n_pts, volume_flux[d], 1);
+        // Vmath::Zero(ncoeffs, omega_flux[d], 1);
     }
+    Vmath::Zero(n_tracepoints, trace_flux, 1);
+
+    Array<OneD, Array<OneD, NekDouble>> normals(m_spacedim);
+
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        normals[d] = Array<OneD, NekDouble>(n_tracepoints);
+    }
+
+    m_indfields[omega_idx]->GetTrace()->GetNormals(normals);
+
     for (const auto &[s, v] : this->GetIons())
     {
         int ni_idx = v.fields.at(field_to_index["n"]);
+        int vi_idx = v.fields.at(field_to_index["v"]);
 
         // Calculate w = (n_i) v0 X b/|B|
         Array<OneD, Array<OneD, NekDouble>> w(m_spacedim);
         if (m_spacedim == 3)
         {
+            w[0] = Array<OneD, NekDouble>(this->n_pts);
+            w[1] = Array<OneD, NekDouble>(this->n_pts);
+            w[2] = Array<OneD, NekDouble>(this->n_pts);
             for (int p = 0; p < this->n_pts; ++p)
             {
                 w[0][p] = inarray[ni_idx][p] *
-                          (this->adv_vel[ni_idx][1][p] * Bz[p] -
-                           this->adv_vel[ni_idx][2][p] * By[p]) /
+                          (this->adv_vel[s][1][p] * Bz[p] -
+                           this->adv_vel[s][2][p] * By[p]) /
                           this->mag_B[p];
                 w[1][p] = inarray[ni_idx][p] *
-                          (this->adv_vel[ni_idx][2][p] * Bx[p] -
-                           this->adv_vel[ni_idx][0][p] * Bz[p]) /
+                          (this->adv_vel[s][2][p] * Bx[p] -
+                           this->adv_vel[s][0][p] * Bz[p]) /
                           this->mag_B[p];
                 w[2][p] = inarray[ni_idx][p] *
-                          (this->adv_vel[ni_idx][0][p] * By[p] -
-                           this->adv_vel[ni_idx][1][p] * Bx[p]) /
+                          (this->adv_vel[s][0][p] * By[p] -
+                           this->adv_vel[s][1][p] * Bx[p]) /
                           this->mag_B[p];
             }
         }
         else if (m_spacedim == 2)
         {
+            w[0] = Array<OneD, NekDouble>(this->n_pts);
+            w[1] = Array<OneD, NekDouble>(this->n_pts);
             for (int p = 0; p < this->n_pts; ++p)
             {
-                w[0][p] = inarray[ni_idx][p] * this->adv_vel[ni_idx][1][p] *
-                          Bz[p] / this->mag_B[p];
-                w[1][p] = -inarray[ni_idx][p] * this->adv_vel[ni_idx][0][p] *
-                          Bz[p] / this->mag_B[p];
+                w[0][p] = inarray[ni_idx][p] *
+                          (this->adv_vel[s][1][p] * Bz[p] -
+                           this->adv_vel[s][2][p] * By[p]) /
+                          this->mag_B[p];
+                w[1][p] = inarray[ni_idx][p] *
+                          (this->adv_vel[s][2][p] * Bx[p] -
+                           this->adv_vel[s][0][p] * Bz[p]) /
+                          this->mag_B[p];
             }
         }
 
@@ -963,19 +1083,105 @@ void ElectrostaticTurbulence::CalcOmegaFlux(
 
             for (int d2 = 0; d2 < m_spacedim; ++d2)
             {
-                Array<OneD, NekDouble> tmp2(this->n_pts, 0.0);
+                Array<OneD, NekDouble> vw(this->n_pts, 0.0);
+                Array<OneD, NekDouble> tmp_c(ncoeffs, 0.0);
+                Array<OneD, NekDouble> Fwd(n_tracepoints, 0.0);
+                Array<OneD, NekDouble> Bwd(n_tracepoints, 0.0);
 
-                // Calculate ∇⋅(w⊗v0)
-                Vmath::Vmul(this->n_pts, this->adv_vel[ni_idx][d], 1, w[d2], 1,
-                            tmp2, 1);
-                m_indfields[omega_idx]->PhysDeriv(d2, tmp2, tmp2);
-                Vmath::Vadd(this->n_pts, tmp2, 1, tmp, 1, tmp, 1);
+                // Calculate ∇⋅(v0⊗w)
+                Vmath::Vmul(this->n_pts, this->adv_vel[s][d], 1, w[d2], 1, vw,
+                            1);
+                m_indfields[omega_idx]->PhysDeriv(d2, vw, vw);
+
+                // m_indfields[omega_idx]->GetFwdBwdTracePhys(vw, Fwd, Bwd);
+                // Vmath::Vmul(n_tracepoints, normals[d2], 1, Fwd, 1, Fwd, 1);
+                // m_indfields[omega_idx]->IProductWRTDerivBase(d2, vw, tmp_c);
+                // Vmath::Neg(ncoeffs, tmp_c, 1);
+                // m_indfields[omega_idx]->AddTraceIntegral(Fwd, tmp_c);
+                // m_indfields[omega_idx]->MultiplyByElmtInvMass(tmp_c, tmp_c);
+                // m_indfields[omega_idx]->BwdTrans(tmp_c, vw);
+
+                Vmath::Vadd(this->n_pts, vw, 1, tmp, 1, tmp, 1);
             }
             // Vorticity Flux
-            Vmath::Smul(this->n_pts, v.mass / this->omega_c, tmp, 1, tmp, 1);
-            Vmath::Vadd(this->n_pts, tmp, 1, omega_flux[d], 1, omega_flux[d],
+            Vmath::Smul(this->n_pts, v.mass, tmp, 1, tmp, 1);
+            Vmath::Vadd(this->n_pts, tmp, 1, volume_flux[d], 1, volume_flux[d],
                         1);
         }
+
+        Array<OneD, NekDouble> tmp(this->n_pts, 0.0);
+        Array<OneD, NekDouble> divw(this->n_pts, 0.0);
+
+        // // Calculate ∇⋅w
+        // for (int d = 0; d < m_spacedim; ++d)
+        // {
+        //     m_indfields[omega_idx]->PhysDeriv(d, w[d], tmp);
+        //     Vmath::Vadd(this->n_pts, tmp, 1, divw, 1, divw, 1);
+        // }
+        // Vmath::Smul(this->n_pts, v.mass, divw, 1, divw, 1);
+
+        // for (int d = 0; d < m_spacedim; ++d)
+        // {
+        //     Vmath::Vmul(this->n_pts, this->adv_vel[ni_idx][d], 1, divw, 1,
+        //     tmp,
+        //                 1);
+
+        //     // Vorticity Flux
+        //     Vmath::Vadd(this->n_pts, tmp, 1, volume_flux[d], 1,
+        //     volume_flux[d],
+        //                 1);
+        // }
+        Array<OneD, NekDouble> trace_vel(n_tracepoints, 0.0);
+        Array<OneD, NekDouble> trace_vel_norm(n_tracepoints, 0.0);
+
+        Array<OneD, NekDouble> Fwd(n_tracepoints, 0.0);
+        Array<OneD, NekDouble> Bwd(n_tracepoints, 0.0);
+
+        m_indfields[omega_idx]->GetFwdBwdTracePhys(inarray[omega_idx], Fwd,
+                                                   Bwd);
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            m_indfields[omega_idx]->ExtractTracePhys(this->v_ExB[d], trace_vel);
+            for (int p = 0; p < n_tracepoints; ++p)
+            {
+                trace_vel_norm[p] += normals[d][p] * trace_vel[p];
+            }
+        }
+        for (int p = 0; p < n_tracepoints; ++p)
+        {
+            trace_flux[p] +=
+                (trace_vel_norm[p] > 0 ? 0.5 * Fwd[p] * trace_vel_norm[p]
+                                       : 0.5 * Bwd[p] * trace_vel_norm[p]);
+        }
+
+        // Array<OneD, NekDouble> trace_flux_d(n_tracepoints, 0.0);
+        // Array<OneD, NekDouble> Fwd(n_tracepoints, 0.0);
+        // Array<OneD, NekDouble> Bwd(n_tracepoints, 0.0);
+        // Array<OneD, NekDouble> qFwd(n_tracepoints, 0.0);
+        // Array<OneD, NekDouble> qBwd(n_tracepoints, 0.0);
+        // Array<OneD, NekDouble> uterm(n_tracepoints, 0.0);
+
+        // m_indfields[omega_idx]->GetFwdBwdTracePhys(inarray[omega_idx], Fwd,
+        //                                            Bwd);
+        // Vmath::Vsub(n_tracepoints, Fwd, 1, Bwd, 1, uterm, 1);
+        // Vmath::Smul(n_tracepoints, 100.0, uterm, 1, uterm, 1);
+
+        // for (int d = 0; d < m_spacedim; ++d)
+        // {
+        //     // m_indfields[omega_idx]->GetFwdBwdTracePhys(volume_flux[d],
+        //     qFwd,
+        //     //                                            qBwd);
+        //     m_indfields[omega_idx]->ExtractTracePhys(volume_flux[d],
+        //                                              trace_flux_d);
+        //     for (int p = 0; p < n_tracepoints; ++p)
+        //     {
+        //         // trace_flux[p] += normals[d][p] * qFwd[p];
+        //         trace_flux[p] += normals[d][p] * trace_flux_d[p];
+        //     }
+        //     // Vmath::Vadd(n_tracepoints, uterm, 1, trace_flux, 1,
+        //     trace_flux,
+        //     // 1);
+        // }
     }
 }
 
@@ -987,28 +1193,76 @@ Array<OneD, Array<OneD, NekDouble>> &ElectrostaticTurbulence::GetAdvVelNorm()
 {
     // Number of trace (interface) points
     int num_trace_pts = GetTraceNpoints();
+    Array<OneD, Array<OneD, NekDouble>> normals(m_spacedim);
+    Array<OneD, NekDouble> tmp(num_trace_pts);
 
-    // Compute advection vel dot trace normals and store
-    for (int j = 0; j < this->adv_vel_trace.size(); ++j)
+    for (int d = 0; d < m_spacedim; ++d)
     {
-        Array<OneD, Array<OneD, NekDouble>> normals(m_spacedim);
-
+        normals[d] = Array<OneD, NekDouble>(num_trace_pts);
+    }
+    // Compute advection vel dot trace normals and store
+    for (const auto &[s, v] : this->GetIons())
+    {
+        int ni_idx = v.fields.at(field_to_index["n"]);
+        int vi_idx = v.fields.at(field_to_index["v"]);
+        int ei_idx = v.fields.at(field_to_index["e"]);
+        m_indfields[ni_idx]->GetTrace()->GetNormals(normals);
+        // Ensure output array is zeroed
+        Vmath::Zero(num_trace_pts, this->trace_vel_norm[ni_idx], 1);
         for (int d = 0; d < m_spacedim; ++d)
         {
-            normals[d] = Array<OneD, NekDouble>(num_trace_pts);
-        }
-        m_indfields[j]->GetTrace()->GetNormals(normals);
-        // Ensure output array is zeroed
-        Vmath::Zero(num_trace_pts, this->trace_vel_norm[j], 1);
-        for (int d = 0; d < this->adv_vel_trace[j].size(); ++d)
-        {
-            m_indfields[j]->ExtractTracePhys(this->adv_vel[j][d],
-                                             this->adv_vel_trace[j][d]);
+            m_indfields[ni_idx]->ExtractTracePhys(this->adv_vel[s][d], tmp);
             for (int p = 0; p < num_trace_pts; ++p)
             {
-                this->trace_vel_norm[j][p] +=
-                    normals[d][p] * this->adv_vel_trace[j][d][p];
+                this->trace_vel_norm[ni_idx][p] += normals[d][p] * tmp[p];
             }
+        }
+
+        m_indfields[vi_idx]->GetTrace()->GetNormals(normals);
+        // Ensure output array is zeroed
+        Vmath::Zero(num_trace_pts, this->trace_vel_norm[vi_idx], 1);
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            m_indfields[vi_idx]->ExtractTracePhys(this->adv_vel[s][d], tmp);
+            for (int p = 0; p < num_trace_pts; ++p)
+            {
+                this->trace_vel_norm[vi_idx][p] += normals[d][p] * tmp[p];
+            }
+        }
+
+        m_indfields[ei_idx]->GetTrace()->GetNormals(normals);
+        // Ensure output array is zeroed
+        Vmath::Zero(num_trace_pts, this->trace_vel_norm[ei_idx], 1);
+        for (int d = 0; d < m_spacedim; ++d)
+        {
+            m_indfields[ei_idx]->ExtractTracePhys(this->adv_vel[s][d], tmp);
+            for (int p = 0; p < num_trace_pts; ++p)
+            {
+                this->trace_vel_norm[ei_idx][p] += normals[d][p] * tmp[p];
+            }
+        }
+    }
+    m_indfields[ee_idx]->GetTrace()->GetNormals(normals);
+    // Ensure output array is zeroed
+    Vmath::Zero(num_trace_pts, this->trace_vel_norm[ee_idx], 1);
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        m_indfields[ee_idx]->ExtractTracePhys(this->adv_vel[n_species][d], tmp);
+        for (int p = 0; p < num_trace_pts; ++p)
+        {
+            this->trace_vel_norm[ee_idx][p] += normals[d][p] * tmp[p];
+        }
+    }
+    m_indfields[omega_idx]->GetTrace()->GetNormals(normals);
+    // Ensure output array is zeroed
+    Vmath::Zero(num_trace_pts, this->trace_vel_norm[omega_idx], 1);
+    for (int d = 0; d < m_spacedim; ++d)
+    {
+        m_indfields[omega_idx]->ExtractTracePhys(
+            this->adv_vel[n_species + 1][d], tmp);
+        for (int p = 0; p < num_trace_pts; ++p)
+        {
+            this->trace_vel_norm[omega_idx][p] += normals[d][p] * tmp[p];
         }
     }
     return this->trace_vel_norm;
@@ -1019,26 +1273,27 @@ Array<OneD, Array<OneD, NekDouble>> &ElectrostaticTurbulence::GetAdvVelNorm()
  */
 Array<OneD, NekDouble> &ElectrostaticTurbulence::GetOmegaFlux()
 {
-    int num_trace_pts = GetTraceNpoints();
-    Array<OneD, Array<OneD, NekDouble>> normals(m_spacedim);
+    // int num_trace_pts = GetTraceNpoints();
+    // Array<OneD, Array<OneD, NekDouble>> normals(m_spacedim);
 
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        normals[d] = Array<OneD, NekDouble>(num_trace_pts);
-    }
+    // for (int d = 0; d < m_spacedim; ++d)
+    // {
+    //     normals[d] = Array<OneD, NekDouble>(num_trace_pts);
+    // }
 
-    m_indfields[omega_idx]->GetTrace()->GetNormals(normals);
-    Vmath::Zero(num_trace_pts, this->omega_flux_norm, 1);
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        m_indfields[omega_idx]->ExtractTracePhys(this->omega_flux[d],
-                                                 this->omega_flux_trace[d]);
-        for (int p = 0; p < num_trace_pts; ++p)
-        {
-            this->omega_flux_norm[p] +=
-                normals[d][p] * this->omega_flux_trace[d][p];
-        }
-    }
+    // m_indfields[omega_idx]->GetTrace()->GetNormals(normals);
+    // Vmath::Zero(num_trace_pts, this->omega_flux_norm, 1);
+
+    // for (int d = 0; d < m_spacedim; ++d)
+    // {
+    //     m_indfields[omega_idx]->ExtractTracePhys(this->omega_flux[d],
+    //                                              this->omega_flux_trace[d]);
+    //     for (int p = 0; p < num_trace_pts; ++p)
+    //     {
+    //         this->omega_flux_norm[p] +=
+    //             normals[d][p] * this->omega_flux_trace[d][p];
+    //     }
+    // }
 
     return this->omega_flux_norm;
 }
@@ -1063,12 +1318,12 @@ void ElectrostaticTurbulence::GetFluxVector(
         {
             for (int p = 0; p < this->n_pts; ++p)
             {
-                fluxes[ni_idx][d][p] =
-                    this->adv_vel[ni_idx][d][p] * field_vals[ni_idx][p];
-                fluxes[vi_idx][d][p] =
-                    this->adv_vel[vi_idx][d][p] * field_vals[vi_idx][p];
-                fluxes[ei_idx][d][p] =
-                    this->adv_vel[ei_idx][d][p] * field_vals[ei_idx][p];
+                double v  = this->adv_vel[s][d][p];
+                double vd = this->dia_v[s][d][p];
+
+                fluxes[ni_idx][d][p] = v * field_vals[ni_idx][p];
+                fluxes[vi_idx][d][p] = v * field_vals[vi_idx][p];
+                fluxes[ei_idx][d][p] = v * field_vals[ei_idx][p];
             }
         }
     }
@@ -1076,16 +1331,31 @@ void ElectrostaticTurbulence::GetFluxVector(
     {
         for (int p = 0; p < this->n_pts; ++p)
         {
-            fluxes[ee_idx][d][p] =
-                this->adv_vel[ee_idx][d][p] * field_vals[ee_idx][p];
+            double v             = this->adv_vel[n_species][d][p];
+            fluxes[ee_idx][d][p] = v * field_vals[ee_idx][p];
+            fluxes[omega_idx][d][p] =
+                this->adv_vel[n_species + 1][d][p] * field_vals[omega_idx][p];
         }
     }
+    // for (int d = 0; d < m_spacedim; ++d)
+    // {
+    //     for (int d2 = 0; d2 < m_spacedim; ++d2)
+    //     {
+    //         auto &Ek = this->E[d2]->GetPhys();
+    //         for (int p = 0; p < this->n_pts; ++p)
+    //         {
+    //             fluxes[omega_idx][d][p] += Ek[p] * b_unit[d2][p] *
+    //             b_unit[d][p];
+    //         }
+    //     }
+    // }
     // Omega flux
-    for (int d = 0; d < m_spacedim; ++d)
-    {
-        Vmath::Vcopy(this->n_pts, this->omega_flux[d], 1, fluxes[omega_idx][d],
-                     1);
-    }
+    // for (int d = 0; d < m_spacedim; ++d)
+    // {
+    //     Vmath::Vcopy(this->n_pts, this->omega_flux[d], 1,
+    //     fluxes[omega_idx][d],
+    //                  1);
+    // }
 }
 
 /**
@@ -1107,46 +1377,61 @@ void ElectrostaticTurbulence::DoDiffusion(
         outarrayDiff[i] = Array<OneD, NekDouble>(this->n_pts, 0.0);
     }
 
-    Array<OneD, Array<OneD, NekDouble>> inarrayDiff(nvariables);
-    Array<OneD, Array<OneD, NekDouble>> inFwd(nvariables);
-    Array<OneD, Array<OneD, NekDouble>> inBwd(nvariables);
+    Array<OneD, Array<OneD, NekDouble>> inarrayprim(nvariables + n_species + 1);
+    Array<OneD, Array<OneD, NekDouble>> inFwdprim(nvariables + n_species + 1);
+    Array<OneD, Array<OneD, NekDouble>> inBwdprim(nvariables + n_species + 1);
 
-    for (int i = 0; i < nvariables; ++i)
-    {
-        inarrayDiff[i] = Array<OneD, NekDouble>(this->n_pts, 0.0);
-        inFwd[i]       = Array<OneD, NekDouble>(nTracePts, 0.0);
-        inBwd[i]       = Array<OneD, NekDouble>(nTracePts, 0.0);
-    }
-
-    // Extract temperature
-    m_varConv->GetElectronTemperature(inarray, inarrayDiff[ee_idx]);
-
+    int t = 0;
     for (const auto &[s, v] : this->GetSpecies())
     {
-        int ei_idx = v.fields.at(field_to_index["e"]);
-        m_varConv->GetIonTemperature(s, v.mass, inarray, inarrayDiff[ei_idx]);
-    }
+        int ei_idx          = v.fields.at(field_to_index["e"]);
+        int ni_idx          = v.fields.at(field_to_index["n"]);
+        int vi_idx          = v.fields.at(field_to_index["v"]);
+        int ti_idx          = nvariables + t++;
+        inarrayprim[ni_idx] = Array<OneD, NekDouble>(inarray[ni_idx]);
+        inFwdprim[ni_idx]   = Array<OneD, NekDouble>(pFwd[ni_idx]);
+        inBwdprim[ni_idx]   = Array<OneD, NekDouble>(pBwd[ni_idx]);
 
-    // Repeat calculation for trace space
-    if (pFwd == NullNekDoubleArrayOfArray || pBwd == NullNekDoubleArrayOfArray)
-    {
-        inFwd = NullNekDoubleArrayOfArray;
-        inBwd = NullNekDoubleArrayOfArray;
-    }
-    else
-    {
-        m_varConv->GetElectronTemperature(pFwd, inFwd[ee_idx]);
-        m_varConv->GetElectronTemperature(pBwd, inBwd[ee_idx]);
-        for (const auto &[s, v] : this->GetSpecies())
+        inarrayprim[ei_idx] = Array<OneD, NekDouble>(inarray[ei_idx]);
+        inFwdprim[ei_idx]   = Array<OneD, NekDouble>(pFwd[ei_idx]);
+        inBwdprim[ei_idx]   = Array<OneD, NekDouble>(pBwd[ei_idx]);
+
+        inarrayprim[ti_idx] = Array<OneD, NekDouble>(m_temps[t]->GetPhys());
+        inFwdprim[ti_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+        inBwdprim[ti_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+        m_varConv->GetIonTemperature(s, v.mass, inarray, inarrayprim[ti_idx]);
+        m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwdprim[ti_idx]);
+        m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwdprim[ti_idx]);
+
+        inarrayprim[vi_idx] = Array<OneD, NekDouble>(this->n_pts, 0.0);
+        inFwdprim[vi_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+        inBwdprim[vi_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+
+        for (int p = 0; p < nTracePts; ++p)
         {
-            int ei_idx = v.fields.at(field_to_index["e"]);
-            m_varConv->GetIonTemperature(s, v.mass, pFwd, inFwd[ei_idx]);
-            m_varConv->GetIonTemperature(s, v.mass, pBwd, inBwd[ei_idx]);
+            inFwdprim[vi_idx][p] = pFwd[vi_idx][p] / (v.mass * pFwd[vi_idx][p]);
+            inBwdprim[vi_idx][p] = pBwd[vi_idx][p] / (v.mass * pBwd[vi_idx][p]);
         }
     }
 
-    m_diffusion->Diffuse(nvariables, m_difffields, inarrayDiff, outarrayDiff,
-                         inFwd, inBwd);
+    inarrayprim[ee_idx] = Array<OneD, NekDouble>(inarray[ee_idx]);
+    inFwdprim[ee_idx]   = Array<OneD, NekDouble>(pFwd[ee_idx]);
+    inBwdprim[ee_idx]   = Array<OneD, NekDouble>(pBwd[ee_idx]);
+    int te_idx          = nvariables + t;
+
+    inarrayprim[te_idx] = Array<OneD, NekDouble>(m_temps[t]->GetPhys());
+    inFwdprim[te_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+    inBwdprim[te_idx]   = Array<OneD, NekDouble>(nTracePts, 0.0);
+    t++;
+    // Extract temperature
+
+    m_varConv->GetElectronTemperature(inarray, inarrayprim[te_idx]);
+    m_varConv->GetElectronTemperature(pFwd, inFwdprim[te_idx]);
+    m_varConv->GetElectronTemperature(pBwd, inBwdprim[te_idx]);
+
+    // CalcKappaTensor();
+    m_diffusion->Diffuse(nvariables + t, m_difffields, inarrayprim,
+                         outarrayDiff, inFwdprim, inBwdprim);
 
     for (int i = 0; i < nvariables; ++i)
     {
@@ -1197,7 +1482,7 @@ void ElectrostaticTurbulence::CalcKappaPar()
 {
     // Change to fn of T
     NekDouble kappa_par;
-    m_session->LoadParameter("kappa_par", kappa_par, 0.1);
+    m_session->LoadParameter("kappa_par", kappa_par, 0.);
     m_kappapar = Array<OneD, NekDouble>(this->n_pts, kappa_par);
 }
 
@@ -1205,7 +1490,7 @@ void ElectrostaticTurbulence::CalcKappaPerp()
 {
     // Change to fn of T
     NekDouble kappa_perp;
-    m_session->LoadParameter("kappa_perp", kappa_perp, 0.1);
+    m_session->LoadParameter("kappa_perp", kappa_perp, 0.01);
     m_kappaperp = Array<OneD, NekDouble>(this->n_pts, kappa_perp);
 }
 
@@ -1240,39 +1525,152 @@ void ElectrostaticTurbulence::GetFluxVectorDiff(
     const Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &qfield,
     Array<OneD, Array<OneD, Array<OneD, NekDouble>>> &fluxes)
 {
-    for (int j = 0; j < m_spacedim; ++j)
+    const auto &Bx = this->B[0]->GetPhys();
+    const auto &By = this->B[1]->GetPhys();
+    const auto &Bz = this->B[2]->GetPhys();
+
+    int t = 0;
+    for (const auto &[s, v] : this->GetIons())
     {
-        // Calc diffusion of n with D tensor
-        Vmath::Vmul(this->n_pts, m_kappa[vc[j][0]].GetValue(), 1,
-                    qfield[0][ee_idx], 1, fluxes[j][ee_idx], 1);
-        Vmath::Vmul(this->n_pts, m_kappa[vc[j][0]].GetValue(), 1,
-                    qfield[0][omega_idx], 1, fluxes[j][omega_idx], 1);
-        for (int k = 1; k < m_spacedim; ++k)
-        {
-            Vmath::Vvtvp(this->n_pts, m_kappa[vc[j][k]].GetValue(), 1,
-                         qfield[k][ee_idx], 1, fluxes[j][ee_idx], 1,
-                         fluxes[j][ee_idx], 1);
-            Vmath::Vvtvp(this->n_pts, m_kappa[vc[j][0]].GetValue(), 1,
-                         qfield[k][omega_idx], 1, fluxes[j][omega_idx], 1,
-                         fluxes[j][omega_idx], 1);
-        }
-    }
-    for (const auto &[s, v] : this->GetSpecies())
-    {
+        int vi_idx = v.fields.at(field_to_index["v"]);
         int ei_idx = v.fields.at(field_to_index["e"]);
-        for (int j = 0; j < m_spacedim; ++j)
+        int ni_idx = v.fields.at(field_to_index["n"]);
+        int ti_idx = inarray.size() - n_species - 1 + t++;
+
+        if (m_spacedim == 3)
         {
-            Vmath::Vmul(this->n_pts, m_kappa[vc[j][0]].GetValue(), 1,
-                        qfield[0][ei_idx], 1, fluxes[j][ei_idx], 1);
-            for (int k = 1; k < m_spacedim; ++k)
+            for (int p = 0; p < this->n_pts; ++p)
             {
-                Vmath::Vvtvp(this->n_pts, m_kappa[vc[j][k]].GetValue(), 1,
-                             qfield[k][ei_idx], 1, fluxes[j][ei_idx], 1,
-                             fluxes[j][ei_idx], 1);
+                double qx         = (2. / 3) * qfield[0][ei_idx][p] / v.charge;
+                double qy         = (2. / 3) * qfield[1][ei_idx][p] / v.charge;
+                double qz         = (2. / 3) * qfield[2][ei_idx][p] / v.charge;
+                double dia_flux_x = (-Bz[p] * qy + By[p] * qz) / this->mag_B[p];
+                double dia_flux_y = (Bz[p] * qx - Bx[p] * qz) / this->mag_B[p];
+                double dia_flux_z = (-By[p] * qx + Bx[p] * qy) / this->mag_B[p];
+
+                fluxes[0][ni_idx][p] += dia_flux_x;
+                fluxes[1][ni_idx][p] += dia_flux_y;
+                fluxes[2][ni_idx][p] += dia_flux_z;
+
+                fluxes[0][vi_idx][p] +=
+                    v.mass * inarray[vi_idx][p] * dia_flux_x;
+                fluxes[1][vi_idx][p] +=
+                    v.mass * inarray[vi_idx][p] * dia_flux_y;
+                fluxes[2][vi_idx][p] +=
+                    v.mass * inarray[vi_idx][p] * dia_flux_z;
+
+                fluxes[0][ei_idx][p] += 2.5 * inarray[ti_idx][p] * dia_flux_x;
+                fluxes[1][ei_idx][p] += 2.5 * inarray[ti_idx][p] * dia_flux_y;
+                fluxes[2][ei_idx][p] += 2.5 * inarray[ti_idx][p] * dia_flux_z;
+            }
+        }
+        else
+        {
+            for (int p = 0; p < this->n_pts; ++p)
+            {
+                double qx         = (2. / 3) * qfield[0][ei_idx][p] / v.charge;
+                double qy         = (2. / 3) * qfield[1][ei_idx][p] / v.charge;
+                double dia_flux_x = (-Bz[p] * qy) / this->mag_B[p];
+                double dia_flux_y = (Bz[p] * qx) / this->mag_B[p];
+
+                // fluxes[0][ni_idx][p] += dia_flux_x;
+                // fluxes[1][ni_idx][p] += dia_flux_y;
+
+                // fluxes[0][vi_idx][p] +=
+                //     v.mass * inarray[vi_idx][p] * dia_flux_x;
+                // fluxes[1][vi_idx][p] +=
+                //     v.mass * inarray[vi_idx][p] * dia_flux_y;
+
+                // fluxes[0][ei_idx][p] += 2.5 * inarray[ti_idx][p] *
+                // dia_flux_x; fluxes[1][ei_idx][p] += 2.5 * inarray[ti_idx][p]
+                // * dia_flux_y;
             }
         }
     }
+    int te_idx = inarray.size() - 1;
+
+    // if (m_spacedim == 3)
+    // {
+    //     for (int p = 0; p < this->n_pts; ++p)
+    //     {
+    //         double qx = (2. / 3) * qfield[0][ee_idx][p];
+    //         double qy = (2. / 3) * qfield[1][ee_idx][p];
+    //         double qz = (2. / 3) * qfield[2][ee_idx][p];
+    //         double dia_flux_x = (-Bz[p] * qy + By[p] * qz) / this->mag_B[p];
+    //         double dia_flux_y = (Bz[p] * qx - Bx[p] * qz) / this->mag_B[p];
+    //         double dia_flux_z = (-By[p] * qx + Bx[p] * qy) / this->mag_B[p];
+
+    //         fluxes[0][ee_idx][p] += 2.5 * inarray[te_idx][p] * dia_flux_x;
+    //         fluxes[1][ee_idx][p] += 2.5 * inarray[te_idx][p] * dia_flux_y;
+    //         fluxes[2][ee_idx][p] += 2.5 * inarray[te_idx][p] * dia_flux_z;
+    //     }
+    // }
+    // else
+    // {
+    //     for (int p = 0; p < this->n_pts; ++p)
+    //     {
+    //         double qx = (2. / 3) * qfield[0][ee_idx][p];
+    //         double qy = (2. / 3) * qfield[1][ee_idx][p];
+
+    //         double dia_flux_x = (-Bz[p] * qy) / this->mag_B[p];
+    //         double dia_flux_y = (Bz[p] * qx) / this->mag_B[p];
+
+    //         fluxes[0][ee_idx][p] += 2.5 * inarray[te_idx][p] * dia_flux_x;
+    //         fluxes[1][ee_idx][p] += 2.5 * inarray[te_idx][p] * dia_flux_y;
+    //     }
+    // }
+
+    // for (int j = 0; j < m_spacedim; ++j)
+    // {
+    //     for (int k = 0; k < m_spacedim; k++)
+    //     {
+    //         for (int p = 0; p < this->n_pts; ++p)
+    //         {
+    //             fluxes[j][omega_idx][p] += m_zeta *
+    //                                        (1. - b_unit[k][p] * b_unit[j][p])
+    //                                        * qfield[k][omega_idx][p];
+    //         }
+    //     }
+    // }
 }
+
+// void ElectrostaticTurbulence::GetFluxPenalty(
+//     const Array<OneD, const Array<OneD, NekDouble>> &uFwd,
+//     const Array<OneD, const Array<OneD, NekDouble>> &uBwd,
+//     Array<OneD, Array<OneD, NekDouble>> &penaltyCoeff)
+// {
+//     size_t nTracePts = uFwd[0].size();
+
+//     // Compute average temperature
+//     size_t nVariables = uFwd.size();
+//     Array<OneD, NekDouble> tAve{nTracePts, 0.0};
+//     Vmath::Svtsvtp(nTracePts, 0.5, uFwd[nVariables - 1], 1, 0.5,
+//                    uBwd[nVariables - 1], 1, tAve, 1);
+
+//     // Get average viscosity and thermal conductivity
+//     Array<OneD, NekDouble> muAve{nTracePts, 0.0};
+//     Array<OneD, NekDouble> tcAve{nTracePts, 0.0};
+
+//     GetViscosityAndThermalCondFromTemp(tAve, muAve, tcAve);
+
+//     // Compute penalty term
+//     for (size_t i = 0; i < nVariables; ++i)
+//     {
+//         // Get jump of u variables
+//         Vmath::Vsub(nTracePts, uFwd[i], 1, uBwd[i], 1, penaltyCoeff[i], 1);
+//         // Multiply by variable coefficient = {coeff} ( u^+ - u^- )
+//         if (i < nVariables - 1)
+//         {
+//             Vmath::Vmul(nTracePts, muAve, 1, penaltyCoeff[i], 1,
+//                         penaltyCoeff[i], 1);
+//         }
+//         else
+//         {
+//             Vmath::Vmul(nTracePts, tcAve, 1, penaltyCoeff[i], 1,
+//                         penaltyCoeff[i], 1);
+//         }
+//     }
+// }
 
 void ElectrostaticTurbulence::AddNeutralSources(
     const Array<OneD, Array<OneD, NekDouble>> &in_arr,
@@ -1516,25 +1914,16 @@ void ElectrostaticTurbulence::v_SetInitialConditions(NekDouble init_time,
     Checkpoint_Output(0);
 }
 
-// void ElectrostaticTurbulence::v_SetBoundaryConditions(
-//     Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time)
-// {
-//     size_t nTracePts  = GetTraceTotPoints();
-//     size_t nvariables = physarray.size() - 1;
-//     Array<OneD, Array<OneD, NekDouble>> Fwd(nvariables);
-//     for (size_t i = 0; i < nvariables; ++i)
-//     {
-//         Fwd[i] = Array<OneD, NekDouble>(nTracePts);
-//         int p  = i < n_species * n_fields_per_species
-//                      ? i % n_fields_per_species
-//                      : i - n_species * n_fields_per_species;
-//         m_fields[p]->ExtractTracePhys(physarray[i], Fwd[i]);
-//     }
-//     for (auto &bc : m_bndConds)
-//     {
-//         bc->Apply(Fwd, physarray, time);
-//     }
-// }
+void ElectrostaticTurbulence::SetBoundaryConditions(
+    Array<OneD, Array<OneD, NekDouble>> &physarray, NekDouble time)
+{
+    PlasmaSystem::SetBoundaryConditions(physarray, time);
+    // for (auto &bc : m_bndConds)
+    // {
+    //     bc->Apply(Fwd, physarray, time);
+    // }
+    // ApplyOmegaBC(physarray, time);
+}
 
 void ElectrostaticTurbulence::load_params()
 {
@@ -1553,6 +1942,33 @@ void ElectrostaticTurbulence::v_ExtraFldOutput(
     const int nCoeffs = m_fields[0]->GetNcoeffs();
 
     m_fields[0]->FwdTransLocalElmt(this->phi->GetPhys(), fieldcoeffs[4]);
+
+    variables.emplace_back("J_par");
+    Array<OneD, NekDouble> SrcFwd(nCoeffs);
+    m_fields[0]->FwdTransLocalElmt(this->j_par, SrcFwd);
+    fieldcoeffs.emplace_back(SrcFwd);
+
+    for (int d = 0; d < 3; ++d)
+    {
+        variables.emplace_back("DIAV_" + std::to_string(d));
+        Array<OneD, NekDouble> SrcFwd1(nCoeffs);
+        m_fields[0]->FwdTransLocalElmt(this->dia_v[0][d], SrcFwd1);
+        fieldcoeffs.emplace_back(SrcFwd1);
+    }
+
+    int f = 0;
+    for (const auto &[k, v] : this->GetSpecies())
+    {
+        variables.emplace_back("T_" + v.name);
+        Array<OneD, NekDouble> Fwd(nCoeffs);
+        this->m_temps[f]->FwdTransLocalElmt(this->m_temps[f]->GetPhys(), Fwd);
+        fieldcoeffs.emplace_back(Fwd);
+        f++;
+    }
+    variables.emplace_back("T_e");
+    Array<OneD, NekDouble> Fwd(nCoeffs);
+    this->m_temps[f]->FwdTransLocalElmt(this->m_temps[f]->GetPhys(), Fwd);
+    fieldcoeffs.emplace_back(Fwd);
 
     if (this->particles_enabled)
     {

@@ -4,15 +4,15 @@
         The composite index for the domain is expected to be 0 if the mesh was generated from the included .geo file
      -->
     <EXPANSIONS>
-       <E COMPOSITE="C[0]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w,phi" />
-       <E COMPOSITE="C[6]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w,phi" />
+       <E COMPOSITE="C[0,6]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w,phi" />
+       <!-- <E COMPOSITE="C[6]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n,v,e,w,phi" /> -->
     </EXPANSIONS>
 
     <CONDITIONS>
         <SOLVERINFO>
             <I PROPERTY="EQTYPE"                       VALUE="ElectrostaticTurbulence"/>
             <I PROPERTY="Projection"                   VALUE="DisContinuous" />
-            <I PROPERTY="UpwindType"                   VALUE="VorticityAverage"        />
+            <I PROPERTY="UpwindType"                   VALUE="VorticityUpwind"        />
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
             <I PROPERTY="AdvectionType"          VALUE="WeakDG"/>
         </SOLVERINFO>
@@ -20,9 +20,9 @@
             <METHOD> DIRK </METHOD>
             <ORDER> 2 </ORDER>
         </TIMEINTEGRATIONSCHEME>
-        <FILTER TYPE="Checkpoint">  
+        <!-- <FILTER TYPE="Checkpoint">  
             <PARAM NAME="OutputFrequency">10</PARAM> 
-        </FILTER> 
+        </FILTER>  -->
         <PARAMETERS>
             <!-- Conversion of mesh unit to m -->
             <P> mesh_length = 1</P> 
@@ -33,17 +33,12 @@
             <!-- Normalised magnetic field in T -->
             <P> Bnorm = 1.0</P>
             <!-- Timestepping and output options -->
-            <P> TimeStep      = 0.0001            </P>
+            <P> TimeStep      = 0.00001            </P>
             <P> NumSteps      = 1000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <P> IO_InfoSteps  = 1     </P>
+            <P> IO_CheckSteps  = 1     </P>
             <P> particle_output_freq = 1          </P>
-
-            <!-- <P> IterativeSolverTolerance  = 1.0E-12  </P>
-            <P> NekNonlinSysMaxIterations = 30       </P>
-            <P> NewtonRelativeIteTol      = 1.0E-10  </P>
-            <P> NonlinIterTolRelativeL2   = 1.0E-10  </P>
-            <P> LinSysRelativeTolInNonlin = 1.0E-02  </P> -->
 
             <!-- Anisotropic diffusion -->
             <P> lambda    = 13          </P>
@@ -58,6 +53,12 @@
             <P> ys = 0 </P>
             <P> sr = 0.05 </P>
             <P> sy = 0.05 </P>
+
+            <P> IterativeSolverTolerance  = 1.0E-8  </P>
+            <P> NekNonlinSysMaxIterations = 30       </P>
+            <P> NewtonRelativeIteTol      = 1.0E-12  </P>
+            <P> NonlinIterTolRelativeL2   = 1.0E-12  </P>
+            <P> LinSysRelativeTolInNonlin = 1.0E-06  </P>
         </PARAMETERS>
 
         <VARIABLES>
@@ -99,7 +100,7 @@
                 <D VAR="phi" VALUE="0.0" />
             </REGION>
             <REGION REF="4">
-                <D VAR="n"   VALUE="1.0" />
+                <D VAR="n"   VALUE="2.0" />
                 <D VAR="v"   VALUE="50.0" />
                 <D VAR="e"   VALUE="1.0" />
                 <D VAR="w"   VALUE="0.0" />
@@ -127,7 +128,7 @@
            <!-- <E VAR="n"  DOMAIN="0" VALUE="0" /> -->
             <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
 
-            <E VAR="v"  DOMAIN="0" VALUE="50" />
+            <E VAR="v"  DOMAIN="0" VALUE="0" />
             <!-- <E VAR="v"  DOMAIN="0" VALUE="50-5*(sqrt((x-rc)^2+(y-yc)^2)-ri)" /> -->
             <!-- <E VAR="e"  DOMAIN="0" VALUE="1-0.1*(sqrt((x-rc)^2+(y-yc)^2)-ri)" /> -->
             <E VAR="e"  DOMAIN="0" VALUE="1+0.01*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
@@ -153,7 +154,7 @@
                     <!-- <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->
                     <E VAR="n"  DOMAIN="0" VALUE="1+0.01*sin(4*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(16*ang(x-rc, y-yc))" />
                     <!-- <E VAR="v"  DOMAIN="0" VALUE="100*0.5*(1+tanh(1-10*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))) " /> -->
-                    <E VAR="v"  DOMAIN="0" VALUE="50" />
+                    <E VAR="v"  DOMAIN="0" VALUE="0" />
                     <!-- <E VAR="v"  DOMAIN="0" VALUE="50-5*(sqrt((x-rc)^2+(y-yc)^2)-ri)" /> -->
                     <!-- <E VAR="v"  DOMAIN="0" VALUE="10*sin(5*2*PI*(sqrt((x-rc)^2+(y-yc)^2)-ri)/(ro-ri))*sin(11*ang(x-rc, y-yc))" /> -->
                     <!-- <E VAR="e"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" /> -->

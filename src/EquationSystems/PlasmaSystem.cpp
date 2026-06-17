@@ -91,7 +91,6 @@ void PlasmaSystem::DoOdeProjection(
     int i;
     int num_vars = in_arr.size();
     int npoints  = GetNpoints();
-    SetBoundaryConditions(time);
 
     switch (m_projectionType)
     {
@@ -126,6 +125,7 @@ void PlasmaSystem::DoOdeProjection(
             break;
         }
     }
+    SetBoundaryConditions(out_arr, time);
 }
 
 /**
@@ -860,7 +860,8 @@ void PlasmaSystem::v_SetInitialConditions(NekDouble init_time, bool dump_ICs,
     ++m_nchk;
 }
 
-void PlasmaSystem::SetBoundaryConditions(NekDouble time)
+void PlasmaSystem::SetBoundaryConditions(
+    Array<OneD, Array<OneD, NekDouble>> &out_arr, NekDouble time)
 {
     EquationSystem::SetBoundaryConditions(time);
     std::string varName;

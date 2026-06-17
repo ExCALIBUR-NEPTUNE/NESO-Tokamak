@@ -52,18 +52,19 @@ void VorticityAverageSolver::v_ArraySolve(
     const Array<OneD, const Array<OneD, NekDouble>> &Bwd,
     Array<OneD, Array<OneD, NekDouble>> &flux)
 {
-    ASSERTL1(CheckVectors("Vn"), "Vn not defined.");
-    const Array<OneD, Array<OneD, NekDouble>> &traceVel = m_vectors["Vn"]();
-    const Array<OneD, NekDouble> &flux_omega            = m_scalars["wf"]();
+    const Array<OneD, Array<OneD, NekDouble>> &vFwd = m_vectors["vFwd"]();
+    const Array<OneD, Array<OneD, NekDouble>> &vBwd = m_vectors["vBwd"]();
+    const Array<OneD, NekDouble> &flux_omega        = m_scalars["wf"]();
 
-    for (int p = 0; p < traceVel[0].size(); ++p)
+    for (int p = 0; p < vFwd[0].size(); ++p)
     {
-        for (int i = 0; i < traceVel.size(); ++i)
+        for (int i = 0; i < vFwd.size(); ++i)
         {
-            flux[i][p] = traceVel[i][p] * 0.5 * (Fwd[i][p] + Bwd[i][p]);
+            flux[i][p] =
+                0.5 * (vFwd[i][p] * Fwd[i][p] + vBwd[i][p] * Bwd[i][p]);
         }
 
-        flux[omega_idx][p] = flux_omega[p];
+        // flux[omega_idx][p] = flux_omega[p];
     }
 }
 } // namespace PENKNIFE

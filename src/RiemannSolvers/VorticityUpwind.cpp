@@ -64,7 +64,7 @@ void VorticityUpwindSolver::v_ArraySolve(
             flux[i][p]    = traceVel[i][p] * tmp;
         }
 
-        flux[omega_idx][p] = flux_omega[p];
+        // flux[omega_idx][p] = flux_omega[p];
     }
 }
 } // namespace PENKNIFE

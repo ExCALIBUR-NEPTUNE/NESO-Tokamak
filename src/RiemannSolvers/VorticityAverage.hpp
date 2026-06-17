@@ -14,8 +14,7 @@ public:
     static SU::RiemannSolverSharedPtr create(
         const LU::SessionReaderSharedPtr &pSession)
     {
-        return SU::RiemannSolverSharedPtr(
-            new VorticityAverageSolver(pSession));
+        return SU::RiemannSolverSharedPtr(new VorticityAverageSolver(pSession));
     }
 
     static std::string solverName;

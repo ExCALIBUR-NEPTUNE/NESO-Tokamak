@@ -189,7 +189,7 @@ protected:
         const Array<OneD, const Array<OneD, NekDouble>> &in_arr,
         Array<OneD, Array<OneD, NekDouble>> &out_arr, const NekDouble time);
 
-    void SetBoundaryConditions(NekDouble time);
+    virtual void SetBoundaryConditions(Array<OneD, Array<OneD, NekDouble>> &out_arr, NekDouble time);
 
     virtual void v_ExtraFldOutput(
         std::vector<Array<OneD, NekDouble>> &fieldcoeffs,

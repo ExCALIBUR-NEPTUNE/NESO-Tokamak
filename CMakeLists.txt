@@ -43,6 +43,8 @@ src/RiemannSolvers/VorticityUpwind.cpp
 src/RiemannSolvers/VorticityAverage.cpp
 src/Closures/Closure.cpp
 src/Closures/Braginskii.cpp
+src/Advection/OmegaAdvection.cpp
+src/Diffusion/DiffusionLDGET.cpp
 )
 
 # ##############################################################################

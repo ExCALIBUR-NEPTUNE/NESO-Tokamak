@@ -10,16 +10,18 @@ spack:
   concretizer:
     unify: when_possible
   repos:
-  - ./repo
-  - ./NESO/NESO-Spack
-  - ./VANTAGE-Reactions/VANTAGE-repo
+    pk: ./repo
+    neso: ./NESO/NESO-Spack
+    vantage: ./VANTAGE-Reactions/VANTAGE-repo
+    builtin:
+      destination: ../.spack/spack-packages
   packages:
     c:
       require:
-        - gcc
+      - gcc
     cxx:
       require:
-        - gcc
+      - gcc
     all:
       providers:
         sycl: [adaptivecpp]
