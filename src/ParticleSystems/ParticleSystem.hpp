@@ -114,14 +114,17 @@ public:
         std::vector<std::shared_ptr<DisContField>> &src_fields,
         std::vector<Sym<REAL>> &syms, std::vector<int> &components);
 
-    virtual void diag_setup(const std::shared_ptr<DisContField> &diag_field);
+    virtual void diag_setup(
+        std::map<int, std::vector<std::shared_ptr<DisContField>>> &diag_field,
+        std::vector<Sym<REAL>> &syms, std::vector<int> &components);
+
+    virtual void output_setup(std::vector<Sym<REAL>> &syms);
 
     inline virtual void diag_project()
     {
-        std::vector<Sym<REAL>> syms{Sym<REAL>("WEIGHT")};
-        std::vector<int> components{0};
-        this->diagnostic_project->project(this->particle_group, syms,
-                                          components);
+        for (auto &[k, v] : this->species_map)
+            this->diagnostic_project[v.id]->project(
+                v.sub_group, this->diag_syms, this->diag_components);
     }
 
     void add_sources(double time, double dt);
@@ -141,7 +144,8 @@ public:
     }
 
     inline virtual void zero_source_dats()
-    {}
+    {
+    }
 
     virtual void setup_evaluate_fields(
         Array<OneD, std::shared_ptr<DisContField>> &E,
@@ -426,7 +430,7 @@ protected:
     }
 
     virtual inline void integrate_inner(ParticleSubGroupSharedPtr sg,
-                                const double dt_inner)
+                                        const double dt_inner)
     {
         auto ions = particle_sub_group(
             sg, [=](auto Q) { return Q.at(0) != 0.0; },
@@ -455,10 +459,12 @@ protected:
 
     std::vector<Sym<REAL>> src_syms;
     std::vector<int> src_components;
-
     std::shared_ptr<FieldProject<DisContField>> field_project;
 
-    std::shared_ptr<FieldProject<DisContField>> diagnostic_project;
+    std::vector<Sym<REAL>> diag_syms;
+    std::vector<int> diag_components;
+    std::map<int, std::shared_ptr<FieldProject<DisContField>>>
+        diagnostic_project;
 
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_ne;
     std::shared_ptr<FunctionEvaluateBasis<DisContField>> field_evaluate_Te;

@@ -92,14 +92,16 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
         this->ne = std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]);
 
         std::vector<Sym<REAL>> src_syms;
+        std::vector<Sym<REAL>> out_syms;
         std::vector<int> src_components;
-        for (auto &[k, v] : this->particle_sys->get_species())
+        for (const auto &[s, v] : this->particle_sys->get_species())
         {
             this->src_fields.emplace_back(
                 MemoryManager<MR::DisContField>::AllocateSharedPtr(
                     *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
-            src_syms.push_back(Sym<REAL>(k + "_SOURCE_DENSITY"));
+            src_syms.push_back(Sym<REAL>(s + "_SOURCE_DENSITY"));
             src_components.push_back(0);
+            out_syms.push_back(Sym<REAL>(s + "_SOURCE_DENSITY"));
         }
 
         this->particle_sys->setup_evaluate_fields(this->E, this->B, this->ne,
@@ -107,9 +109,19 @@ void SingleDiffusiveField::v_InitObject(bool DeclareFields)
 
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
-        this->diag_field = MemoryManager<MR::DisContField>::AllocateSharedPtr(
-            *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0]));
-        this->particle_sys->diag_setup(this->diag_field);
+
+        std::vector<int> diag_components = {0};
+        std::vector<Sym<REAL>> diag_syms = {Sym<REAL>("WEIGHT")};
+
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            this->diag_fields[v.id].emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+        }
+        this->particle_sys->diag_setup(this->diag_fields, diag_syms,
+                                       diag_components);
+        this->particle_sys->output_setup(out_syms);
     }
 }
 
@@ -174,8 +186,7 @@ void SingleDiffusiveField::ImplicitTimeIntCG(
         }
         CalcDiffTensor(s);
         StdRegions::VarCoeffMap varcoeffs;
-        StdRegions::VarFactorsMap varfactors =
-            StdRegions::NullVarFactorsMap;
+        StdRegions::VarFactorsMap varfactors = StdRegions::NullVarFactorsMap;
 
         for (int i = 0; i < 3; i++)
         {
@@ -406,7 +417,7 @@ bool SingleDiffusiveField::v_PostIntegrate(int step)
 }
 
 /**
- * @brief Construct the flux vector for the anisotropic diffusion problem.
+ * @brief Write extra fields.
  * @param fieldcoeffs field coefficients to be appended to
  * @param variables variable names to be appended to
  */
@@ -420,19 +431,24 @@ void SingleDiffusiveField::v_ExtraFldOutput(
 
     if (this->particles_enabled)
     {
-        int i = 0;
-        for (auto &[k, v] : this->particle_sys->get_species())
+        int i    = 0;
+        int cnt2 = 0;
+        for (auto &[k, v] : this->GetIons())
         {
-            variables.push_back(k + "_SOURCE_DENSITY");
+            variables.push_back(v.name + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[i++]->GetPhys(),
                                            SrcFwd);
             fieldcoeffs.push_back(SrcFwd);
         }
-        variables.push_back("DIAGNOSTIC");
-        Array<OneD, NekDouble> SrcFwd(nCoeffs);
-        m_fields[0]->FwdTransLocalElmt(this->diag_field->GetPhys(), SrcFwd);
-        fieldcoeffs.push_back(SrcFwd);
+        for (auto &[k, v] : this->particle_sys->get_species())
+        {
+            variables.emplace_back(k + "_DENSITY");
+            Array<OneD, NekDouble> DiagFwd(nCoeffs);
+            m_fields[0]->FwdTransLocalElmt(
+                this->diag_fields[v.id][0]->GetPhys(), DiagFwd);
+            fieldcoeffs.push_back(DiagFwd);
+        }
     }
 }
 } // namespace PENKNIFE

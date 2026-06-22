@@ -44,7 +44,7 @@ void ParticleSystem::init_spec()
         ParticleProp(Sym<REAL>("MAGNETIC_FIELD"), 3),
         ParticleProp(Sym<REAL>("TSP"), 2)};
 
-    for (auto &[k, v] : this->config->get_particle_species())
+    for (auto &[k, v] : this->config->get_species())
     {
         this->particle_spec.push(
             ParticleProp(Sym<REAL>(k + "_SOURCE_DENSITY"), 1));
@@ -381,17 +381,31 @@ void ParticleSystem::finish_setup(
     this->src_components = components;
     this->field_project  = std::make_shared<FieldProject<DisContField>>(
         src_fields, this->particle_group, this->cell_id_translation);
+}
+
+void ParticleSystem::diag_setup(
+    std::map<int, std::vector<std::shared_ptr<DisContField>>> &diag_fields,
+    std::vector<Sym<REAL>> &syms, std::vector<int> &components)
+{
+    this->diag_syms       = syms;
+    this->diag_components = components;
+
+    for (auto &[k, v] : this->species_map)
+    {
+        this->diagnostic_project[v.id] =
+            std::make_shared<FieldProject<DisContField>>(
+                diag_fields[v.id], this->particle_group,
+                this->cell_id_translation);
+    }
+}
+
+void ParticleSystem::output_setup(std::vector<Sym<REAL>> &syms)
+{
     init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
                 Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
                 Sym<REAL>("VELOCITY"), Sym<REAL>("MAGNETIC_FIELD"),
-                Sym<REAL>("ELECTRON_DENSITY"), this->src_syms, Sym<INT>("ID"),
+                Sym<REAL>("ELECTRON_DENSITY"), syms, Sym<INT>("ID"),
                 Sym<REAL>("TOT_REACTION_RATE"));
-}
-
-void ParticleSystem::diag_setup(const std::shared_ptr<DisContField> &diag_field)
-{
-    this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
-        diag_field, this->particle_group, this->cell_id_translation);
 }
 
 template <typename RNG>
@@ -669,7 +683,6 @@ void ParticleSystem::add_sources(double time, double dt)
     this->sycl_target->profile_map.add_region(r);
     transfer_particles();
 }
-
 
 /**
  * @brief Evaluate and apply particle sinks.

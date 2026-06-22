@@ -408,6 +408,11 @@ void PlasmaSystem::v_DoSolve()
     // Initialise time integration scheme.
     m_intScheme->InitializeScheme(m_timestep, fields, m_time, m_ode);
 
+    for (auto &x : m_filters)
+    {
+        x.second->Initialise(m_fields, m_time);
+    }
+
     LibUtilities::Timer timer;
     bool doCheckTime      = false;
     int step              = m_initialStep;
