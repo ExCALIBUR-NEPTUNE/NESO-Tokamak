@@ -12,12 +12,11 @@
 
     <CONDITIONS>
         <SOLVERINFO>
-            <I PROPERTY="EQTYPE"                       VALUE="SingleDiffusiveField"/>
+            <I PROPERTY="EQTYPE"                       VALUE="NullSystem"/>
             <I PROPERTY="PARTTYPE"                      VALUE="ReactionSystem"/>
             <I PROPERTY="Projection"                   VALUE="DisContinuous" />
             <!-- <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         /> -->
             <!-- <I PROPERTY="UpwindType"                   VALUE="Upwind"        /> -->
-            <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
         </SOLVERINFO>
         <TIMEINTEGRATIONSCHEME>
             <METHOD> IMEX </METHOD>
@@ -46,7 +45,6 @@
             <P> epsilon         = 1.0   </P>
             <!-- Anisotropic diffusion -->
             <P> lambda    = 13          </P>
-            <P> k_c       = 3.19        </P>
             <P> T_bg      = 10         </P>
 
             <!-- Scaling factor for ICs -->

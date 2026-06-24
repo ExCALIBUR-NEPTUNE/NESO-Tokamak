@@ -94,6 +94,8 @@ public:
             const double dt_inner = std::min(dt, time_end - time_tmp);
             this->add_sources(time_tmp, dt_inner);
             this->add_sinks(time_tmp, dt_inner);
+            this->evaluate_fields();
+
             this->apply_timestep(dt_inner);
             this->transfer_particles();
 
@@ -156,11 +158,7 @@ public:
     /**
      * Evaluate E and B at the particle locations.
      */
-    inline virtual void evaluate_fields(
-        Array<OneD, std::shared_ptr<DisContField>> &E,
-        Array<OneD, std::shared_ptr<DisContField>> &B,
-        std::shared_ptr<DisContField> ne, std::shared_ptr<DisContField> Te,
-        Array<OneD, std::shared_ptr<DisContField>> &ve)
+    inline virtual void evaluate_fields()
     {
 
         for (int d = 0; d < this->ndim; ++d)
@@ -180,20 +178,20 @@ public:
         NESOASSERT(this->field_evaluate_ne != nullptr,
                    "FieldEvaluate not setup.");
         this->field_evaluate_ne->evaluate(this->particle_group,
-                                          Sym<REAL>("FLUID_DENSITY"), 0,
+                                          Sym<REAL>("ELECTRON_DENSITY"), 0,
                                           ne->GetCoeffs());
         if (field_evaluate_Te)
         {
             this->field_evaluate_Te->evaluate(this->particle_group,
-                                              Sym<REAL>("FLUID_TEMPERATURE"), 0,
-                                              Te->GetCoeffs());
+                                              Sym<REAL>("ELECTRON_TEMPERATURE"),
+                                              0, Te->GetCoeffs());
         }
         for (int d = 0; d < this->ndim; ++d)
         {
             if (this->field_evaluate_ve[d])
             {
                 this->field_evaluate_ve[d]->evaluate(
-                    this->particle_group, Sym<REAL>("FLUID_FLOW_SPEED"), d,
+                    this->particle_group, Sym<REAL>("ELECTRON_FLOW_SPEED"), d,
                     ve[d]->GetCoeffs());
             }
         }
@@ -476,6 +474,12 @@ protected:
 
     std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>
         field_evaluate_B;
+
+    Array<OneD, std::shared_ptr<DisContField>> E;
+    Array<OneD, std::shared_ptr<DisContField>> B;
+    std::shared_ptr<DisContField> ne;
+    std::shared_ptr<DisContField> Te;
+    Array<OneD, std::shared_ptr<DisContField>> ve;
 
     std::shared_ptr<NektarCompositeTruncatedReflection> reflection;
 

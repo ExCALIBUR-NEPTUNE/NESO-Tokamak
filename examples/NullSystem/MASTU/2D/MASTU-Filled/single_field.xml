@@ -2,7 +2,6 @@
 <NEKTAR>
     <COLLECTIONS DEFAULT="auto" />
     <EXPANSIONS>
-        <E COMPOSITE="C[1]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
         <E COMPOSITE="C[2]" NUMMODES="4" TYPE="MODIFIED" FIELDS="n" />
     </EXPANSIONS>
 
@@ -14,7 +13,6 @@
             <I PROPERTY="LinSysIterSolverTypeInNonlin"  VALUE="GMRES"/>
             <I PROPERTY="Preconditioner"                VALUE="Diagonal"/>
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
-            <I PROPERTY="OutputPartitions"          VALUE="True"/>
         </SOLVERINFO>
         <TIMEINTEGRATIONSCHEME>
             <METHOD> IMEX </METHOD>
@@ -33,8 +31,8 @@
             <!-- Normalised magnetic field in T -->
             <P> Bnorm = 1.0</P>
             <!-- Time step in cyclotron units -->
-            <P> TimeStep       = 957.883316               </P>
-            <P> NumSteps      = 2000              </P>
+            <P> TimeStep       = 95.7883316               </P>
+            <P> NumSteps      = 10000              </P>
             <P> TFinal        = NumSteps*TimeStep </P>
             <!-- ~957883.316 -->
             <P> IO_InfoSteps   = 100                </P>
@@ -42,7 +40,7 @@
 
             <!-- Coulomb logarithm -->
             <P> lambda    = 13          </P>
-            <P> k_c       = 0        </P>
+            <P> k_c       = 3.19        </P>
             <!-- Background temperature in Tnorm eV -->
             <P> T_bg      = 10         </P>
 
@@ -73,6 +71,7 @@
             <B ID="3"> C[3] </B>
         </BOUNDARYREGIONS>
         <BOUNDARYCONDITIONS>
+            <!--Wall -->
             <REGION REF="3">
                 <N VAR="n" VALUE="0"/>
             </REGION>         
@@ -80,37 +79,32 @@
         
         <FUNCTION NAME="InitialConditions">
             <E VAR="n"  DOMAIN="0" VALUE="2" />
-            <E VAR="n"  DOMAIN="1" VALUE="0" />
         </FUNCTION>
         
-        <FUNCTION NAME="MagneticField">
+        <FUNCTION NAME="MagneticMeanField">
             <F VAR="Bx,By,Bz"  FILE="B.pts"  />
         </FUNCTION>
 
     </CONDITIONS>
 
     <NESO>
-            <BOUNDARYREGIONS>
-            <B ID="3"> C[3] </B>
-        </BOUNDARYREGIONS>
         <SPECIES>
-            <I NAME="D" FIELDS="n">
+            <I NAME="D+" FIELDS="n">
                 <P> Mass = 2.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="2" />
-                    <E VAR="n"  DOMAIN="1" VALUE="0.000001" />
                 </FUNCTION>
             </I>
             <KN NAME="D">
                 <P> Mass = 2.0 </P>
                 <INITIAL N="1">
-                    <E VAR="W" VALUE="0.00005"/>
+                    <E VAR="W" VALUE="0.000000001"/>
                     <E VAR="X" VALUE="199.9999"/>
                     <E VAR="Y" VALUE="0"/>
                 </INITIAL>
                 <SOURCES>
-                    <P N="1000">
+                    <P N="100">
                         <E VAR="W" VALUE="0.00005"/>
                         <E VAR="X" VALUE="199.9999"/>
                         <E VAR="Y" VALUE="0"/>
@@ -124,17 +118,8 @@
         <VANTAGE>
             <S TYPE="Specular" SPECIES="D">
                 <REGION REF="3"/>
-                <RATE TYPE="Constant" VALUE="0.9"/>
-            </S>
-            <S TYPE="Absorption" SPECIES="D">
-                <REGION REF="3"/>
-                <RATE TYPE="Constant" VALUE="0.1"/>
-            </S>
-            <R TYPE="Ionisation" SPECIES="D">
-                <RATE TYPE="AMJUEL" VALUE="1"/>
-                <CROSSSECTION TYPE="Constant" VALUE="1.0"/>
-            </R>
-
+                <RATE TYPE="Constant" VALUE="1.0"/>
+            </S>           
         </VANTAGE>
 
     </NESO>
