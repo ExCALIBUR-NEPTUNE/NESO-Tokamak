@@ -1,0 +1,1 @@
+mpirun -np <NMPI> <SOLVER_EXEC> null_system.xml ring.xml

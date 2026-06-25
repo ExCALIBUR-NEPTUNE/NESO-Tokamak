@@ -35,17 +35,24 @@ void ParticleSystem::init_spec()
         ParticleProp(Sym<INT>("INTERNAL_STATE"), 1),
         ParticleProp(Sym<REAL>("M"), 1),
         ParticleProp(Sym<REAL>("Q"), 1),
+
+        ParticleProp(Sym<REAL>("ELECTRIC_FIELD"), 3),
+        ParticleProp(Sym<REAL>("MAGNETIC_FIELD"), 3),
+        ParticleProp(Sym<REAL>("TSP"), 2),
+
         ParticleProp(Sym<REAL>("ELECTRON_DENSITY"), 1),
         ParticleProp(Sym<REAL>("ELECTRON_TEMPERATURE"), 1),
         ParticleProp(Sym<REAL>("ELECTRON_SOURCE_ENERGY"), 1),
         ParticleProp(Sym<REAL>("ELECTRON_SOURCE_MOMENTUM"), this->vdim),
-        ParticleProp(Sym<REAL>("ELECTRON_SOURCE_DENSITY"), 1),
-        ParticleProp(Sym<REAL>("ELECTRIC_FIELD"), 3),
-        ParticleProp(Sym<REAL>("MAGNETIC_FIELD"), 3),
-        ParticleProp(Sym<REAL>("TSP"), 2)};
+        ParticleProp(Sym<REAL>("ELECTRON_SOURCE_DENSITY"), 1)};
 
     for (auto &[k, v] : this->config->get_particle_species())
     {
+        this->particle_spec.push(ParticleProp(Sym<REAL>(k + "_DENSITY"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>(k + "_TEMPERATURE"), 1));
+        this->particle_spec.push(
+            ParticleProp(Sym<REAL>(k + "_FLOW_SPEED"), this->vdim));
         this->particle_spec.push(
             ParticleProp(Sym<REAL>(k + "_SOURCE_DENSITY"), 1));
         this->particle_spec.push(
@@ -58,10 +65,6 @@ void ParticleSystem::init_spec()
     this->particle_spec.push(ParticleProp(Sym<INT>("REACTIONS_PANIC_FLAG"), 1));
     this->particle_spec.push(
         ParticleProp(Sym<INT>("PARTICLE_REACTED_FLAG"), 1));
-    this->particle_spec.push(ParticleProp(Sym<REAL>("FLUID_DENSITY"), 1));
-    this->particle_spec.push(ParticleProp(Sym<REAL>("FLUID_TEMPERATURE"), 1));
-    this->particle_spec.push(
-        ParticleProp(Sym<REAL>("FLUID_FLOW_SPEED"), this->vdim));
 
     this->particle_spec.push(ParticleProp(
         Sym<REAL>("NESO_PARTICLES_BOUNDARY_INTERSECTION_POINT"), this->ndim));
@@ -272,11 +275,6 @@ void ParticleSystem::set_up_species()
                     {
                         initial_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                             velocities[dimx][px];
-
-                        initial_distribution[Sym<REAL>(
-                            "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
-                        initial_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0;
                     }
 
                     initial_distribution[Sym<REAL>("Q")][px][0] =
@@ -288,20 +286,9 @@ void ParticleSystem::set_up_species()
                         cells.at(px);
                     initial_distribution[Sym<INT>("INTERNAL_STATE")][px][0] = s;
                     initial_distribution[Sym<REAL>("WEIGHT")][px][0] = weight;
-                    initial_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
-                                        [0] = 0.0;
-                    initial_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
-                        0.0;
+
                     initial_distribution[Sym<REAL>("ELECTRON_TEMPERATURE")][px]
-                                        [0] = 0.0;
-                    initial_distribution[Sym<REAL>("ELECTRON_SOURCE_ENERGY")]
-                                        [px][0] = 0.0;
-                    initial_distribution[Sym<REAL>("ELECTRON_SOURCE_DENSITY")]
-                                        [px][0] = 0.0;
-                    initial_distribution[Sym<REAL>("FLUID_DENSITY")][px][0] =
-                        0.0; // 1e18 m^-3
-                    initial_distribution[Sym<REAL>("FLUID_TEMPERATURE")][px]
-                                        [0] = 2.0; // eV
+                                        [0] = 2.0;
                 }
 
                 this->particle_group->add_particles_local(initial_distribution);
@@ -341,15 +328,19 @@ void ParticleSystem::setup_evaluate_fields(
     this->field_evaluate_ne =
         std::make_shared<FunctionEvaluateBasis<DisContField>>(
             ne, mesh, this->cell_id_translation);
+    this->ne = ne;
     if (Te)
     {
         this->field_evaluate_Te =
             std::make_shared<FunctionEvaluateBasis<DisContField>>(
                 Te, mesh, this->cell_id_translation);
+        this->Te = Te;
     }
     this->field_evaluate_ve =
         std::vector<std::shared_ptr<FunctionEvaluateBasis<DisContField>>>(
             this->ndim);
+    this->ve = ve;
+
     for (int d = 0; d < this->vdim; ++d)
     {
         if (ve[d])
@@ -359,6 +350,8 @@ void ParticleSystem::setup_evaluate_fields(
                     ve[d], mesh, this->cell_id_translation);
         }
     }
+    this->E = E;
+    this->B = B;
     for (int d = 0; d < 3; ++d)
     {
         this->field_evaluate_E.emplace_back(
@@ -381,17 +374,31 @@ void ParticleSystem::finish_setup(
     this->src_components = components;
     this->field_project  = std::make_shared<FieldProject<DisContField>>(
         src_fields, this->particle_group, this->cell_id_translation);
+}
+
+void ParticleSystem::diag_setup(
+    std::map<int, std::vector<std::shared_ptr<DisContField>>> &diag_fields,
+    std::vector<Sym<REAL>> &syms, std::vector<int> &components)
+{
+    this->diag_syms       = syms;
+    this->diag_components = components;
+
+    for (auto &[k, v] : this->species_map)
+    {
+        this->diagnostic_project[v.id] =
+            std::make_shared<FieldProject<DisContField>>(
+                diag_fields[v.id], this->particle_group,
+                this->cell_id_translation);
+    }
+}
+
+void ParticleSystem::output_setup(std::vector<Sym<REAL>> &syms)
+{
     init_output("particle_trajectory.h5part", Sym<REAL>("POSITION"),
                 Sym<INT>("INTERNAL_STATE"), Sym<INT>("CELL_ID"),
                 Sym<REAL>("VELOCITY"), Sym<REAL>("MAGNETIC_FIELD"),
-                Sym<REAL>("ELECTRON_DENSITY"), this->src_syms, Sym<INT>("ID"),
+                Sym<REAL>("ELECTRON_DENSITY"), syms, Sym<INT>("ID"),
                 Sym<REAL>("TOT_REACTION_RATE"));
-}
-
-void ParticleSystem::diag_setup(const std::shared_ptr<DisContField> &diag_field)
-{
-    this->diagnostic_project = std::make_shared<FieldProject<DisContField>>(
-        diag_field, this->particle_group, this->cell_id_translation);
 }
 
 template <typename RNG>
@@ -617,11 +624,6 @@ void ParticleSystem::add_sources(double time, double dt)
                         {
                             src_distribution[Sym<REAL>("VELOCITY")][px][dimx] =
                                 velocities[dimx][px];
-
-                            src_distribution[Sym<REAL>(
-                                "ELECTRON_SOURCE_MOMENTUM")][px][dimx] = 0.0;
-                            src_distribution[Sym<REAL>("FLUID_FLOW_SPEED")][px]
-                                            [dimx] = 0;
                         }
 
                         src_distribution[Sym<REAL>("Q")][px][0] =
@@ -637,17 +639,9 @@ void ParticleSystem::add_sources(double time, double dt)
                         src_distribution[Sym<REAL>("TOT_REACTION_RATE")][px]
                                         [0] = 0.0;
                         src_distribution[Sym<REAL>("ELECTRON_DENSITY")][px][0] =
-                            0.0;
+                            1.0;
                         src_distribution[Sym<REAL>("ELECTRON_TEMPERATURE")][px]
-                                        [0] = 0.0;
-                        src_distribution[Sym<REAL>("ELECTRON_SOURCE_ENERGY")]
-                                        [px][0] = 0.0;
-                        src_distribution[Sym<REAL>("ELECTRON_SOURCE_DENSITY")]
-                                        [px][0] = 0.0;
-                        src_distribution[Sym<REAL>("FLUID_DENSITY")][px][0] =
-                            0.0; // 1e18 m^-3
-                        src_distribution[Sym<REAL>("FLUID_TEMPERATURE")][px]
-                                        [0] = 2.0; // eV
+                                        [0] = 2.0;
                     }
 
                     this->particle_group->add_particles_local(src_distribution);
@@ -669,7 +663,6 @@ void ParticleSystem::add_sources(double time, double dt)
     this->sycl_target->profile_map.add_region(r);
     transfer_particles();
 }
-
 
 /**
  * @brief Evaluate and apply particle sinks.

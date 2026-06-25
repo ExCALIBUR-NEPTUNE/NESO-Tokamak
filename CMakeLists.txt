@@ -22,6 +22,7 @@ find_package(VANTAGE-Reactions REQUIRED)
 set(SRC_FILES
 src/EquationSystems/PlasmaSystem.cpp
 src/EquationSystems/MagneticField.cpp
+src/EquationSystems/NullSystem.cpp
 src/EquationSystems/SingleDiffusiveField.cpp
 src/EquationSystems/DoubleDiffusiveField.cpp
 src/EquationSystems/ReducedBraginskii.cpp

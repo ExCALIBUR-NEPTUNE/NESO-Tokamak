@@ -74,25 +74,27 @@ private:
 public:
     static inline const auto ionise_rate_data(
         double dens, double temp, double time,
+        std::map<int, std::string> &properties_map,
         const std::string &filename = "data/H.4_2.1.5.csv")
     {
         const auto h4_2_1_5_coeffs =
             fetch_amjuel_coeffs<num_coeffs_n, num_coeffs_T>(filename);
 
-        return AMJUEL2DData<num_coeffs_T, num_coeffs_n>(1.0, dens, temp, time,
-                                                        h4_2_1_5_coeffs);
+        return AMJUEL2DData<num_coeffs_T, num_coeffs_n>(
+            1.0, dens, temp, time, h4_2_1_5_coeffs, properties_map);
     }
 
     static inline const auto ionise_energy_data(
         double dens, double temp, double time, double vel,
+        std::map<int, std::string> &properties_map,
         const std::string &filename = "data/H.10_2.1.8.csv")
     {
         const auto h10_2_1_5_coeffs =
             fetch_amjuel_coeffs<num_coeffs_np, num_coeffs_T>(filename);
 
         return AMJUEL2DData<num_coeffs_T, num_coeffs_np>(
-            constants::mass_amu * vel * vel, dens, temp, time,
-            h10_2_1_5_coeffs);
+            constants::mass_amu * vel * vel, dens, temp, time, h10_2_1_5_coeffs,
+            properties_map);
     }
 
     // Charge Exchange
@@ -121,14 +123,14 @@ private:
 public:
     static inline const auto cx_rate_data(
         double parent_mass, double child_mass, double dens, double temp,
-        double time, double vel,
+        double time, double vel, std::map<int, std::string> &properties_map,
         const std::string &filename = "data/H.3_3.1.8.csv")
     {
         const auto h3_3_1_8_coeffs =
             fetch_amjuel_coeffs<num_coeffs_E, num_coeffs_T>(filename);
         return AMJUEL2DDataH3<num_coeffs_T, num_coeffs_E, 2>(
             1.0, dens, temp / child_mass, time, vel, parent_mass,
-            h3_3_1_8_coeffs);
+            h3_3_1_8_coeffs, properties_map);
     }
 
     static inline const auto amjuel_fit_cross_section(double reduced_mass,
@@ -146,22 +148,25 @@ public:
     // Recombination
     static inline const auto recomb_rate_data(
         double dens, double temp, double time,
+        std::map<int, std::string> &properties_map,
         const std::string &filename = "data/H.4_2.1.8.csv")
     {
         const auto h4_2_1_8_coeffs =
             fetch_amjuel_coeffs<num_coeffs_T, num_coeffs_n>(filename);
-        return AMJUEL2DData<num_coeffs_T, num_coeffs_n>(1.0, dens, temp, time,
-                                                        h4_2_1_8_coeffs);
+        return AMJUEL2DData<num_coeffs_T, num_coeffs_n>(
+            1.0, dens, temp, time, h4_2_1_8_coeffs, properties_map);
     }
 
     static inline const auto recomb_energy_data(
-         double dens, double temp, double time,double vel,
+        double dens, double temp, double time, double vel,
+        std::map<int, std::string> &properties_map,
         const std::string &filename = "data/H.10_2.1.8.csv")
     {
         const auto h10_2_1_8_coeffs =
             fetch_amjuel_coeffs<num_coeffs_T, num_coeffs_np>(filename);
         return AMJUEL2DData<num_coeffs_T, num_coeffs_np>(
-            constants::mass_amu * vel * vel, dens, temp, time, h10_2_1_8_coeffs);
+            constants::mass_amu * vel * vel, dens, temp, time, h10_2_1_8_coeffs,
+            properties_map);
     }
 };
 } // namespace PENKNIFE

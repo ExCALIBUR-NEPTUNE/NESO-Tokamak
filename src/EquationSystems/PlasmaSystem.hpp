@@ -12,9 +12,9 @@
 #include <SolverUtils/Forcing/Forcing.h>
 
 #include "../BoundaryConditions/PlasmaBndConds.hpp"
+#include "../Closures/Closure.hpp"
 #include "../Misc/Constants.hpp"
 #include "../ParticleSystems/ParticleSystem.hpp"
-#include "../Closures/Closure.hpp"
 #include "ImplicitHelper.hpp"
 #include "MagneticField.hpp"
 
@@ -147,8 +147,7 @@ protected:
      * particle evaluation/projection methods
      */
     std::vector<MR::DisContFieldSharedPtr> src_fields;
-    std::vector<int> components;
-    std::vector<Sym<REAL>> src_syms;
+    std::map<int, std::vector<MR::DisContFieldSharedPtr>> diag_fields;
 
     /// Bool to enable/disable growth rate recordings
     bool energy_enstrophy_recording_enabled;

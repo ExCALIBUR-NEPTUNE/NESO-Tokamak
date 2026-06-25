@@ -38,7 +38,7 @@ ReducedBraginskii::ReducedBraginskii(const LU::SessionReaderSharedPtr &session,
 void ReducedBraginskii::v_InitObject(bool DeclareFields)
 {
     PlasmaSystem::v_InitObject(DeclareFields);
-    this->ee_idx = m_indfields.size() - this->n_indep_fields;
+    this->ee_idx      = m_indfields.size() - this->n_indep_fields;
     m_varConv->ee_idx = this->ee_idx;
 
     std::string closureName;
@@ -73,6 +73,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
     {
         std::vector<Sym<REAL>> src_syms;
         std::vector<int> src_components;
+        std::vector<Sym<REAL>> out_syms;
 
         int cnt = 0;
         for (const auto &[s, v] : this->GetIons())
@@ -83,32 +84,29 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
             src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
             src_components.push_back(0);
             ni_src_idx.push_back(cnt++);
+            out_syms.push_back(Sym<REAL>(v.name + "_SOURCE_DENSITY"));
 
-            if (v.fields.find(field_to_index["v"]) != v.fields.end())
-            {
-                for (int d = 0; d < this->m_spacedim; ++d)
-                {
-                    this->src_fields.emplace_back(
-                        MemoryManager<MR::DisContField>::AllocateSharedPtr(
-                            *std::dynamic_pointer_cast<MR::DisContField>(
-                                m_fields[0])));
-                    src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_MOMENTUM"));
-                    src_components.push_back(d);
-                }
-                vi_src_idx.push_back(cnt);
-                cnt += m_spacedim;
-            }
-            if (v.fields.find(field_to_index["e"]) != v.fields.end())
+            for (int d = 0; d < this->m_spacedim; ++d)
             {
                 this->src_fields.emplace_back(
                     MemoryManager<MR::DisContField>::AllocateSharedPtr(
                         *std::dynamic_pointer_cast<MR::DisContField>(
                             m_fields[0])));
-
-                src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
-                src_components.push_back(0);
-                ei_src_idx.push_back(cnt++);
+                src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_MOMENTUM"));
+                src_components.push_back(d);
             }
+            vi_src_idx.push_back(cnt);
+            cnt += m_spacedim;
+            out_syms.push_back(Sym<REAL>(v.name + "_SOURCE_MOMENTUM"));
+
+            this->src_fields.emplace_back(
+                MemoryManager<MR::DisContField>::AllocateSharedPtr(
+                    *std::dynamic_pointer_cast<MR::DisContField>(m_fields[0])));
+
+            src_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
+            src_components.push_back(0);
+            ei_src_idx.push_back(cnt++);
+            out_syms.push_back(Sym<REAL>(v.name + "_SOURCE_ENERGY"));
         }
         this->src_fields.emplace_back(
             MemoryManager<MR::DisContField>::AllocateSharedPtr(
@@ -118,6 +116,7 @@ void ReducedBraginskii::v_InitObject(bool DeclareFields)
 
         this->particle_sys->finish_setup(this->src_fields, src_syms,
                                          src_components);
+        this->particle_sys->output_setup(out_syms);
     }
 }
 
@@ -649,8 +648,8 @@ void ReducedBraginskii::CalcNeutralSources_nvp(
         double exponent = 13.6 / ee[p];
         double krec     = 0.7e-19 * std::sqrt(exponent);
         double kIZ      = (2e-13 / (6 + 1.0 / exponent)) *
-                     std::sqrt(1.0 / exponent) * std::exp(-exponent);
-        double kCX = 3.2e-15 * std::sqrt(ei[p] / 0.026);
+                          std::sqrt(1.0 / exponent) * std::exp(-exponent);
+        double kCX      = 3.2e-15 * std::sqrt(ei[p] / 0.026);
 
         double SN = -kIZ * ne[p] * nn[p] + krec * ne[p] * ni[p];
 
@@ -698,8 +697,8 @@ void ReducedBraginskii::CalcNeutralSources_nv(
         double exponent = 13.6 / ee[p];
         double krec     = 0.7e-19 * std::sqrt(exponent);
         double kIZ      = (2e-13 / (6 + 1.0 / exponent)) *
-                     std::sqrt(1.0 / exponent) * std::exp(-exponent);
-        double kCX = 3.2e-15 * std::sqrt(2.0 / 0.026);
+                          std::sqrt(1.0 / exponent) * std::exp(-exponent);
+        double kCX      = 3.2e-15 * std::sqrt(2.0 / 0.026);
         // TODO use background temp instead of 2.0
 
         double SN = -kIZ * ne[p] * nn[p] + krec * ne[p] * ni[p];
@@ -738,8 +737,8 @@ void ReducedBraginskii::CalcNeutralSources_nv(
         double exponent = 13.6 / ee[p];
         double krec     = 0.7e-19 * std::sqrt(exponent);
         double kIZ      = (2e-13 / (6 + 1.0 / exponent)) *
-                     std::sqrt(1.0 / exponent) * std::exp(-exponent);
-        double kCX = 3.2e-15 * std::sqrt(ei[p] / 0.026);
+                          std::sqrt(1.0 / exponent) * std::exp(-exponent);
+        double kCX      = 3.2e-15 * std::sqrt(ei[p] / 0.026);
 
         double SN = -kIZ * ne[p] * nn[p] + krec * ne[p] * ni[p];
 
@@ -782,8 +781,8 @@ void ReducedBraginskii::CalcNeutralSources_np(
         double exponent = 13.6 / ee[p];
         double krec     = 0.7e-19 * std::sqrt(exponent);
         double kIZ      = (2e-13 / (6 + 1.0 / exponent)) *
-                     std::sqrt(1.0 / exponent) * std::exp(-exponent);
-        double kCX = 3.2e-15 * std::sqrt(ei[p] / 0.026);
+                          std::sqrt(1.0 / exponent) * std::exp(-exponent);
+        double kCX      = 3.2e-15 * std::sqrt(ei[p] / 0.026);
 
         double SN = -kIZ * ne[p] * nn[p] + krec * ne[p] * ni[p];
 
@@ -821,7 +820,7 @@ void ReducedBraginskii::CalcNeutralSources_n(
         double exponent = 13.6 / ee[p];
         double krec     = 0.7e-19 * std::sqrt(exponent);
         double kIZ      = (2e-13 / (6 + 1.0 / exponent)) *
-                     std::sqrt(1.0 / exponent) * std::exp(-exponent);
+                          std::sqrt(1.0 / exponent) * std::exp(-exponent);
 
         double SN = -kIZ * ne[p] * nn[p] + krec * ne[p] * ni[p];
 
@@ -1145,9 +1144,9 @@ void ReducedBraginskii::v_ExtraFldOutput(
     if (this->particles_enabled)
     {
         int cnt = 0;
-        for (auto &[k, v] : this->particle_sys->get_species())
+        for (auto &[k, v] : this->GetIons())
         {
-            variables.emplace_back(k + "_SOURCE_DENSITY");
+            variables.emplace_back(v.name + "_SOURCE_DENSITY");
             Array<OneD, NekDouble> SrcFwd1(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[cnt++]->GetPhys(),
                                            SrcFwd1);
@@ -1155,7 +1154,7 @@ void ReducedBraginskii::v_ExtraFldOutput(
 
             for (int d = 0; d < this->m_spacedim; ++d)
             {
-                variables.emplace_back(k + "_SOURCE_MOMENTUM" +
+                variables.emplace_back(v.name + "_SOURCE_MOMENTUM" +
                                        std::to_string(d));
                 Array<OneD, NekDouble> SrcFwd(nCoeffs);
                 m_fields[0]->FwdTransLocalElmt(
@@ -1163,7 +1162,7 @@ void ReducedBraginskii::v_ExtraFldOutput(
                 fieldcoeffs.emplace_back(SrcFwd);
             }
 
-            variables.emplace_back(k + "_SOURCE_ENERGY");
+            variables.emplace_back(v.name + "_SOURCE_ENERGY");
             Array<OneD, NekDouble> SrcFwd2(nCoeffs);
             m_fields[0]->FwdTransLocalElmt(this->src_fields[cnt++]->GetPhys(),
                                            SrcFwd2);
