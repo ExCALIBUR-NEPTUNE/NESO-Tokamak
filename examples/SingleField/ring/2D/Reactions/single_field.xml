@@ -14,7 +14,7 @@
         <SOLVERINFO>
             <I PROPERTY="EQTYPE"                       VALUE="SingleDiffusiveField"/>
             <I PROPERTY="PARTTYPE"                      VALUE="ReactionSystem"/>
-            <I PROPERTY="Projection"                   VALUE="Continuous" />
+            <I PROPERTY="Projection"                   VALUE="DisContinuous" />
             <!-- <I PROPERTY="LinSysIterSolverTypeInNonlin" VALUE="GMRES"         /> -->
             <!-- <I PROPERTY="UpwindType"                   VALUE="Upwind"        /> -->
             <I PROPERTY="DiffusionAdvancement"          VALUE="Implicit"/>
@@ -92,15 +92,19 @@
         </FUNCTION>
     </CONDITIONS>
     <NESO>
+        <BOUNDARYREGIONS>
+            <B ID="1"> C[1] </B> <!-- Inner -->
+            <B ID="2"> C[2] </B> <!-- Outer -->
+        </BOUNDARYREGIONS>
         <SPECIES>
-            <I NAME="D+" FIELDS="n">
+            <I NAME="D" FIELDS="n">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">
                     <E VAR="n"  DOMAIN="0" VALUE="1+0.1*exp((-(x-rc-rs)*(x-rc-rs)/(sr*sr))+(-(y-yc-ys)*(y-yc-ys)/(sy*sy)))" />
                 </FUNCTION>
             </I>
-            <I NAME="T+" FIELDS="n">
+            <I NAME="T" FIELDS="n">
                 <P> Mass = 1.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">

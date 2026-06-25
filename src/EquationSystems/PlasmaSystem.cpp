@@ -408,6 +408,11 @@ void PlasmaSystem::v_DoSolve()
     // Initialise time integration scheme.
     m_intScheme->InitializeScheme(m_timestep, fields, m_time, m_ode);
 
+    for (auto &x : m_filters)
+    {
+        x.second->Initialise(m_fields, m_time);
+    }
+
     LibUtilities::Timer timer;
     bool doCheckTime      = false;
     int step              = m_initialStep;
@@ -627,9 +632,6 @@ bool PlasmaSystem::v_PreIntegrate(int step)
 
     if (this->particles_enabled)
     {
-        // Integrate the particle system to the requested time.
-        this->particle_sys->evaluate_fields(this->E, this->B, this->ne,
-                                            this->Te, this->ve);
         if (particle_output_freq > 0 && (step % particle_output_freq) == 0)
         {
             this->particle_sys->write(step);

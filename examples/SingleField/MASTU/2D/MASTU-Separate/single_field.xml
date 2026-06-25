@@ -90,8 +90,11 @@
     </CONDITIONS>
 
     <NESO>
+            <BOUNDARYREGIONS>
+            <B ID="3"> C[3] </B>
+        </BOUNDARYREGIONS>
         <SPECIES>
-            <I NAME="D+" FIELDS="n">
+            <I NAME="D" FIELDS="n">
                 <P> Mass = 2.0 </P>
                 <P> Charge = 1.0 </P>
                 <FUNCTION NAME="InitialConditions">

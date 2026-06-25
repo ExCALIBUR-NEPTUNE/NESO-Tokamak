@@ -72,6 +72,8 @@ public:
     void finish_setup(std::vector<std::shared_ptr<DisContField>> &src_fields,
                       std::vector<Sym<REAL>> &syms,
                       std::vector<int> &components) override;
+    void output_setup(std::vector<Sym<REAL>> &syms) override;
+
 
     class ReactionsBoundary
     {
