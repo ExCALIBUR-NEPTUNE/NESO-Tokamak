@@ -1,7 +1,7 @@
 #ifndef ELECTROSTATICTURBULENCE_HPP
 #define ELECTROSTATICTURBULENCE_HPP
 #include "../Advection/OmegaAdvection.h"
-//#include "../Diffusion/DiffusionLDGET.hpp"
+// #include "../Diffusion/DiffusionLDGET.hpp"
 #include "../Misc/VariableConverter.hpp"
 #include "PlasmaSystem.hpp"
 
@@ -57,6 +57,9 @@ protected:
     void AddDriftVelocities(const Array<OneD, Array<OneD, NekDouble>> &inarray,
                             [[maybe_unused]] Array<OneD, Array<OneD, NekDouble>>
                                 &outarray = NullNekDoubleArrayOfArray);
+
+    void AddForces(const Array<OneD, Array<OneD, NekDouble>> &inarray,
+                   Array<OneD, Array<OneD, NekDouble>> &outarray);
     void CalcOmegaFlux(const Array<OneD, Array<OneD, NekDouble>> &inarray,
                        Array<OneD, Array<OneD, NekDouble>> &omega_flux,
                        Array<OneD, NekDouble> &omega_flux_trace);
