@@ -156,7 +156,7 @@ void NullSystem::DoOdeRhs(
 
     if (this->particles_enabled)
     {
-        DoParticles(inarray, outarray);
+        //DoParticles(inarray, outarray);
     }
 
     // Add forcing terms
