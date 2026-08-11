@@ -1408,9 +1408,9 @@ void ElectrostaticTurbulence::DoDiffusionCoeff(
 
     for (int i = 0; i < nvariables; ++i)
     {
-        inarrayDiff[i] = Array<OneD, NekDouble>{this->n_pts};
-        inFwd[i]       = Array<OneD, NekDouble>{nTracePts};
-        inBwd[i]       = Array<OneD, NekDouble>{nTracePts};
+        inarrayDiff[i] = Array<OneD, NekDouble>(this->n_pts);
+        inFwd[i]       = Array<OneD, NekDouble>(nTracePts);
+        inBwd[i]       = Array<OneD, NekDouble>(nTracePts);
     }
 
     // Extract temperature
